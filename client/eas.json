@@ -7,7 +7,7 @@
     "production": {
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://fintech-app-bm4c.onrender.com/api",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "460100899268-abujkciuff3dfv5h05gg6thh82ran925.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "460100899268-a1s1dshp90e3u3mora1fg5phu3id0ka2.apps.googleusercontent.com"
       },
       "android": {
         "buildType": "app-bundle"

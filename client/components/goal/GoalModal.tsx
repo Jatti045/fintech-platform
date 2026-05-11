@@ -16,6 +16,7 @@ import IconSelectorModal from "@/components/budget/IconSelectorModal";
 import type { IGoal } from "@/types/goal/types";
 import Loader from "@/utils/loader";
 import useGoalOperation from "@/hooks/goal/useGoalOperation";
+import PresetChips from "@/components/global/PresetChips";
 
 interface GoalModalProps {
   openSheet: boolean;
@@ -123,6 +124,8 @@ function GoalModal({
                 style={{
                   backgroundColor: THEME.inputBackground,
                   color: THEME.textPrimary,
+                    borderColor: THEME.border,
+                    borderWidth: 1,
                 }}
               />
               <Text
@@ -142,6 +145,8 @@ function GoalModal({
                 className="py-3 px-3 rounded-md"
                 style={{
                   backgroundColor: THEME.inputBackground,
+                    borderColor: THEME.border,
+                    borderWidth: 1,
                 }}
               >
                 <Text
@@ -209,6 +214,8 @@ function GoalModal({
               >
                 Tip: Set a realistic target amount you can reach over time.
               </Text>
+                {/* preset chips */}
+                <PresetChips selected={goalTarget} setSelected={setGoalTarget} />
             </View>
 
             <View className="mt-6">

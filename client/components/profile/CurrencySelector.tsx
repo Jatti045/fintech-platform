@@ -20,7 +20,7 @@ export default function CurrencySelector({
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={onPress}
-      style={{ backgroundColor: THEME.surface }}
+      style={{ backgroundColor: THEME.surface, borderColor: THEME.border, borderWidth: 1 }}
       className="p-4 rounded-xl mb-3"
     >
       <View

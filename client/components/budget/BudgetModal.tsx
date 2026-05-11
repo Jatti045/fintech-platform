@@ -16,6 +16,7 @@ import Loader from "@/utils/loader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import IconSelectorModal from "./IconSelectorModal";
 import { getCurrencySymbol } from "@/constants/Currencies";
+import PresetChips from "@/components/global/PresetChips";
 
 function BudgetModal({
   openSheet,
@@ -127,6 +128,8 @@ function BudgetModal({
                 style={{
                   backgroundColor: THEME.inputBackground,
                   color: THEME.textPrimary,
+                  borderColor: THEME.border,
+                  borderWidth: 1,
                 }}
               />
               <Text
@@ -146,7 +149,7 @@ function BudgetModal({
               <TouchableOpacity
                 onPress={() => setOpenIconSelector(true)}
                 className="py-3 px-3 rounded-md"
-                style={{ backgroundColor: THEME.inputBackground }}
+                style={{ backgroundColor: THEME.inputBackground, borderColor: THEME.border, borderWidth: 1 }}
               >
                 <Text
                   style={{
@@ -218,44 +221,8 @@ function BudgetModal({
                 limit.
               </Text>
 
-              {/* Preset chips */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingVertical: 8, gap: 8 }}
-              >
-                {[25, 50, 100, 200, 500].map((n) => (
-                  <TouchableOpacity
-                    key={n}
-                    activeOpacity={0.8}
-                    onPress={() => setLimit(String(n))}
-                    style={{
-                      backgroundColor:
-                        String(limit) === String(n)
-                          ? THEME.primary
-                          : THEME.surface,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      borderRadius: 20,
-                      borderWidth: 1,
-                      borderColor: THEME.border,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color:
-                          String(limit) === String(n)
-                            ? THEME.textPrimary
-                            : THEME.textSecondary,
-                        fontWeight: "600",
-                      }}
-                    >
-                      {currencySymbol}
-                      {n}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              {/* preset chips */}
+              <PresetChips selected={limit} setSelected={setLimit} />
               <Text
                 style={{ color: THEME.textSecondary, marginTop: 2 }}
                 className="text-xs"

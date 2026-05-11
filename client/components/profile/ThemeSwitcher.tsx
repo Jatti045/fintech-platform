@@ -15,7 +15,7 @@ export default function ThemeSwitcher({
 }: ThemeSwitcherProps) {
   return (
     <View
-      style={{ backgroundColor: THEME.surface }}
+      style={{ backgroundColor: THEME.surface, borderColor: THEME.border, borderWidth: 1 }}
       className="p-4 rounded-xl mb-3"
     >
       <Text

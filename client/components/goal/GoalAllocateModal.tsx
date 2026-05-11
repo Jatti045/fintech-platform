@@ -13,6 +13,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/hooks/useRedux";
 import ModalCloseButton from "@/components/global/modalCloseButton";
 import useGoalOperation from "@/hooks/goal/useGoalOperation";
+import PresetChips from "@/components/global/PresetChips";
+import Loader from "@/utils/loader";
 
 
 interface GoalAllocateModalProps {
@@ -37,16 +39,11 @@ function GoalAllocateModal({
     const [allocateAmount, setAllocateAmount] = useState("");
   const isAllocate = mode === "allocate";
   const title = isAllocate ? "Allocate to Goal" : "Withdraw from Goal";
-  const buttonText = isAllocate
-    ? saving
-      ? "Allocating..."
-      : "Allocate"
-    : saving
-      ? "Withdrawing..."
-      : "Withdraw";
+  const buttonText = isAllocate? "Allocate" : "Withdraw";
   const modalHeight = getModalHeight();
 
   const onSubmit = () => handleSubmitAllocation(allocateAmount, goalToAllocate, mode, handleAllocateModalClose);
+
 
   return (
     <Modal
@@ -123,6 +120,7 @@ function GoalAllocateModal({
                   }}
                 />
               </View>
+                <PresetChips selected={allocateAmount} setSelected={setAllocateAmount} />
             </View>
 
             <View className="mt-6">
@@ -149,6 +147,7 @@ function GoalAllocateModal({
               </TouchableOpacity>
             </View>
           </ScrollView>
+            {saving && <Loader msg="Saving goal..." />}
         </SafeAreaView>
       </View>
     </Modal>

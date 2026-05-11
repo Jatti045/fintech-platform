@@ -16,7 +16,7 @@ export default function SettingsList({ THEME, items }: SettingsListProps) {
           onPress={item.onPress}
           accessibilityRole="button"
           accessibilityLabel={item.title}
-          style={{ backgroundColor: THEME.surface }}
+          style={{ backgroundColor: THEME.surface, borderColor: THEME.border, borderWidth: 1 }}
           className="flex-row items-center justify-between p-4 rounded-xl mb-3"
         >
           <Text
