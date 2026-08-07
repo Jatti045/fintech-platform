@@ -24,7 +24,6 @@ import org.springframework.util.StringUtils;
 public class JwtService {
 
 	private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
-	private static final long TOKEN_TTL_SECONDS = 24 * 60 * 60L;
 
 	@Value("${app.jwt.secret-key:}")
 	private String secretKey;
@@ -41,17 +40,14 @@ public class JwtService {
 
 		try {
 			long issuedAt = Instant.now().getEpochSecond();
-			long expiresAt = issuedAt + TOKEN_TTL_SECONDS;
 
 			String headerJson = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
 			String payloadJson = String.format(
 					Locale.ROOT,
-					"{\"userId\":\"%s\",\"email\":\"%s\",\"iat\":%d,\"exp\":%d}",
+					"{\"userId\":\"%s\",\"email\":\"%s\",\"iat\":%d}",
 					escapeJsonString(userId),
 					escapeJsonString(email),
-					issuedAt,
-					expiresAt
-			);
+					issuedAt);
 
 			String encodedHeader = Base64.getUrlEncoder().withoutPadding()
 					.encodeToString(headerJson.getBytes(StandardCharsets.UTF_8));
@@ -60,7 +56,8 @@ public class JwtService {
 			String signature = sign(encodedHeader + "." + encodedPayload);
 			return encodedHeader + "." + encodedPayload + "." + signature;
 		} catch (GeneralSecurityException exception) {
-			throw new TokenAuthenticationException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate token.", exception);
+			throw new TokenAuthenticationException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to generate token.",
+					exception);
 		}
 	}
 
@@ -87,17 +84,12 @@ public class JwtService {
 			String userId = extractStringClaim(payloadJson, "userId");
 			String email = extractStringClaim(payloadJson, "email");
 			Long issuedAt = extractLongClaim(payloadJson, "iat");
-			Long expiresAt = extractLongClaim(payloadJson, "exp");
 
-			if (!StringUtils.hasText(userId) || !StringUtils.hasText(email) || issuedAt == null || expiresAt == null) {
+			if (!StringUtils.hasText(userId) || !StringUtils.hasText(email) || issuedAt == null) {
 				throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Invalid token payload.");
 			}
 
-			if (expiresAt <= Instant.now().getEpochSecond()) {
-				throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Token has expired.");
-			}
-
-			return new AuthenticatedUser(userId, email, issuedAt, expiresAt);
+			return new AuthenticatedUser(userId, email, issuedAt);
 		} catch (IllegalArgumentException | GeneralSecurityException exception) {
 			throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Invalid token.", exception);
 		}
@@ -145,7 +137,8 @@ public class JwtService {
 	}
 
 	private String extractStringClaim(String json, String claimName) {
-		Matcher matcher = Pattern.compile("\\\"" + Pattern.quote(claimName) + "\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"")
+		Matcher matcher = Pattern
+				.compile("\\\"" + Pattern.quote(claimName) + "\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"")
 				.matcher(json);
 		if (!matcher.find()) {
 			return null;
@@ -176,5 +169,3 @@ public class JwtService {
 				.replace("\\t", "\t");
 	}
 }
-
-
