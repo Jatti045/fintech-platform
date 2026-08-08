@@ -9,11 +9,14 @@ import { loadThemeFromStorage } from "@/store/slices/themeSlice";
 import { AlertProvider } from "@/utils/themedAlert";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AppErrorBoundary from "@/components/global/AppErrorBoundary";
+import { useNotifications } from "@/hooks/useNotifications";
 
 function AppRoutes() {
   const dispatch = useAppDispatch();
   const { THEME } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
+
+  useNotifications();
 
   function SplashScreen() {
     return (

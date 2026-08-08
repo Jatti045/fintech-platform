@@ -2,7 +2,7 @@ import {Text, TouchableOpacity, View} from "react-native";
 import Svg, {Path} from "react-native-svg";
 import React, {useEffect} from "react";
 import {useAppDispatch, useTheme} from "@/hooks/useRedux";
-import {GoogleSignin} from "@react-native-google-signin/google-signin";
+// import {GoogleSignin} from "@react-native-google-signin/google-signin";
 import {googleAuth} from "@/store/slices/userSlice";
 import {useThemedAlert} from "@/utils/themedAlert";
 import {router} from "expo-router";
@@ -12,31 +12,31 @@ export default function GoogleAuthButton() {
     const {showAlert} = useThemedAlert();
     const dispatch = useAppDispatch()
 
-    const signInWithGoogle = async () => {
-        await GoogleSignin.hasPlayServices();
-        const userInfo = await GoogleSignin.signIn();
-        const idToken = userInfo.data?.idToken?.toString();
+    // const signInWithGoogle = async () => {
+    //     await GoogleSignin.hasPlayServices();
+    //     const userInfo = await GoogleSignin.signIn();
+    //     const idToken = userInfo.data?.idToken?.toString();
 
-        if (idToken === undefined) {
-            return;
-        }
+    //     if (idToken === undefined) {
+    //         return;
+    //     }
 
-        const payload = await dispatch(googleAuth(idToken)).unwrap();
-        if (payload?.success) {
-            router.push("/(tabs)");
-        } else {
-            showAlert({
-                title: "Error",
-                message: payload.message || "Something went wrong",
-            })
-        }
-    };
+    //     const payload = await dispatch(googleAuth(idToken)).unwrap();
+    //     if (payload?.success) {
+    //         router.push("/(tabs)");
+    //     } else {
+    //         showAlert({
+    //             title: "Error",
+    //             message: payload.message || "Something went wrong",
+    //         })
+    //     }
+    // };
 
-    useEffect(() => {
-        GoogleSignin.configure({
-            webClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-        })
-    }, []);
+    // useEffect(() => {
+    //     GoogleSignin.configure({
+    //         webClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    //     })
+    // }, []);
 
     return (
      <View className={"mt-6"}>
@@ -53,7 +53,8 @@ export default function GoogleAuthButton() {
         backgroundColor: THEME.inputBackground,
     }
     }
-                      onPress={signInWithGoogle} activeOpacity={0.8} className={"py-4 px-5 rounded-full"}>
+                      //onPress={signInWithGoogle} 
+                      activeOpacity={0.8} className={"py-4 px-5 rounded-full"}>
         <View className={"flex-row items-center justify-center gap-5"}>
             <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
                 <Path

@@ -5,6 +5,7 @@ import themeReducer from "./slices/themeSlice";
 import budgetReducer from "./slices/budgetSlice";
 import calendarReducer from "./slices/calendarSlice";
 import goalReducer from "./slices/goalSlice";
+import notificationReducer from "./slices/notificationSlice";
 
 // Configure the store
 export const store = configureStore({
@@ -15,6 +16,7 @@ export const store = configureStore({
     goal: goalReducer,
     calendar: calendarReducer,
     theme: themeReducer,
+    notifications: notificationReducer,
     // Add more reducers here as you build other features
     // budgets: budgetReducer,
     // categories: categoryReducer,

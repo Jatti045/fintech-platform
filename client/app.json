@@ -21,8 +21,14 @@
       "edgeToEdgeEnabled": true,
       "package": "com.budgee.finance",
       "versionCode": 36,
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "CAMERA"],
-      "blockedPermissions": ["RECORD_AUDIO"]
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "CAMERA"
+      ],
+      "blockedPermissions": [
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +44,15 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ffffff",
+          "defaultChannel": "purchase-reminders"
         }
       ]
     ],

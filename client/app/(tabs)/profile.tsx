@@ -15,6 +15,7 @@ import ProfileHeader from "@/components/profile/ProfileHeader";
 import ThemeSwitcher from "@/components/profile/ThemeSwitcher";
 import CurrencySelector from "@/components/profile/CurrencySelector";
 import SettingsList from "@/components/profile/SettingsList";
+import NotificationPreference from "@/components/profile/NotificationPreference";
 import ChangePasswordModal from "@/components/profile/ChangePasswordModal";
 import CurrencyPickerModal from "@/components/profile/CurrencyPickerModal";
 
@@ -43,6 +44,9 @@ export default function ProfileScreen() {
     handleChangePassword,
     pwSaving,
     settingsItems,
+    purchaseRemindersEnabled,
+    notificationPermissionDenied,
+    handleTogglePurchaseReminders,
   } = useProfile();
 
   return (
@@ -85,6 +89,13 @@ export default function ProfileScreen() {
             THEME={THEME}
             selectedTheme={selectedTheme}
             onThemeSelect={handleThemeSelect}
+          />
+
+          <NotificationPreference
+            THEME={THEME}
+            enabled={purchaseRemindersEnabled}
+            permissionDenied={notificationPermissionDenied}
+            onToggle={handleTogglePurchaseReminders}
           />
 
           <CurrencySelector

@@ -87,3 +87,14 @@ export const useCalendar = () => {
 export const useTheme = () => {
   return useAppSelector((state) => state.theme);
 };
+
+// Custom hook for notification preference state selection
+export const useNotificationPreferences = () => {
+  return useAppSelector((state) => ({
+    purchaseRemindersEnabled: state.notifications.purchaseRemindersEnabled,
+    timezone: state.notifications.timezone,
+    loaded: state.notifications.loaded,
+    permissionStatus: state.notifications.permissionStatus,
+  }));
+};
+

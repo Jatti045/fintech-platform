@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { router } from "expo-router";
 
-import { useAppDispatch, useAuth, useCalendar, useTheme } from "@/hooks/useRedux";
+import { useAppDispatch, useAppSelector, useAuth, useCalendar, useTheme } from "@/hooks/useRedux";
 import {
   deleteUserAccount,
   logoutUser,
@@ -18,6 +18,13 @@ import {
   loadUserFromStorage,
 } from "@/store/slices/userSlice";
 import { setTheme } from "@/store/slices/themeSlice";
+import {
+  persistNotificationPreferences,
+  setPurchaseRemindersEnabled,
+  selectNotificationTimezone,
+  selectPurchaseRemindersEnabled,
+  selectNotificationPermissionStatus,
+} from "@/store/slices/notificationSlice";
 import { userAPI } from "@/api/user";
 
 import { useThemedAlert } from "@/utils/themedAlert";
@@ -78,6 +85,12 @@ export interface UseProfileReturn {
 
   /** Settings list items (log out, change pw, delete) */
   settingsItems: SettingsItem[];
+
+  /** Purchase-reminder preference state + toggle handler */
+  purchaseRemindersEnabled: boolean;
+  /** True when notifications are not permitted on this device */
+  notificationPermissionDenied: boolean;
+  handleTogglePurchaseReminders: (enabled: boolean) => void;
 }
 
 // ─── Hook Implementation ────────────────────────────────────────────────────
@@ -99,6 +112,24 @@ export function useProfile(): UseProfileReturn {
   const [monthlyIncomeSaving, setMonthlyIncomeSaving] = useState(false);
   const [monthlyIncomeInput, setMonthlyIncomeInput] = useState("");
   const selectedMonthLabel = `${calendar.year}-${String(calendar.month + 1).padStart(2, "0")}`;
+
+  // ── notification preference state ─────────────────────────────────────────
+  const purchaseRemindersEnabled = useAppSelector(selectPurchaseRemindersEnabled);
+  const notificationTimezone = useAppSelector(selectNotificationTimezone);
+  const permissionStatus = useAppSelector(selectNotificationPermissionStatus);
+  const notificationPermissionDenied = permissionStatus === "denied";
+
+  const handleTogglePurchaseReminders = useCallback(
+    (value: boolean) => {
+      dispatch(setPurchaseRemindersEnabled(value));
+      // Persist alongside the current timezone to keep stored prefs consistent.
+      void persistNotificationPreferences({
+        purchaseRemindersEnabled: value,
+        timezone: notificationTimezone,
+      });
+    },
+    [dispatch, notificationTimezone],
+  );
 
   const loadMonthlyIncomeForSelectedMonth = useCallback(async () => {
     if (!user?.id) {
@@ -480,5 +511,8 @@ export function useProfile(): UseProfileReturn {
     handleChangePassword,
     pwSaving,
     settingsItems,
+    purchaseRemindersEnabled,
+    notificationPermissionDenied,
+    handleTogglePurchaseReminders,
   };
 }
