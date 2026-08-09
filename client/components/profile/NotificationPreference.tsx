@@ -5,6 +5,8 @@ import { Feather } from "@expo/vector-icons";
 import { hexToRgba } from "@/utils/helper";
 import type { ITheme } from "@/types/theme/types";
 
+import GlassPanel from "@/components/global/GlassPanel";
+
 interface NotificationPreferenceProps {
   THEME: ITheme;
   enabled: boolean;
@@ -24,16 +26,7 @@ export default function NotificationPreference({
   onToggle,
 }: NotificationPreferenceProps) {
   return (
-    <View
-      style={{
-        backgroundColor: hexToRgba(THEME.surface, 0.6),
-        borderColor: THEME.border,
-        borderWidth: 1,
-        borderRadius: 18,
-        padding: 14,
-        marginBottom: 12,
-      }}
-    >
+    <GlassPanel padding={14} radius={18} style={{ marginBottom: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <View
           style={{
@@ -49,10 +42,23 @@ export default function NotificationPreference({
           <Feather name="bell" size={17} color={THEME.primary} />
         </View>
         <View style={{ flex: 1, paddingRight: 8 }}>
-          <Text style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "800" }}>
+          <Text
+            style={{
+              color: THEME.textPrimary,
+              fontSize: 15,
+              fontWeight: "800",
+            }}
+          >
             Purchase Reminders
           </Text>
-          <Text style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 16 }}>
+          <Text
+            style={{
+              color: THEME.textSecondary,
+              fontSize: 12,
+              marginTop: 2,
+              lineHeight: 16,
+            }}
+          >
             {permissionDenied
               ? "Notifications are off for Budgee in device settings, so reminders won’t be delivered."
               : "A gentle nudge at 12 PM and 6 PM to log your purchases."}
@@ -65,6 +71,6 @@ export default function NotificationPreference({
           thumbColor={THEME.surface}
         />
       </View>
-    </View>
+    </GlassPanel>
   );
 }

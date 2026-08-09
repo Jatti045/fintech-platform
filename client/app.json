@@ -20,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.budgee.finance",
-      "versionCode": 40,
+      "versionCode": 41,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
