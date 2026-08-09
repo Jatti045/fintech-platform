@@ -1,28 +1,21 @@
 import React from "react";
 import { Switch, Text, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 
+import { hexToRgba } from "@/utils/helper";
 import type { ITheme } from "@/types/theme/types";
 
 interface NotificationPreferenceProps {
   THEME: ITheme;
   enabled: boolean;
-  /**
-   * Whether notifications are currently not permitted on this device (e.g.
-   * the user denied permission). Kept informational only — the switch stays
-   * usable so the user is never blocked, but we explain why reminders won't
-   * be delivered until notifications are enabled in device settings.
-   */
   permissionDenied: boolean;
   onToggle: (enabled: boolean) => void;
 }
 
 /**
- * Renders the purchase-reminder preference row in the Profile settings.
- * A simple master switch: on schedules the daily reminders, off cancels them.
- *
- * The switch is always interactive. When notifications aren't permitted we
- * show a hint instead of disabling it, so the user can still manage their
- * preference and is guided to re-enable notifications in device settings.
+ * Renders the purchase-reminder preference on a subtle glass surface with a
+ * switch. Self-contained (uses the passed THEME prop) so it stays simple and
+ * easy to test.
  */
 export default function NotificationPreference({
   THEME,
@@ -33,23 +26,36 @@ export default function NotificationPreference({
   return (
     <View
       style={{
-        backgroundColor: THEME.inputBackground,
+        backgroundColor: hexToRgba(THEME.surface, 0.6),
         borderColor: THEME.border,
+        borderWidth: 1,
+        borderRadius: 18,
+        padding: 14,
+        marginBottom: 12,
       }}
-      className="rounded-2xl p-4 border mb-4"
     >
-      <View className="flex-row items-center justify-between">
-        <View className="flex-1 pr-4">
-          <Text
-            style={{ color: THEME.textPrimary }}
-            className="text-base font-semibold"
-          >
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            backgroundColor: hexToRgba(THEME.primary, 0.14),
+            alignItems: "center",
+            justifyContent: "center",
+            marginRight: 12,
+          }}
+        >
+          <Feather name="bell" size={17} color={THEME.primary} />
+        </View>
+        <View style={{ flex: 1, paddingRight: 8 }}>
+          <Text style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "800" }}>
             Purchase Reminders
           </Text>
-          <Text style={{ color: THEME.textSecondary }} className="mt-1 text-sm">
+          <Text style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 16 }}>
             {permissionDenied
-              ? "Notifications are turned off for Budgee in your device settings, so reminders won't be delivered."
-              : "Get a gentle reminder at 12&nbsp;PM and 6&nbsp;PM to log your purchases."}
+              ? "Notifications are off for Budgee in device settings, so reminders won’t be delivered."
+              : "A gentle nudge at 12 PM and 6 PM to log your purchases."}
           </Text>
         </View>
         <Switch

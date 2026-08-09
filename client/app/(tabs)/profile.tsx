@@ -4,8 +4,6 @@ import {
   Text,
   ScrollView,
   RefreshControl,
-  TextInput,
-  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useProfile } from "@/hooks/profile/useProfile";
@@ -16,6 +14,7 @@ import ThemeSwitcher from "@/components/profile/ThemeSwitcher";
 import CurrencySelector from "@/components/profile/CurrencySelector";
 import SettingsList from "@/components/profile/SettingsList";
 import NotificationPreference from "@/components/profile/NotificationPreference";
+import MonthlyIncome from "@/components/profile/MonthlyIncome";
 import ChangePasswordModal from "@/components/profile/ChangePasswordModal";
 import CurrencyPickerModal from "@/components/profile/CurrencyPickerModal";
 
@@ -57,7 +56,7 @@ export default function ProfileScreen() {
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
-        className="flex-1 px-6"
+        className="flex-1 px-4"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -67,6 +66,17 @@ export default function ProfileScreen() {
           />
         }
       >
+        {/* Screen title */}
+        <View style={{ paddingTop: 12, marginBottom: 4 }}>
+          <Text
+            style={{ color: THEME.textPrimary }}
+            className="text-2xl font-bold"
+          >
+            Profile
+          </Text>
+        </View>
+
+        {/* Identity deck */}
         <ProfileHeader
           THEME={THEME}
           user={user}
@@ -76,85 +86,54 @@ export default function ProfileScreen() {
           onDeleteImage={handleDeleteImage}
         />
 
-        {/* Settings */}
-        <View className="mb-8">
-          <Text
-            style={{ color: THEME.textPrimary }}
-            className="text-xl font-bold mb-4"
-          >
-            Settings
-          </Text>
+        {/* Preferences */}
+        <Text
+          style={{
+            color: THEME.textSecondary,
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 0.6,
+            textTransform: "uppercase",
+            marginBottom: 8,
+            marginTop: 4,
+          }}
+        >
+          Preferences
+        </Text>
 
-          <ThemeSwitcher
-            THEME={THEME}
-            selectedTheme={selectedTheme}
-            onThemeSelect={handleThemeSelect}
-          />
+        <ThemeSwitcher
+          THEME={THEME}
+          selectedTheme={selectedTheme}
+          onThemeSelect={handleThemeSelect}
+        />
 
-          <NotificationPreference
-            THEME={THEME}
-            enabled={purchaseRemindersEnabled}
-            permissionDenied={notificationPermissionDenied}
-            onToggle={handleTogglePurchaseReminders}
-          />
+        <CurrencySelector
+          THEME={THEME}
+          userCurrency={user?.currency || DEFAULT_CURRENCY}
+          onPress={() => setCurrencyPickerOpen(true)}
+        />
 
-          <CurrencySelector
-            THEME={THEME}
-            userCurrency={user?.currency || DEFAULT_CURRENCY}
-            onPress={() => setCurrencyPickerOpen(true)}
-          />
+        <NotificationPreference
+          THEME={THEME}
+          enabled={purchaseRemindersEnabled}
+          permissionDenied={notificationPermissionDenied}
+          onToggle={handleTogglePurchaseReminders}
+        />
 
-          <View
-            style={{
-              backgroundColor: THEME.inputBackground,
-              borderColor: THEME.border,
-            }}
-            className="rounded-2xl p-4 border mb-4"
-          >
-            <Text
-              style={{ color: THEME.textPrimary }}
-              className="text-base font-semibold mb-2"
-            >
-              Monthly Income
-            </Text>
-            <Text style={{ color: THEME.textSecondary }} className="mb-3">
-              Set your monthly income to see net spending when creating
-              transactions.
-            </Text>
-            <Text style={{ color: THEME.textSecondary }} className="mb-3">
-              Viewing income for {selectedMonthLabel}.
-            </Text>
-            <TextInput
-              value={monthlyIncomeInput}
-              onChangeText={setMonthlyIncomeInput}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              placeholderTextColor={THEME.placeholderText}
-              style={{
-                backgroundColor: THEME.background,
-                borderColor: THEME.border,
-                color: THEME.textPrimary,
-              }}
-              className="border rounded-lg px-3 py-3 mb-3"
-            />
-            <TouchableOpacity
-              onPress={handleSaveMonthlyIncome}
-              disabled={monthlyIncomeSaving}
-              style={{
-                backgroundColor: monthlyIncomeSaving
-                  ? THEME.border
-                  : THEME.primary,
-              }}
-              className="rounded-lg py-3 items-center"
-            >
-              <Text style={{ color: "white", fontWeight: "600" }}>
-                {monthlyIncomeSaving ? "Saving..." : "Save Monthly Income"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+        {/* Income */}
+        <MonthlyIncome
+          THEME={THEME}
+          input={monthlyIncomeInput}
+          setInput={setMonthlyIncomeInput}
+          monthLabel={selectedMonthLabel}
+          saving={monthlyIncomeSaving}
+          onSave={handleSaveMonthlyIncome}
+        />
 
-          <SettingsList THEME={THEME} items={settingsItems} />
-        </View>
+        {/* Security & account */}
+        <SettingsList THEME={THEME} items={settingsItems} />
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Modals */}

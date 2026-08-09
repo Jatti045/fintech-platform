@@ -55,9 +55,9 @@ function renderedText(matches: string) {
 }
 
 const UI_TEXT =
-  "Get a gentle reminder at 12&nbsp;PM and 6&nbsp;PM to log your purchases.";
+  "A gentle nudge at 12 PM and 6 PM to log your purchases.";
 const DENIED_TEXT =
-  "Notifications are turned off for Budgee in your device settings, so reminders won't be delivered.";
+  "Notifications are off for Budgee in device settings, so reminders won’t be delivered.";
 
 describe("NotificationPreference (Purchase Reminders)", () => {
   beforeEach(() => {

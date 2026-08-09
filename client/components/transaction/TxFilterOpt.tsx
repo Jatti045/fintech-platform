@@ -1,5 +1,6 @@
+import React from "react";
 import { useTheme } from "@/hooks/useRedux";
-import { capitalizeFirst } from "@/utils/helper";
+import { capitalizeFirst, hexToRgba } from "@/utils/helper";
 import {
   ScrollView,
   Text,
@@ -28,102 +29,100 @@ function FilterTransaction({
   clearFilters: () => void;
 }) {
   const { THEME } = useTheme();
+
+  const chipStyle = (active: boolean) => ({
+    backgroundColor: active ? hexToRgba(THEME.primary, 0.18) : hexToRgba(THEME.surface, 0.6),
+    borderColor: active ? THEME.primary : THEME.border,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 8,
+  });
+
   return (
     <View>
+      {/* Category chips */}
       <ScrollView
-        showsHorizontalScrollIndicator={false}
         horizontal
-        className="mb-4"
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 8 }}
       >
         <TouchableOpacity
           onPress={clearFilters}
-          className="mr-3 p-3 rounded-full"
-          style={{ backgroundColor: THEME.secondary }}
+          style={chipStyle(filterCategoryId === "all")}
+          accessibilityRole="button"
+          accessibilityLabel="All categories"
         >
-          <Text style={{ color: THEME.textPrimary }} className="text-sm px-2">
-            Clear
-          </Text>
-        </TouchableOpacity>
-        {/* Category chips */}
-        <TouchableOpacity
-          onPress={() => setFilterCategoryId("all")}
-          className="mr-3 p-3 rounded-full"
-          style={{
-            backgroundColor:
-              filterCategoryId === "all" ? THEME.primary : THEME.surface,
-          }}
-        >
-          <Text style={{ color: THEME.textPrimary }} className="text-sm px-2">
+          <Text style={{ color: THEME.textPrimary, fontSize: 13, fontWeight: "700" }}>
             All
           </Text>
         </TouchableOpacity>
-        {budgets.map((b) => (
-          <TouchableOpacity
-            key={b.id}
-            onPress={() => setFilterCategoryId(b.id)}
-            className="mr-3 p-3 rounded-full"
-            style={{
-              backgroundColor:
-                filterCategoryId === b.id ? THEME.primary : THEME.surface,
-            }}
-          >
-            <Text style={{ color: THEME.textPrimary }} className="text-sm px-2">
-              {capitalizeFirst(b.category)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {budgets.map((b) => {
+          const active = filterCategoryId === b.id;
+          return (
+            <TouchableOpacity
+              key={b.id}
+              onPress={() => setFilterCategoryId(b.id)}
+              style={chipStyle(active)}
+              accessibilityRole="button"
+              accessibilityLabel={`Filter by ${b.category}`}
+            >
+              <Text
+                style={{
+                  color: active ? THEME.primary : THEME.textPrimary,
+                  fontSize: 13,
+                  fontWeight: "700",
+                }}
+              >
+                {capitalizeFirst(b.category)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
-      {/* Consolidated horizontal filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="mb-4"
-      >
-        {/* Category dropdown trigger */}
-        <TouchableOpacity
-          className="mr-3 px-4 py-2 rounded-full"
-          style={{
-            backgroundColor:
-              filterCategoryId === "all" ? THEME.primary : THEME.surface,
-          }}
-        >
-          <Text style={{ color: THEME.textPrimary }}>
-            {filterCategoryId === "all"
-              ? "Category: All"
-              : `Category: ${capitalizeFirst(budgets.find((b) => b.id === filterCategoryId)?.category || "")}`}
-          </Text>
-        </TouchableOpacity>
 
-        {/* Min / Max Amount */}
-        <View className="mr-3 flex-row items-center">
-          <TextInput
-            placeholder="Min"
-            keyboardType="numeric"
-            value={minAmount}
-            onChangeText={setMinAmount}
-            className="py-2 px-3 mr-2 rounded-md"
-            style={{
-              backgroundColor: THEME.inputBackground,
-              color: THEME.textPrimary,
-              width: 90,
-            }}
-            placeholderTextColor={THEME.placeholderText}
-          />
-          <TextInput
-            placeholder="Max"
-            keyboardType="numeric"
-            value={maxAmount}
-            onChangeText={setMaxAmount}
-            className="py-2 px-3 rounded-md"
-            style={{
-              backgroundColor: THEME.inputBackground,
-              color: THEME.textPrimary,
-              width: 90,
-            }}
-            placeholderTextColor={THEME.placeholderText}
-          />
-        </View>
-      </ScrollView>
+      {/* Amount range */}
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Text style={{ color: THEME.textSecondary, fontSize: 12, marginRight: 8 }}>
+          Amount
+        </Text>
+        <TextInput
+          placeholder="Min"
+          keyboardType="numeric"
+          value={minAmount}
+          onChangeText={setMinAmount}
+          style={{
+            flex: 1,
+            backgroundColor: hexToRgba(THEME.surface, 0.6),
+            borderColor: THEME.border,
+            borderWidth: 1,
+            color: THEME.textPrimary,
+            borderRadius: 10,
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+          }}
+          placeholderTextColor={THEME.placeholderText}
+        />
+        <Text style={{ color: THEME.textSecondary, marginHorizontal: 8 }}>–</Text>
+        <TextInput
+          placeholder="Max"
+          keyboardType="numeric"
+          value={maxAmount}
+          onChangeText={setMaxAmount}
+          style={{
+            flex: 1,
+            backgroundColor: hexToRgba(THEME.surface, 0.6),
+            borderColor: THEME.border,
+            borderWidth: 1,
+            color: THEME.textPrimary,
+            borderRadius: 10,
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+          }}
+          placeholderTextColor={THEME.placeholderText}
+        />
+      </View>
     </View>
   );
 }

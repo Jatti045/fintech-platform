@@ -37,3 +37,39 @@ export function sumAmountsCents(items: { amount: number | string }[]): number {
   );
   return totalCents / 100;
 }
+/**
+ * Builds a day-of-month spend series (daily totals, not cumulative) for all
+ * EXPENSE transactions within the given month, using integer-cent math.
+ *
+ * Returns an array aligned to the month (index = day - 1) so it can be used
+ * directly to render daily spend bars / sparklines.
+ */
+export function buildDailySpendTotals(
+  transactions: {
+    date?: string;
+    amount?: number | string;
+    type?: string;
+  }[],
+  month: number,
+  year: number,
+): { day: number; total: number }[] {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const byDay: Record<number, number> = {};
+
+  for (const tx of transactions) {
+    if (!tx.date) continue;
+    if ((tx.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
+
+    const d = new Date(tx.date);
+    if (d.getMonth() !== month || d.getFullYear() !== year) continue;
+
+    const cents = Math.round(safeAmount(tx.amount) * 100);
+    byDay[d.getDate()] = (byDay[d.getDate()] || 0) + cents;
+  }
+
+  const series: { day: number; total: number }[] = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    series.push({ day, total: (byDay[day] || 0) / 100 });
+  }
+  return series;
+}

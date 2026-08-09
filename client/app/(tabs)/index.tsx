@@ -11,23 +11,24 @@ import BudgetModal from "@/components/budget/BudgetModal";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
 import MonthSelector from "@/components/home/MonthSelector";
-import DashboardOverview from "@/components/home/DashboardOverview";
+import HomePulse from "@/components/home/HomePulse";
+import SpendingRhythm from "@/components/home/SpendingRhythm";
+import BudgetPulse from "@/components/home/BudgetPulse";
+import GoalPulse from "@/components/home/GoalPulse";
+import RecentFlow from "@/components/home/RecentFlow";
 import QuickActions from "@/components/home/QuickActions";
-import BudgetSummary from "@/components/home/BudgetSummary";
-import GoalSummary from "@/components/home/GoalSummary";
-import BudgetHealthScore from "@/components/home/BudgetHealthScore";
 import { useTransactionDisplayAmounts } from "@/hooks/transaction/useTransactionDisplayAmounts";
 import { convertCurrency } from "@/utils/currencyConverter";
 import {
   useTheme,
   useTransactions,
   useBudgets,
+  useGoals,
   useCalendar,
   useUser,
   useTransactionMonthSummary,
-  useTransactionStatus,
-  useBudgetStatus,
 } from "@/hooks/useRedux";
+import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 
 export default function Index() {
@@ -35,12 +36,18 @@ export default function Index() {
   const { showAlert } = useThemedAlert();
   const transactions = useTransactions();
   const budgets = useBudgets();
+  const goals = useGoals();
   const user = useUser();
   const activeCurrency = user?.currency || "USD";
   const calendar = useCalendar();
   const monthSummary = useTransactionMonthSummary();
   const dispatch = useAppDispatch();
   const { displayTransactions } = useTransactionDisplayAmounts(
+    transactions,
+    activeCurrency,
+  );
+  const { displayBudgets } = useBudgetDisplayAmounts(
+    budgets,
     transactions,
     activeCurrency,
   );
@@ -100,7 +107,7 @@ export default function Index() {
     ]);
   }, [dispatch, calendar.month, calendar.year]);
 
-  const monthStartDate = useMemo(
+const monthStartDate = useMemo(
     () => new Date(calendar.year, calendar.month, 1),
     [calendar.year, calendar.month],
   );
@@ -111,20 +118,6 @@ export default function Index() {
     [monthStartDate, calendar.year],
   );
 
-  /** 5 most recent transactions across all months, sorted newest-first. */
-  const recentTransactions = useMemo(
-    () =>
-      [...transactions]
-        .sort(
-          (a: any, b: any) =>
-            new Date(b.date).getTime() - new Date(a.date).getTime(),
-        )
-        .slice(0, 5),
-    [transactions],
-  );
-
-  // Uses backend month summary (all month records), then converts it to the
-  // current default currency for display.
   const expenseTotal = convertedExpenseTotal;
   const monthlyIncome = Number(monthSummary.monthlyIncome || 0);
 
@@ -138,14 +131,12 @@ export default function Index() {
 
     const inferSourceCurrency = () => {
       const counts = new Map<string, number>();
-
       for (const tx of transactions as any[]) {
         if ((tx?.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
         const c = normalize(tx?.baseCurrency || tx?.originalCurrency);
         if (!c) continue;
         counts.set(c, (counts.get(c) || 0) + 1);
       }
-
       let winner = "";
       let max = 0;
       for (const [currency, count] of counts.entries()) {
@@ -154,7 +145,6 @@ export default function Index() {
           winner = currency;
         }
       }
-
       return winner || normalize(user?.currency) || "USD";
     };
 
@@ -187,19 +177,6 @@ export default function Index() {
     };
   }, [monthSummary.totalAmount, activeCurrency, transactions, user?.currency]);
 
-  /** Expense totals keyed by category — used by the TopCategoriesChart. */
-  const categoryTotals: Record<string, number> = useMemo(() => {
-    const totals: Record<string, number> = {};
-    displayTransactions.forEach((t: any) => {
-      const cat = String(t.category || "Uncategorized");
-      if ((t.type ?? "EXPENSE").toUpperCase() === "EXPENSE") {
-        totals[cat] =
-          (totals[cat] || 0) + Number(t.displayAmount ?? t.amount ?? 0);
-      }
-    });
-    return totals;
-  }, [displayTransactions]);
-
   const now = new Date();
   const isCurrentMonth =
     calendar.month === now.getMonth() && calendar.year === now.getFullYear();
@@ -209,8 +186,7 @@ export default function Index() {
     if (budgets.length === 0) {
       showAlert({
         title: "No budgets available",
-        message:
-          "No budgets exist for this month. Please create a budget first.",
+        message: "No budgets exist for this month. Please create a budget first.",
       });
       return;
     }
@@ -223,7 +199,7 @@ export default function Index() {
       style={{ flex: 1, backgroundColor: THEME.background }}
     >
       <ScrollView
-        contentContainerStyle={{ padding: 18 }}
+        contentContainerStyle={{ padding: 16 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -234,10 +210,8 @@ export default function Index() {
           />
         }
       >
-        {/* Header with title and info button to open help modal */}
         <HomeHeader onInfoPress={() => setHelpOpen(true)} />
 
-        {/* Month selector with chevron buttons to navigate back and forth */}
         <MonthSelector
           monthLabel={monthLabel}
           isCurrentMonth={isCurrentMonth}
@@ -245,29 +219,32 @@ export default function Index() {
           onNext={() => dispatch(nextMonth())}
         />
 
-        {/* Beautiful dashboard overview with income, spending, and budget health */}
-        <DashboardOverview
+        <HomePulse
           monthlyIncome={monthlyIncome}
           totalSpent={expenseTotal}
           monthLabel={monthLabel}
+          currencyCode={activeCurrency}
+          isCurrentMonth={isCurrentMonth}
         />
 
-        {/* Quick action buttons for adding new transaction or budget */}
+        <SpendingRhythm
+          transactions={transactions}
+          month={calendar.month}
+          year={calendar.year}
+          currencyCode={activeCurrency}
+        />
+
+        <BudgetPulse budgets={displayBudgets} currencyCode={activeCurrency} />
+
+        <GoalPulse goals={goals} currencyCode={activeCurrency} />
+
+        <RecentFlow transactions={displayTransactions} currencyCode={activeCurrency} />
+
         <QuickActions
           onNewTransaction={handleNewTransaction}
           onNewBudget={() => setOpenBudgetModal(true)}
         />
 
-        {/* Budget health score gauge (0–100) */}
-        <BudgetHealthScore />
-
-        {/* Budget summary cards with progress bars for each category */}
-        <BudgetSummary />
-
-        {/* Goal summary cards with saved vs target progress */}
-        <GoalSummary />
-
-        {/* Extra spacing at bottom to ensure last item isn't cut off */}
         <View style={{ height: 80 }} />
       </ScrollView>
 

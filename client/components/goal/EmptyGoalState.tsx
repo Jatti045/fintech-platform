@@ -1,43 +1,64 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import MaskedView from "@react-native-masked-view/masked-view";
-import {useTheme} from "@/hooks/useRedux";
+import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/helper";
 
+/**
+ * Minimal, quiet empty state for the Goals screen. A small icon and two
+ * short lines communicate that no goals exist yet, with a subtle pointer
+ * to the create action. Intentionally unobtrusive.
+ */
 const EmptyGoalState = React.memo(function EmptyGoalState() {
-    const {THEME} = useTheme();
+  const { THEME } = useTheme();
+
   return (
-    <View className="flex-1 justify-center items-center px-6 pt-12">
-      <MaskedView
-        maskElement={
-          <Text
-            className="text-3xl font-extrabold text-center"
-            style={{ color: THEME.textPrimary }}
-          >
-            No goals yet
-          </Text>
-        }
+    <View
+      style={{
+        alignItems: "center",
+        paddingVertical: 48,
+        paddingHorizontal: 24,
+      }}
+    >
+      <View
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 15,
+          backgroundColor: hexToRgba(THEME.primary, 0.1),
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 14,
+        }}
       >
-        <LinearGradient
-          colors={[THEME.primary, THEME.secondary]}
-          start={[0, 0]}
-          end={[1, 1]}
-        >
-          <Text
-            className="text-3xl font-extrabold text-center"
-            style={{ opacity: 0 }}
-          >
-            No goals yet
-          </Text>
-        </LinearGradient>
-      </MaskedView>
+        <Feather name="flag" size={20} color={THEME.primary} />
+      </View>
 
       <Text
-        className="text-center mt-4 text-base"
-        style={{ color: THEME.textSecondary }}
+        style={{
+          color: THEME.textPrimary,
+          fontSize: 17,
+          fontWeight: "800",
+          marginBottom: 6,
+        }}
       >
-        Create goals to save for milestones and track your progress over time.
-        Tap "New Goal" to get started.
+        No goals yet
+      </Text>
+
+      <Text
+        style={{
+          color: THEME.textSecondary,
+          fontSize: 13,
+          lineHeight: 19,
+          textAlign: "center",
+          maxWidth: 260,
+        }}
+      >
+        Create a goal to start saving toward something worth it.
+      </Text>
+
+      <Text style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 14 }}>
+        Tap “New Goal” to get started.
       </Text>
     </View>
   );

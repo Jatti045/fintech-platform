@@ -1,7 +1,14 @@
-import React, { useMemo, useState, useCallback } from "react";
-import { useRefresh } from "@/hooks/useRefresh";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { useRefresh } from "@/hooks/useRefresh";
 import {
   useBudgets,
   useTheme,
@@ -13,15 +20,19 @@ import {
 import { useAppDispatch } from "@/store";
 import { fetchBudgets } from "@/store/slices/budgetSlice";
 import {
-  BudgetCard,
+  BudgetHalo,
   BudgetModal,
+  BudgetReservoirRow,
+  BudgetTrendCard,
   EmptyBudgetState,
   NewBudgetButton,
 } from "@/components/budget";
 import { useBudgetOperations } from "@/hooks/budget/useBudgetOperation";
 import type { IBudget } from "@/types/budget/types";
 import SearchBar from "@/components/global/SearchBar";
+import SectionHeader from "@/components/global/SectionHeader";
 import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
+import { hexToRgba } from "@/utils/helper";
 
 // ─── Main Screen Component ──────────────────────────────────────────────────
 
@@ -49,12 +60,12 @@ export default function BudgetScreen() {
   const [openSheet, setOpenSheet] = useState(false);
   const [editingBudget, setEditingBudget] = useState<IBudget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const isSearching = searchQuery.trim().length > 0;
+  /** Budget whose drawer is expanded AND feeds the oscilloscope. */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  /** Show skeleton only for true initial load, not while searching. */
+  const isSearching = searchQuery.trim().length > 0;
   const isInitialLoading = isLoading && budgets.length === 0 && !isSearching;
 
-  // Use generic refresh hook
   const { refreshing, onRefresh } = useRefresh(() =>
     dispatch(
       fetchBudgets({
@@ -64,28 +75,8 @@ export default function BudgetScreen() {
     ),
   );
 
-  // ── Stable callbacks ──────────────────────────────────────────────────
+  // ── Derived data ──────────────────────────────────────────────────────
 
-  /** Open the modal in edit mode for the given budget. */
-  const handleEditPress = useCallback((budget: IBudget) => {
-    setEditingBudget(budget);
-    setOpenSheet(true);
-  }, []);
-
-  /** Clear editing state when the modal closes. */
-  const handleModalClose = useCallback(() => {
-    setOpenSheet(false);
-    setEditingBudget(null);
-  }, []);
-
-  /** Open the modal in create mode. */
-  const handleNewBudget = useCallback(() => {
-    setOpenSheet(true);
-  }, []);
-
-  // ── Render ────────────────────────────────────────────────────────────
-
-  /** Budgets filtered by the search query (category name match). */
   const filteredBudgets = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return displayBudgets;
@@ -94,7 +85,53 @@ export default function BudgetScreen() {
     );
   }, [displayBudgets, searchQuery]);
 
-  const hasBudgets = budgets && budgets.length > 0;
+  // Auto-select the first channel so the oscilloscope has a subject.
+  useEffect(() => {
+    if (
+      filteredBudgets.length > 0 &&
+      !filteredBudgets.some((b) => b.id === selectedId)
+    ) {
+      setSelectedId(filteredBudgets[0].id);
+    }
+  }, [filteredBudgets, selectedId]);
+
+  const selectedBudget = useMemo(
+    () =>
+      filteredBudgets.find((b) => b.id === selectedId) ?? filteredBudgets[0],
+    [filteredBudgets, selectedId],
+  );
+
+  const monthLabel = useMemo(
+    () =>
+      new Date(calendar.year, calendar.month, 1).toLocaleString(undefined, {
+        month: "long",
+      }),
+    [calendar.year, calendar.month],
+  );
+
+  const hasBudgets = budgets.length > 0;
+
+  // ── Stable callbacks ──────────────────────────────────────────────────
+
+  const handleToggle = useCallback((budget: IBudget) => {
+    setSelectedId(budget.id);
+  }, []);
+
+  const handleEditPress = useCallback((budget: IBudget) => {
+    setEditingBudget(budget);
+    setOpenSheet(true);
+  }, []);
+
+  const handleModalClose = useCallback(() => {
+    setOpenSheet(false);
+    setEditingBudget(null);
+  }, []);
+
+  const handleNewBudget = useCallback(() => {
+    setOpenSheet(true);
+  }, []);
+
+  // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView
@@ -102,18 +139,56 @@ export default function BudgetScreen() {
       className="flex-1"
       style={{ backgroundColor: THEME.background }}
     >
-      <View className="px-4" style={{ paddingTop: 18 }}>
-        {/* Header */}
-        <View style={{ marginBottom: 12 }}>
-          <Text
-            className="text-2xl text-center font-bold mb-2"
-            style={{ color: THEME.textPrimary }}
+{/* Header */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 18 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 12,
+          }}
+        >
+          <View>
+            <Text
+              className="text-2xl font-bold"
+              style={{ color: THEME.textPrimary }}
+            >
+              Budgets
+            </Text>
+            <Text
+              style={{ color: THEME.textSecondary, fontSize: 13, marginTop: 2 }}
+            >
+              Your monthly flow, one dial
+            </Text>
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: hexToRgba(THEME.surface, 0.7),
+              borderColor: THEME.border,
+              borderWidth: 1,
+              borderRadius: 999,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+            }}
           >
-            Budgets
-          </Text>
+            <Feather
+              name="calendar"
+              size={13}
+              color={THEME.textSecondary}
+              style={{ marginRight: 6 }}
+            />
+            <Text
+              style={{ color: THEME.textPrimary, fontSize: 12, fontWeight: "700" }}
+            >
+              {monthLabel}
+            </Text>
+          </View>
         </View>
 
-        {/* Search / filter bar */}
         {hasBudgets && (
           <SearchBar
             searchQuery={searchQuery}
@@ -129,7 +204,7 @@ export default function BudgetScreen() {
         contentContainerStyle={{
           paddingBottom: 120,
           paddingHorizontal: 16,
-          paddingTop: 12,
+          paddingTop: 8,
         }}
         refreshControl={
           <RefreshControl
@@ -140,52 +215,85 @@ export default function BudgetScreen() {
           />
         }
       >
-        {/* Budget overview header */}
-        {/*<BudgetOverviewHeader />*/}
-        {/* Budget cards or empty state */}
-        {hasBudgets ? (
+        {isInitialLoading ? (
+          <View style={{ paddingVertical: 80, alignItems: "center" }}>
+            <ActivityIndicator size="large" color={THEME.primary} />
+          </View>
+        ) : hasBudgets ? (
           filteredBudgets.length > 0 ? (
-            filteredBudgets.map((budget) => (
-              <BudgetCard
-                key={budget.id}
-                budget={budget}
-                displayLimit={Number(
-                  (budget).displayLimit ?? budget.limit,
-                )}
-                displaySpent={Number(
-                  (budget).displaySpent ?? budget.spent,
-                )}
-                currencyCode={(budget).displayCurrency || activeCurrency}
-                onEdit={handleEditPress}
-                onDelete={handleDeleteBudget}
-                surface={THEME.surface}
-                border={THEME.border}
-                background={THEME.background}
-                primary={THEME.primary}
-                secondary={THEME.secondary}
-                textPrimary={THEME.textPrimary}
-                textSecondary={THEME.textSecondary}
-                danger={THEME.danger}
+            <>
+              {/* Master dial */}
+              <BudgetHalo
+                budgets={filteredBudgets}
+                monthLabel={monthLabel}
+                currencyCode={activeCurrency}
               />
-            ))
+
+              {/* Channel oscilloscope — follows the selected budget */}
+              {selectedBudget ? (
+                <BudgetTrendCard
+                  key={selectedBudget.id}
+                  category={selectedBudget.category}
+                  budgetId={selectedBudget.id}
+                  displayLimit={Number(
+                    (selectedBudget as IBudget & { displayLimit?: number })
+                      .displayLimit ?? selectedBudget.limit,
+                  )}
+                  displaySpent={Number(
+                    (selectedBudget as IBudget & { displaySpent?: number })
+                      .displaySpent ?? selectedBudget.spent,
+                  )}
+                  currencyCode={
+                    (selectedBudget as IBudget & { displayCurrency?: string })
+                      .displayCurrency || activeCurrency
+                  }
+                  transactions={transactions}
+                  month={calendar.month}
+                  year={calendar.year}
+                />
+              ) : null}
+
+              {/* Reservoir channels */}
+              <SectionHeader
+                title="Channels"
+                subtitle={`${filteredBudgets.length}`}
+                accent={THEME.primary}
+              />
+              {filteredBudgets.map((budget) => (
+                <BudgetReservoirRow
+                  key={budget.id}
+                  budget={budget}
+                  displayLimit={Number(
+                    (budget as IBudget & { displayLimit?: number })
+                      .displayLimit ?? budget.limit,
+                  )}
+                  displaySpent={Number(
+                    (budget as IBudget & { displaySpent?: number })
+                      .displaySpent ?? budget.spent,
+                  )}
+                  currencyCode={
+                    (budget as IBudget & { displayCurrency?: string })
+                      .displayCurrency || activeCurrency
+                  }
+                  expanded={selectedId === budget.id}
+                  onToggle={handleToggle}
+                  onEdit={handleEditPress}
+                  onDelete={handleDeleteBudget}
+                />
+              ))}
+            </>
           ) : (
             <View className="py-12 items-center">
               <Text style={{ color: THEME.textSecondary }}>
-                No budgets match "{searchQuery}"
+                No budgets match “{searchQuery}”
               </Text>
             </View>
           )
         ) : (
-          <EmptyBudgetState
-            primary={THEME.primary}
-            secondary={THEME.secondary}
-            textPrimary={THEME.textPrimary}
-            textSecondary={THEME.textSecondary}
-          />
+          <EmptyBudgetState />
         )}
       </ScrollView>
-
-      {/* Floating action button */}
+{/* Floating action button */}
       <NewBudgetButton
         onPress={handleNewBudget}
         primary={THEME.primary}

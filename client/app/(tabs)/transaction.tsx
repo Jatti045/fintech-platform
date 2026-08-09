@@ -6,7 +6,13 @@ import React, {
   useRef,
 } from "react";
 import { useRefresh } from "@/hooks/useRefresh";
-import { RefreshControl, SectionList, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  RefreshControl,
+  SectionList,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TransactionModal from "@/components/transaction/TxModal";
 import SearchBar from "@/components/global/SearchBar";
@@ -15,6 +21,7 @@ import FilterTransaction from "@/components/transaction/TxFilterOpt";
 import SectionHeader from "@/components/transaction/SectionHeader";
 import TransactionRow from "@/components/transaction/TxRow";
 import ListFooter from "@/components/transaction/TxFooter";
+import FlowHeader from "@/components/transaction/FlowHeader";
 import { useTransactionOperations } from "@/hooks/transaction/useTransactionOperation";
 import { useTransactionFilters } from "@/hooks/transaction/useTransactionFilters";
 import { useTransactionLoadMore } from "@/hooks/transaction/useTransactionLoadMore";
@@ -28,6 +35,7 @@ import {
   useTransactions,
   useTransactionStatus,
   useCalendar,
+  useTransactionMonthSummary,
 } from "@/hooks/useRedux";
 import { useAppDispatch } from "@/store";
 import { fetchBudgets } from "@/store/slices/budgetSlice";
@@ -48,6 +56,9 @@ export default function TransactionScreen() {
     transactions,
     activeCurrency,
   );
+
+  const monthSummary = useTransactionMonthSummary();
+  const monthlyIncome = Number(monthSummary.monthlyIncome || 0);
 
   // Custom hook encapsulating all filter state + logic for deriving the filtered + grouped transaction data fed into the SectionList.
   const {
@@ -191,12 +202,6 @@ export default function TransactionScreen() {
     useTransactionLoadMore();
 
   /** Show skeleton only for true initial load, not while searching. */
-  const isInitialLoading =
-    isLoading &&
-    transactions.length === 0 &&
-    !isSearching &&
-    !suppressInitialSkeleton;
-
   const [openSheet, setOpenSheet] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<TransactionItem | null>(null);
@@ -291,7 +296,7 @@ export default function TransactionScreen() {
     () => (
       <>
         {/* Screen title */}
-        <View className="items-center justify-center my-4 mb-6">
+        <View className="items-center justify-center mt-4 mb-6">
           <Text
             style={{ color: THEME.textPrimary }}
             className="text-2xl font-bold"
@@ -299,6 +304,15 @@ export default function TransactionScreen() {
             Transactions
           </Text>
         </View>
+
+        {/* Ledger readout */}
+        <FlowHeader
+          transactions={displayTransactions}
+          month={calendar.month}
+          year={calendar.year}
+          monthlyIncome={monthlyIncome}
+          currencyCode={activeCurrency}
+        />
 
         {/* Search bar */}
         <SearchBar
@@ -332,19 +346,36 @@ export default function TransactionScreen() {
       maxAmount,
       setMaxAmount,
       clearFilters,
+      displayTransactions,
+      calendar.month,
+      calendar.year,
+      monthlyIncome,
+      activeCurrency,
     ],
   );
+
+  /** True only for the genuine first load (no data yet, not searching). */
+  const isInitialLoading =
+    isLoading &&
+    transactions.length === 0 &&
+    !isSearching &&
+    !suppressInitialSkeleton;
 
   /** Empty state shown when no transactions match the current filters. */
   const listEmpty = useMemo(
     () => (
       <View className="py-12 items-center">
-        <Text style={{ color: THEME.textSecondary }}>
-          No transactions match filters.
-        </Text>
+        {isInitialLoading ? (
+          <ActivityIndicator size="large" color={THEME.primary} />
+        ) : (
+          <Text style={{ color: THEME.textSecondary }}>
+            No transactions match filters.
+          </Text>
+        )}
       </View>
     ),
-    [THEME.textSecondary],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isInitialLoading, THEME.textPrimary, THEME.textSecondary],
   );
 
   return (

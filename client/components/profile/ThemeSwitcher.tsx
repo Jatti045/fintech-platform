@@ -3,10 +3,12 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { THEME_OPTIONS } from "@/utils/profile/profileService";
+import GlassPanel from "@/components/global/GlassPanel";
+import { hexToRgba } from "@/utils/helper";
 import type { ThemeSwitcherProps } from "@/types/profile/types";
 
 /**
- * Renders the row of selectable theme pills.
+ * Renders the row of selectable theme swatches on a glass surface.
  */
 export default function ThemeSwitcher({
   THEME,
@@ -14,21 +16,17 @@ export default function ThemeSwitcher({
   onThemeSelect,
 }: ThemeSwitcherProps) {
   return (
-    <View
-      style={{ backgroundColor: THEME.surface, borderColor: THEME.border, borderWidth: 1 }}
-      className="p-4 rounded-xl mb-3"
-    >
+    <GlassPanel padding={14} radius={18} style={{ marginBottom: 12 }}>
       <Text
-        style={{ color: THEME.textPrimary }}
-        className="font-medium text-base mb-2"
+        style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "800", marginBottom: 12 }}
       >
-        Theme
+        Appearance
       </Text>
 
       <View
         style={{
           flexDirection: "row",
-          justifyContent: "center",
+          justifyContent: "space-between",
           alignItems: "center",
         }}
       >
@@ -39,49 +37,45 @@ export default function ThemeSwitcher({
               key={opt.name}
               activeOpacity={0.85}
               onPress={() => onThemeSelect(opt.name)}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.name} theme`}
+              accessibilityState={{ selected: isActive }}
               style={{
                 alignItems: "center",
-                justifyContent: "center",
-                paddingVertical: 10,
-                paddingHorizontal: 8,
-                borderRadius: 12,
-                borderWidth: isActive ? 2.5 : 1,
-                borderColor: isActive ? THEME.primary : "#e0e0e0",
-                backgroundColor: THEME.surface,
-                marginHorizontal: 4,
-                shadowColor: isActive ? THEME.primary : "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: isActive ? 0.18 : 0.05,
-                shadowRadius: 4,
-                elevation: isActive ? 3 : 0,
-                width: 72,
+                paddingVertical: 8,
+                borderRadius: 14,
+                borderWidth: 2,
+                borderColor: isActive ? THEME.primary : "transparent",
+                backgroundColor: hexToRgba(THEME.surface, 0.4),
+                paddingHorizontal: 10,
+                flex: 1,
+                marginHorizontal: 3,
               }}
             >
               <View
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
                   backgroundColor: opt.color,
                   alignItems: "center",
                   justifyContent: "center",
                   marginBottom: 6,
                   borderWidth: 1,
-                  borderColor: "#eee",
+                  borderColor: "rgba(255,255,255,0.25)",
                 }}
               >
                 <Ionicons
-                  name={opt.icon as any}
-                  size={18}
-                  color={THEME.textPrimary}
+                  name={(isActive ? "checkmark" : opt.icon) as any}
+                  size={16}
+                  color={isActive ? "#fff" : "rgba(255,255,255,0.9)"}
                 />
               </View>
               <Text
                 style={{
-                  color: isActive ? THEME.primary : THEME.textPrimary,
-                  fontWeight: isActive ? "bold" : "500",
-                  fontSize: 13,
-                  letterSpacing: 0.2,
+                  color: THEME.textPrimary,
+                  fontWeight: isActive ? "800" : "600",
+                  fontSize: 12,
                 }}
               >
                 {opt.name}
@@ -90,6 +84,6 @@ export default function ThemeSwitcher({
           );
         })}
       </View>
-    </View>
+    </GlassPanel>
   );
 }

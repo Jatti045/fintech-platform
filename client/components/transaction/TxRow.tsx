@@ -1,12 +1,13 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useBudgets, useTheme } from "@/hooks/useRedux";
-import { formatDate, capitalizeFirst, formatCurrency } from "@/utils/helper";
+import { capitalizeFirst, formatCurrency, hexToRgba } from "@/utils/helper";
 import { safeAmount } from "../../utils/transaction/helpers";
 import type { TransactionItem } from "../../types/transaction/types";
 import { Feather } from "@expo/vector-icons";
 import { hapticHeavy } from "@/utils/haptics";
 import SwipeableRow from "@/components/global/SwipeableRow";
+import GlassPanel from "@/components/global/GlassPanel";
 
 /**
  * Single transaction row with press-to-edit, long-press-to-delete, and
@@ -86,75 +87,78 @@ const TransactionRow = React.memo(function TransactionRow({
     }
 
     return tx.icon;
-  }, [tx.category, budgets]);
+  }, [tx.budgetId, tx.icon, budgets]);
 
   return (
     <SwipeableRow onDelete={() => onDelete(tx.id)} dangerColor={THEME.danger}>
-      <TouchableOpacity
-        style={{
-          backgroundColor: THEME.surface,
-          borderColor: THEME.border,
-          borderWidth: 1,
-        }}
-        className="flex-row p-3 items-center justify-between mb-3 rounded-lg"
-        activeOpacity={0.8}
-        onPress={() => onEdit(tx)}
-        onLongPress={() => {
-          hapticHeavy();
-          onDelete(tx.id);
-        }}
-      >
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-          <View
-            className="items-center rounded-full p-3"
-            style={{
-              backgroundColor: THEME.inputBackground,
-              borderColor: THEME.border,
-              borderWidth: 1,
-            }}
-          >
-            <Feather
-              name={displayTxIcon as keyof typeof Feather.glyphMap}
-              size={20}
-              color={THEME.primary}
-            />
-          </View>
-          <View style={{ marginLeft: 12, flex: 1, minWidth: 0 }}>
-            <Text
-              style={{ color: THEME.textPrimary, fontWeight: "700" }}
-              numberOfLines={1}
-              ellipsizeMode="tail"
+      <GlassPanel padding={10} radius={16} style={{ marginBottom: 10 }}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => onEdit(tx)}
+          onLongPress={() => {
+            hapticHeavy();
+            onDelete(tx.id);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${capitalizeFirst(displayCategory)}, ${formatCurrency(amountToDisplay, currencyToDisplay)}`}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 13,
+                backgroundColor: hexToRgba(THEME.primary, 0.14),
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 12,
+              }}
             >
-              {capitalizeFirst(displayCategory)}
-            </Text>
-            <Text
-              style={{ color: THEME.textSecondary }}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {formatDate(tx.date)} - {tx.name}
-            </Text>
-            {originalReference ? (
+              <Feather
+                name={displayTxIcon as keyof typeof Feather.glyphMap}
+                size={18}
+                color={THEME.primary}
+              />
+            </View>
+
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text
-                style={{ color: THEME.textSecondary, fontSize: 12 }}
+                style={{ color: THEME.textPrimary, fontWeight: "700", fontSize: 14 }}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {originalReference}
+                {capitalizeFirst(displayCategory)}
               </Text>
-            ) : null}
+              <Text
+                style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 1 }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {tx.name}
+              </Text>
+              {originalReference ? (
+                <Text
+                  style={{ color: THEME.textSecondary, fontSize: 11 }}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {originalReference}
+                </Text>
+              ) : null}
+            </View>
+
+            <View style={{ marginLeft: 10, alignItems: "flex-end" }}>
+              <Text
+                style={{ color: THEME.danger, fontWeight: "800", fontSize: 14 }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                − {formatCurrency(amountToDisplay, currencyToDisplay)}
+              </Text>
+            </View>
           </View>
-        </View>
-        <View style={{ marginLeft: 12, alignItems: "flex-end" }}>
-          <Text
-            style={{ color: THEME.danger, fontWeight: "700" }}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            - {formatCurrency(amountToDisplay, currencyToDisplay)}
-          </Text>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </GlassPanel>
     </SwipeableRow>
   );
 });
