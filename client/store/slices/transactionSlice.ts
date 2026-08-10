@@ -98,6 +98,7 @@ const initialState: TransactionState = {
     spentPercentageOfIncome: 0,
   },
   isLoadingMore: false,
+  latestRequestId: null,
 };
 
 export const fetchTransaction = createAsyncThunk(
@@ -468,11 +469,20 @@ const transactionSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // Fetch Transactions (initial load - replaces transactions)
-      .addCase(fetchTransaction.pending, (state) => {
+      .addCase(fetchTransaction.pending, (state, action) => {
         state.isLoading = true;
         state.error = null;
+        // Latest-request-wins: remember the newest request so stale (older)
+        // responses can be ignored in the fulfilled handler.
+        if (action.meta?.requestId) state.latestRequestId = action.meta.requestId;
       })
       .addCase(fetchTransaction.fulfilled, (state, action) => {
+        // Ignore stale responses: only the most recently started request may
+        // write its month's data into the store. Prevents out-of-order/older
+        // month responses from clobbering the currently selected month.
+        if (action.meta?.requestId && action.meta.requestId !== state.latestRequestId) {
+          return;
+        }
         state.isLoading = false;
         state.transactions = action.payload.transaction;
         state.error = null;

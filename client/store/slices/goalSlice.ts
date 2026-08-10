@@ -6,6 +6,7 @@ const initialState: GoalState = {
   goals: [],
   loading: false,
   error: null,
+  latestRequestId: null,
 };
 
 export const fetchGoals = createAsyncThunk(
@@ -98,11 +99,18 @@ const goalSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchGoals.pending, (state) => {
+      .addCase(fetchGoals.pending, (state, action) => {
         state.loading = true;
         state.error = null;
+        if (action.meta?.requestId) state.latestRequestId = action.meta.requestId;
       })
       .addCase(fetchGoals.fulfilled, (state, action) => {
+        if (
+          action.meta?.requestId &&
+          action.meta.requestId !== state.latestRequestId
+        ) {
+          return;
+        }
         state.loading = false;
         state.goals = action.payload || [];
       })

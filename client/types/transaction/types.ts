@@ -94,6 +94,7 @@ export interface TransactionState {
     spentPercentageOfIncome?: number;
   };
   isLoadingMore: boolean;
+  latestRequestId?: string | null;
 }
 
 /** Minimal shape of a transaction as stored in Redux. */

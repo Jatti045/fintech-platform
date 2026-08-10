@@ -13,12 +13,19 @@
 
 import React from "react";
 import renderer from "react-test-renderer";
+import { Provider } from "react-redux";
+import { configureStore } from "@reduxjs/toolkit";
 
 import { Switch, Text } from "react-native";
 import NotificationPreference from "@/components/profile/NotificationPreference";
 import { THEME_PALETTES } from "@/constants/ThemePalettes";
+import themeReducer from "@/store/slices/themeSlice";
 
 const THEME = THEME_PALETTES.LIGHT;
+
+// GlassPanel reads `state.theme` via useTheme(), so renders must be wrapped in
+// a Redux Provider with a theme slice present.
+const store = configureStore({ reducer: { theme: themeReducer } });
 
 function renderPreference(
   overrides: Partial<React.ComponentProps<typeof NotificationPreference>> = {},
@@ -26,13 +33,15 @@ function renderPreference(
   let tree: ReturnType<typeof renderer.create>;
   renderer.act(() => {
     tree = renderer.create(
-      <NotificationPreference
-        THEME={THEME}
-        enabled
-        permissionDenied={false}
-        onToggle={jest.fn()}
-        {...overrides}
-      />,
+      <Provider store={store}>
+        <NotificationPreference
+          THEME={THEME}
+          enabled
+          permissionDenied={false}
+          onToggle={jest.fn()}
+          {...overrides}
+        />
+      </Provider>,
     );
   });
   return tree!;

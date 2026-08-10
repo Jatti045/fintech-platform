@@ -15,6 +15,7 @@ export interface GoalState {
   goals: IGoal[];
   loading: boolean;
   error: string | null;
+  latestRequestId?: string | null;
 }
 
 export interface IGoalData {

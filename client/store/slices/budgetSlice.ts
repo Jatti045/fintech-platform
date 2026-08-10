@@ -19,6 +19,7 @@ const initialState: BudgetState = {
   budgets: [],
   loading: false,
   error: null,
+  latestRequestId: null,
 };
 
 export const createBudget = createAsyncThunk(
@@ -189,11 +190,18 @@ const budgetSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      .addCase(fetchBudgets.pending, (state) => {
+      .addCase(fetchBudgets.pending, (state, action) => {
         state.loading = true;
         state.error = null;
+        if (action.meta?.requestId) state.latestRequestId = action.meta.requestId;
       })
       .addCase(fetchBudgets.fulfilled, (state, action) => {
+        if (
+          action.meta?.requestId &&
+          action.meta.requestId !== state.latestRequestId
+        ) {
+          return;
+        }
         state.loading = false;
         state.budgets = action.payload;
         state.error = null;
