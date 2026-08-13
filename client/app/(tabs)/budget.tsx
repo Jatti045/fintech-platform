@@ -4,6 +4,7 @@ import {
   RefreshControl,
   ScrollView,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -32,7 +33,8 @@ import type { IBudget } from "@/types/budget/types";
 import SearchBar from "@/components/global/SearchBar";
 import SectionHeader from "@/components/global/SectionHeader";
 import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
-import { hexToRgba } from "@/utils/helper";
+import GlassPanel from "@/components/global/GlassPanel";
+import { formatCurrency, hexToRgba } from "@/utils/helper";
 
 // ─── Main Screen Component ──────────────────────────────────────────────────
 
@@ -84,6 +86,19 @@ export default function BudgetScreen() {
       (b.category ?? "").toLowerCase().includes(q),
     );
   }, [displayBudgets, searchQuery]);
+
+  // Auto-created Plaid categories with $0 limits are flagged "unbudgeted"
+  // until the user assigns a limit. Group them under their own section.
+  const { unbudgetedBudgets, budgetedBudgets } = useMemo(() => {
+    const isUnbudgeted = (b: any) =>
+      b.autoCreated === true ||
+      (Number(b.displayLimit ?? b.limit) <= 0 &&
+        Number(b.displaySpent ?? b.spent) > 0);
+    return {
+      unbudgetedBudgets: filteredBudgets.filter(isUnbudgeted),
+      budgetedBudgets: filteredBudgets.filter((b) => !isUnbudgeted(b)),
+    };
+  }, [filteredBudgets]);
 
   // Auto-select the first channel so the oscilloscope has a subject.
   useEffect(() => {
@@ -253,13 +268,111 @@ export default function BudgetScreen() {
                 />
               ) : null}
 
+              {/* Unbudgeted / auto-created categories need a limit */}
+              {unbudgetedBudgets.length > 0 && (
+                <>
+                  <SectionHeader
+                    title="Unbudgeted Spending"
+                    subtitle="Set Limits"
+                    accent={THEME.warning}
+                  />
+                  <GlassPanel
+                    padding={12}
+                    radius={18}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <Text
+                      style={{
+                        color: THEME.textSecondary,
+                        fontSize: 12,
+                        lineHeight: 17,
+                        marginBottom: 8,
+                      }}
+                    >
+                      These categories came from your bank feed with no limit
+                      set. Tap “Set Limit” to assign one and clear the flag.
+                    </Text>
+                    {unbudgetedBudgets.map((budget) => {
+                      const displayLimit = Number(
+                        (budget as any).displayLimit ?? budget.limit,
+                      );
+                      const displaySpent = Number(
+                        (budget as any).displaySpent ?? budget.spent,
+                      );
+                      const displayCurrency =
+                        (budget as any).displayCurrency || activeCurrency;
+                      return (
+                        <View
+                          key={budget.id}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingVertical: 8,
+                            borderTopWidth: 1,
+                            borderTopColor: hexToRgba(THEME.border, 0.6),
+                          }}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                color: THEME.textPrimary,
+                                fontSize: 13,
+                                fontWeight: "700",
+                              }}
+                              numberOfLines={1}
+                            >
+                              {budget.category}
+                            </Text>
+                            <Text
+                              style={{
+                                color: THEME.textSecondary,
+                                fontSize: 11,
+                                marginTop: 1,
+                              }}
+                            >
+                              Spent {formatCurrency(displaySpent, displayCurrency)}
+                              {displayLimit > 0
+                                ? ` of ${formatCurrency(displayLimit, displayCurrency)}`
+                                : " — no limit"}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => handleEditPress(budget)}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Set limit for ${budget.category}`}
+                            style={{
+                              backgroundColor: hexToRgba(THEME.warning, 0.16),
+                              borderRadius: 8,
+                              paddingHorizontal: 12,
+                              paddingVertical: 7,
+                              marginLeft: 8,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: THEME.warning,
+                                fontSize: 12,
+                                fontWeight: "800",
+                              }}
+                            >
+                              Set Limit
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </GlassPanel>
+                </>
+              )}
+
               {/* Reservoir channels */}
               <SectionHeader
                 title="Channels"
-                subtitle={`${filteredBudgets.length}`}
+                subtitle={`${budgetedBudgets.length}`}
                 accent={THEME.primary}
               />
-              {filteredBudgets.map((budget) => (
+              {budgetedBudgets.map((budget) => (
                 <BudgetReservoirRow
                   key={budget.id}
                   budget={budget}

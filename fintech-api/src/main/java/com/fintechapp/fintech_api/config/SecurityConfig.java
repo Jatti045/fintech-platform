@@ -80,7 +80,8 @@ public class SecurityConfig {
 								"/api/auth/signup",
 								"/api/auth/google",
 								"/api/auth/forgot-password",
-								"/api/auth/reset-password")
+								"/api/auth/reset-password",
+								"/api/plaid/webhook")
 						.permitAll()
 						.requestMatchers("/api/**").authenticated()
 						.anyRequest().permitAll())

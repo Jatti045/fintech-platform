@@ -12,7 +12,5 @@ public record UpdateBudgetRequest(
 
                 @Min(value = 0, message = "Month must be between 0 and 11") @Max(value = 11, message = "Month must be between 0 and 11") Integer month,
 
-                @Min(value = 1970, message = "Year is invalid") @Max(value = 2100, message = "Year is invalid") Integer year,
-
-                @Size(max = 64, message = "Icon value is too long") String icon) {
+                @Min(value = 1970, message = "Year is invalid") @Max(value = 2100, message = "Year is invalid") Integer year) {
 }

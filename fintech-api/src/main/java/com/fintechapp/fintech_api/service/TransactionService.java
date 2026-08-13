@@ -49,7 +49,7 @@ public class TransactionService {
     private final GoalAllocationRepository goalAllocationRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
-    private final MonthlyIncomeService monthlyIncomeService;
+    private final IncomeCalculationService incomeCalculationService;
 
     public TransactionService(
             BudgetRepository budgetRepository,
@@ -57,13 +57,13 @@ public class TransactionService {
             GoalAllocationRepository goalAllocationRepository,
             TransactionRepository transactionRepository,
             UserRepository userRepository,
-            MonthlyIncomeService monthlyIncomeService) {
+            IncomeCalculationService incomeCalculationService) {
         this.budgetRepository = budgetRepository;
         this.goalRepository = goalRepository;
         this.goalAllocationRepository = goalAllocationRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
-        this.monthlyIncomeService = monthlyIncomeService;
+        this.incomeCalculationService = incomeCalculationService;
     }
 
     /**
@@ -123,7 +123,15 @@ public class TransactionService {
                 params.currentYear(),
                 params.currentMonth());
         double totalAmount = transactionsExpenseTotal + goalAllocationTotal;
-        double monthlyIncome = resolveMonthlyIncomeForSummary(user, params.currentYear(), params.currentMonth());
+
+        int[] summaryMonthYear = resolveMonthYear(params.currentYear(), params.currentMonth());
+        int summaryYear = summaryMonthYear[0];
+        int summaryMonth = summaryMonthYear[1];
+        double expectedIncome = incomeCalculationService.resolveExpectedForMonth(user, summaryYear, summaryMonth);
+        double actualIncome = incomeCalculationService.resolveActualForMonth(user, summaryYear, summaryMonth);
+        // Net calculations use effective income: actual inflow when present,
+        // otherwise the expected baseline the user set on their profile.
+        double monthlyIncome = actualIncome > 0 ? actualIncome : expectedIncome;
         double netRemaining = monthlyIncome - totalAmount;
         double spentPercentage = monthlyIncome > 0 ? (totalAmount / monthlyIncome) * 100 : 0;
 
@@ -141,6 +149,8 @@ public class TransactionService {
                 new TransactionsResponse.Summary(
                         totalAmount,
                         monthlyIncome,
+                        expectedIncome,
+                        actualIncome,
                         totalAmount,
                         netRemaining,
                         spentPercentage,
@@ -186,10 +196,6 @@ public class TransactionService {
         Instant transactionDate = parseTransactionDate(request.date());
         TransactionType type = parseType(request.type());
 
-        if (!StringUtils.hasText(request.budgetId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "budgetId is required");
-        }
-
         int month = request.month() != null
                 ? request.month()
                 : LocalDate.ofInstant(transactionDate, ZoneOffset.UTC).getMonthValue() - 1;
@@ -200,16 +206,26 @@ public class TransactionService {
         Instant monthStart = monthStart(year, month);
         Instant nextMonthStart = nextMonthStart(year, month);
 
-        Budget budget = budgetRepository.findByIdAndUser_Id(request.budgetId().trim(), userId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Budget not found or doesn't belong to user"));
+        // Expense transactions must be linked to a budget; income transactions
+        // may stand alone (money coming in, not spending against a budget).
+        boolean isExpense = type == TransactionType.EXPENSE;
+        Budget budget = null;
+        if (StringUtils.hasText(request.budgetId())) {
+            budget = budgetRepository.findByIdAndUser_Id(request.budgetId().trim(), userId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Budget not found or doesn't belong to user"));
 
-        Instant budgetDate = budget.getDate();
-        if (budgetDate.isBefore(monthStart) || !budgetDate.isBefore(nextMonthStart)) {
+            Instant budgetDate = budget.getDate();
+            if (budgetDate.isBefore(monthStart) || !budgetDate.isBefore(nextMonthStart)) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Budget not found or doesn't belong to user");
+            }
+        } else if (isExpense) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Budget not found or doesn't belong to user");
+                    HttpStatus.BAD_REQUEST,
+                    "budgetId is required for expense transactions");
         }
 
         Goal goal = null;
@@ -257,8 +273,6 @@ public class TransactionService {
         transaction.setDescription(normalizeOptional(request.description()));
         transaction.setBudget(budget);
         transaction.setGoal(goal);
-        transaction
-                .setIcon(StringUtils.hasText(budget.getIcon()) ? budget.getIcon() : normalizeOptional(request.icon()));
 
         Transaction saved = transactionRepository.save(transaction);
 
@@ -377,19 +391,24 @@ public class TransactionService {
 
         String newBudgetId;
         if (request.budgetId() == null) {
-            newBudgetId = existing.getBudget().getId();
+            newBudgetId = existing.getBudget() != null ? existing.getBudget().getId() : null;
         } else {
             newBudgetId = StringUtils.hasText(request.budgetId()) ? request.budgetId().trim() : null;
         }
 
-        if (!StringUtils.hasText(newBudgetId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "budgetId is required");
+        // Expense transactions must always resolve to a budget; income may keep null.
+        Budget newBudget = null;
+        if (newType == TransactionType.EXPENSE) {
+            if (!StringUtils.hasText(newBudgetId)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "budgetId is required for expense transactions");
+            }
+            newBudget = budgetRepository.findByIdAndUser_Id(newBudgetId, userId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Budget not found or doesn't belong to user"));
         }
-
-        Budget newBudget = budgetRepository.findByIdAndUser_Id(newBudgetId, userId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Budget not found or doesn't belong to user"));
 
         String newGoalId = request.goalId() == null
                 ? (existing.getGoal() != null ? existing.getGoal().getId() : null)
@@ -409,7 +428,9 @@ public class TransactionService {
         TransactionType oldType = existing.getType();
 
         if (oldBudget != null && oldType == TransactionType.EXPENSE) {
-            if (!oldBudget.getId().equals(newBudget.getId()) || newType != TransactionType.EXPENSE) {
+            if (newType != TransactionType.EXPENSE
+                    || newBudget == null
+                    || !oldBudget.getId().equals(newBudget.getId())) {
                 oldBudget.setSpent(oldBudget.getSpent() - oldAmount);
                 budgetRepository.save(oldBudget);
             } else {
@@ -459,9 +480,6 @@ public class TransactionService {
         }
         if (request.amount() != null) {
             existing.setAmount(newAmount);
-        }
-        if (request.icon() != null) {
-            existing.setIcon(normalizeOptional(request.icon()));
         }
         if (request.description() != null) {
             existing.setDescription(normalizeOptional(request.description()));
@@ -551,7 +569,7 @@ public class TransactionService {
             monthExpenseTotal = savedOrUpdated.getAmount();
         }
 
-        double monthlyIncome = resolveMonthlyIncomeForMonth(user, year, month);
+        double monthlyIncome = incomeCalculationService.resolveEffectiveForMonth(user, year, month);
         double netRemaining = monthlyIncome - monthExpenseTotal;
         double spentPercentage = monthlyIncome > 0 ? (monthExpenseTotal / monthlyIncome) * 100 : 0;
 
@@ -591,7 +609,6 @@ public class TransactionService {
                 transaction.getBaseCurrency(),
                 transaction.getOriginalAmount(),
                 transaction.getOriginalCurrency(),
-                transaction.getIcon(),
                 transaction.getDescription(),
                 budgetInfo,
                 goalInfo);
@@ -654,7 +671,7 @@ public class TransactionService {
         return goalAllocationRepository.sumAllocatedByUserAndAllocatedAtBetween(userId, from, to);
     }
 
-    private double resolveMonthlyIncomeForSummary(User user, String yearRaw, String monthRaw) {
+    private int[] resolveMonthYear(String yearRaw, String monthRaw) {
         Integer month = parseInteger(monthRaw);
         Integer year = parseInteger(yearRaw);
 
@@ -664,11 +681,7 @@ public class TransactionService {
             year = utcNow.getYear();
         }
 
-        return resolveMonthlyIncomeForMonth(user, year, month);
-    }
-
-    private double resolveMonthlyIncomeForMonth(User user, int year, int month) {
-        return monthlyIncomeService.resolveForMonth(user, year, month);
+        return new int[] { year, month };
     }
 
     private int normalizePage(String rawPage) {

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import tools.jackson.databind.ObjectMapper;
 import com.fintechapp.fintech_api.model.Budget;
+import com.fintechapp.fintech_api.model.AuthProvider;
 import com.fintechapp.fintech_api.model.Goal;
 import com.fintechapp.fintech_api.model.Transaction;
 import com.fintechapp.fintech_api.model.TransactionType;
@@ -67,17 +68,17 @@ public abstract class BaseIntegrationTest {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setUsername(username);
+        user.setAuthProvider(AuthProvider.EMAIL);
         return userRepository.save(user);
     }
 
-    protected Budget createBudget(User user, String category, double limit, Instant date, String icon) {
+    protected Budget createBudget(User user, String category, double limit, Instant date) {
         Budget budget = new Budget();
         budget.setUser(user);
         budget.setCategory(category);
         budget.setLimit(limit);
         budget.setDate(date);
         budget.setSpent(0);
-        budget.setIcon(icon);
         return budgetRepository.save(budget);
     }
 
@@ -109,7 +110,6 @@ public abstract class BaseIntegrationTest {
         transaction.setCategory(category);
         transaction.setType(type);
         transaction.setAmount(amount);
-        transaction.setIcon(budget != null ? budget.getIcon() : null);
         return transactionRepository.save(transaction);
     }
 

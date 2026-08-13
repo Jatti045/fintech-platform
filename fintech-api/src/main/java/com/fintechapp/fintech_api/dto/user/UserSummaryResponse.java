@@ -9,6 +9,7 @@ public record UserSummaryResponse(
                 String profilePic,
                 String currency,
                 double monthlyIncome,
+                double actualMonthlyIncome,
                 Instant createdAt,
                 Instant updatedAt) {
 }

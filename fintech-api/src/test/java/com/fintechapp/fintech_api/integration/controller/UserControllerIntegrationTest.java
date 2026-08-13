@@ -209,7 +209,7 @@ class UserControllerIntegrationTest extends BaseIntegrationTest {
     @Test
     void deleteAccount_existingUser_deletesUserAndRelatedData() throws Exception {
         User user = createUser("user-delete@example.com", "Password123!", "user-delete");
-        Budget budget = createBudget(user, "Food", 200, Instant.parse("2026-03-01T00:00:00Z"), "food-icon");
+        Budget budget = createBudget(user, "Food", 200, Instant.parse("2026-03-01T00:00:00Z"));
         createTransaction(user, budget, null, "Lunch", Instant.parse("2026-03-03T10:00:00Z"), "Food", TransactionType.EXPENSE, 10.0);
 
         mockMvc.perform(delete("/api/users/{userId}", user.getId())

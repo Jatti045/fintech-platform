@@ -22,6 +22,17 @@ public interface BudgetRepository extends JpaRepository<Budget, String> {
 
     Optional<Budget> findByIdAndUser_Id(String id, String userId);
 
+    /**
+     * Case-insensitive lookup of a user's budget for the given category within
+     * a single month window. Used by Plaid ingestion to match "category" to an
+     * existing budget regardless of source casing.
+     */
+    Optional<Budget> findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
+            String userId,
+            String category,
+            Instant from,
+            Instant to);
+
     boolean existsByUser_IdAndCategoryAndDateGreaterThanEqualAndDateLessThan(
             String userId,
             String category,

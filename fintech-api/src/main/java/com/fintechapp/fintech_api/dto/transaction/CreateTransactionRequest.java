@@ -23,11 +23,9 @@ public record CreateTransactionRequest(
 
         @NotNull(message = "Amount is required") @DecimalMin(value = "0.01", inclusive = true, message = "Amount must be greater than 0") Double amount,
 
-        @Size(max = 64, message = "Icon value is too long") String icon,
-
         @Size(max = 1000, message = "Description is too long") String description,
 
-        @NotBlank(message = "Budget ID is required") String budgetId,
+        String budgetId,
         String goalId,
 
         @Pattern(regexp = "^[A-Za-z]{3}$", message = "Base currency must be a 3-letter ISO code") String baseCurrency,

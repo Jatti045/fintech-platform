@@ -26,7 +26,8 @@ import jakarta.persistence.Index;
         @Index(name = "idx_transactions_user_date", columnList = "user_id,transaction_date"),
         @Index(name = "idx_transactions_budget", columnList = "budget_id"),
         @Index(name = "idx_transactions_goal", columnList = "goal_id"),
-        @Index(name = "idx_transactions_type", columnList = "type")
+        @Index(name = "idx_transactions_type", columnList = "type"),
+        @Index(name = "uq_transactions_plaid_id", columnList = "plaid_transaction_id", unique = true)
 })
 @Getter
 @Setter
@@ -64,7 +65,8 @@ public class Transaction {
     @Column(name = "original_currency")
     private String originalCurrency;
 
-    private String icon;
+    @Column(name = "plaid_transaction_id", length = 128)
+    private String plaidTransactionId;
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -73,8 +75,8 @@ public class Transaction {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "budget_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "budget_id")
     private Budget budget;
 
     @ManyToOne(fetch = FetchType.LAZY)

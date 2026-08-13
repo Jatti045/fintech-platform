@@ -37,6 +37,7 @@ public class UserService {
     private final GoalRepository goalRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final MonthlyIncomeService monthlyIncomeService;
+    private final IncomeCalculationService incomeCalculationService;
     private final PasswordEncoder passwordEncoder;
     private final CloudinaryService cloudinaryService;
     private final UploadValidationService uploadValidationService;
@@ -48,6 +49,7 @@ public class UserService {
             GoalRepository goalRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             MonthlyIncomeService monthlyIncomeService,
+            IncomeCalculationService incomeCalculationService,
             PasswordEncoder passwordEncoder,
             CloudinaryService cloudinaryService,
             UploadValidationService uploadValidationService) {
@@ -57,6 +59,7 @@ public class UserService {
         this.goalRepository = goalRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.monthlyIncomeService = monthlyIncomeService;
+        this.incomeCalculationService = incomeCalculationService;
         this.passwordEncoder = passwordEncoder;
         this.cloudinaryService = cloudinaryService;
         this.uploadValidationService = uploadValidationService;
@@ -227,23 +230,21 @@ public class UserService {
     }
 
     private UserSummaryResponse toUserSummary(User user) {
-        double currentMonthlyIncome = monthlyIncomeService.resolveForCurrentMonth(user);
-        return toUserSummary(user, currentMonthlyIncome);
+        LocalDate utcNow = LocalDate.now(ZoneOffset.UTC);
+        return toUserSummary(user, utcNow.getYear(), utcNow.getMonthValue() - 1);
     }
 
     private UserSummaryResponse toUserSummary(User user, int year, int month) {
-        double monthlyIncome = monthlyIncomeService.resolveForMonth(user, year, month);
-        return toUserSummary(user, monthlyIncome);
-    }
-
-    private UserSummaryResponse toUserSummary(User user, double monthlyIncome) {
+        double expectedIncome = incomeCalculationService.resolveExpectedForMonth(user, year, month);
+        double actualIncome = incomeCalculationService.resolveActualForMonth(user, year, month);
         return new UserSummaryResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getProfilePic(),
                 user.getCurrency(),
-                monthlyIncome,
+                expectedIncome,
+                actualIncome,
                 user.getCreatedAt(),
                 user.getUpdatedAt());
     }

@@ -6,7 +6,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { router } from "expo-router";
 
-import { useAppDispatch, useAppSelector, useAuth, useCalendar, useTheme } from "@/hooks/useRedux";
+import {
+  useAppDispatch,
+  useAppSelector,
+  useAuth,
+  useCalendar,
+  useTheme,
+} from "@/hooks/useRedux";
 import {
   deleteUserAccount,
   logoutUser,
@@ -26,13 +32,18 @@ import {
   selectNotificationPermissionStatus,
 } from "@/store/slices/notificationSlice";
 import { userAPI } from "@/api/user";
+import { plaidAPI } from "@/api/plaid";
+import { fetchTransaction } from "@/store/slices/transactionSlice";
+import type { LinkSuccess } from "react-native-plaid-link-sdk";
 
 import { useThemedAlert } from "@/utils/themedAlert";
+import { extractErrorMessage } from "@/utils/extractErrorMessage";
 import { clearRatesCache } from "@/utils/currencyConverter";
 import { DEFAULT_CURRENCY } from "@/constants/Currencies";
 import { pickProfileImage, persistTheme } from "@/utils/profile/profileService";
 
 import type { DeleteAccountPayload, SettingsItem } from "@/types/profile/types";
+import type { IPlaidItem } from "@/types/plaid/types";
 
 // ─── Return type (explicit so consumers get autocomplete) ───────────────────
 
@@ -71,6 +82,8 @@ export interface UseProfileReturn {
   setMonthlyIncomeInput: (value: string) => void;
   handleSaveMonthlyIncome: () => Promise<void>;
   monthlyIncomeSaving: boolean;
+  /** Actual inflow (sum of income transactions) for the selected month. */
+  actualMonthlyIncome: number;
 
   /** Change-password modal state & handler */
   changeOpen: boolean;
@@ -85,6 +98,17 @@ export interface UseProfileReturn {
 
   /** Settings list items (log out, change pw, delete) */
   settingsItems: SettingsItem[];
+
+  /** Bank connection (Plaid Link) state + handler */
+  linking: boolean;
+  handleLinkBank: () => Promise<void>;
+
+  /** Active bank connections + loading/disconnect state */
+  plaidItems: IPlaidItem[];
+  loadingItems: boolean;
+  disconnectingId: string | null;
+  /** Confirmation-gated disconnect flow for a connected bank item */
+  handleDisconnectBank: (item: IPlaidItem) => void;
 
   /** Purchase-reminder preference state + toggle handler */
   purchaseRemindersEnabled: boolean;
@@ -111,10 +135,36 @@ export function useProfile(): UseProfileReturn {
   const [pwSaving, setPwSaving] = useState(false);
   const [monthlyIncomeSaving, setMonthlyIncomeSaving] = useState(false);
   const [monthlyIncomeInput, setMonthlyIncomeInput] = useState("");
+  const [actualMonthlyIncome, setActualMonthlyIncome] = useState(0);
   const selectedMonthLabel = `${calendar.year}-${String(calendar.month + 1).padStart(2, "0")}`;
 
+  // ── bank connection (Plaid Link) state ────────────────────────────────────
+  const [linking, setLinking] = useState(false);
+  const [plaidItems, setPlaidItems] = useState<IPlaidItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+
+  // Load the connected-banks list once on mount (and on pull-to-refresh).
+  const loadPlaidItems = useCallback(async () => {
+    setLoadingItems(true);
+    try {
+      const response = await plaidAPI.fetchItems();
+      setPlaidItems(response?.data?.items ?? []);
+    } catch {
+      // Swallow — the connect row remains usable and refresh will retry.
+    } finally {
+      setLoadingItems(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPlaidItems();
+  }, [loadPlaidItems]);
+
   // ── notification preference state ─────────────────────────────────────────
-  const purchaseRemindersEnabled = useAppSelector(selectPurchaseRemindersEnabled);
+  const purchaseRemindersEnabled = useAppSelector(
+    selectPurchaseRemindersEnabled,
+  );
   const notificationTimezone = useAppSelector(selectNotificationTimezone);
   const permissionStatus = useAppSelector(selectNotificationPermissionStatus);
   const notificationPermissionDenied = permissionStatus === "denied";
@@ -143,8 +193,10 @@ export function useProfile(): UseProfileReturn {
         year: calendar.year,
       });
       setMonthlyIncomeInput(String(Number(response?.data?.monthlyIncome ?? 0)));
+      setActualMonthlyIncome(Number(response?.data?.actualMonthlyIncome ?? 0));
     } catch {
       setMonthlyIncomeInput("");
+      setActualMonthlyIncome(0);
     }
   }, [user?.id, calendar.month, calendar.year]);
 
@@ -163,10 +215,153 @@ export function useProfile(): UseProfileReturn {
     try {
       await dispatch(loadUserFromStorage());
       await loadMonthlyIncomeForSelectedMonth();
+      await loadPlaidItems();
     } finally {
       setRefreshing(false);
     }
-  }, [dispatch, loadMonthlyIncomeForSelectedMonth]);
+  }, [dispatch, loadMonthlyIncomeForSelectedMonth, loadPlaidItems]);
+
+  // ── bank connection (Plaid Link) flow ─────────────────────────────────────
+  const handleLinkBank = async () => {
+    setLinking(true);
+    try {
+      // Lazy-load the native Plaid Link SDK only when the user actually taps
+      // "Connect a bank". The SDK resolves its native TurboModule at import
+      // time, so a top-level import would crash the whole Profile screen when
+      // the native module hasn't been linked into a rebuilt app yet.
+      let plaidModule: any;
+      try {
+        plaidModule = require("react-native-plaid-link-sdk");
+      } catch (e: any) {
+        setLinking(false);
+        showAlert({
+          title: "Plaid Not Linked",
+          message: `Bank linking needs the native Plaid SDK in this app build. Details: ${
+            e?.message || "native module missing"
+          }`,
+        });
+        return;
+      }
+
+      const createPlaidLinkSession = plaidModule?.createPlaidLinkSession;
+      if (typeof createPlaidLinkSession !== "function") {
+        setLinking(false);
+        showAlert({
+          title: "Plaid Not Available",
+          message:
+            "The installed app was built without the Plaid SDK. Rebuild and reinstall the development client.",
+        });
+        return;
+      }
+
+      const response = await plaidAPI.createLinkToken();
+      const linkToken = response?.data?.linkToken;
+      if (!linkToken) {
+        throw new Error("Plaid could not create a link token.");
+      }
+
+      const handler = await createPlaidLinkSession({
+        token: linkToken,
+        onSuccess: async (success: LinkSuccess) => {
+          try {
+            const exchangeResponse = await plaidAPI.exchangePublicToken(
+              success.publicToken,
+            );
+            // Immediately surface the newly connected bank in the list.
+            const connectedItem = exchangeResponse?.data?.item;
+            if (connectedItem) {
+              setPlaidItems((prev) =>
+                prev.some((existing) => existing.id === connectedItem.id)
+                  ? prev
+                  : [connectedItem, ...prev],
+              );
+            }
+            showAlert({
+              title: "Bank Connected",
+              message: "Your transactions are syncing in the background.",
+            });
+            // Surface newly-synced transactions for the selected month.
+            await dispatch(
+              fetchTransaction({
+                searchQuery: "",
+                currentMonth: calendar.month,
+                currentYear: calendar.year,
+                useCache: false,
+              }),
+            );
+          } catch (e) {
+            showAlert({
+              title: "Connection Failed",
+              message: extractErrorMessage(e, "Failed to connect your bank."),
+            });
+          } finally {
+            setLinking(false);
+          }
+        },
+        onExit: () => setLinking(false),
+        onEvent: () => {},
+      });
+      await handler.open();
+    } catch (e) {
+      setLinking(false);
+      showAlert({
+        title: "Connection Failed",
+        message: extractErrorMessage(e, "Failed to start bank connection."),
+      });
+    }
+  };
+
+  // ── disconnect a connected bank ──────────────────────────────────────────
+  // Performs the DELETE after the user confirms in the themed alert.
+  const disconnectBank = useCallback(
+    async (item: IPlaidItem) => {
+      setDisconnectingId(item.id);
+      try {
+        const response = await plaidAPI.disconnectItem(item.id);
+        if (response?.success) {
+          setPlaidItems((prev) => prev.filter((it) => it.id !== item.id));
+          showAlert({
+            title: "Bank Disconnected",
+            message: `${item.institutionName || "Bank"} has been disconnected from your account.`,
+          });
+        } else {
+          showAlert({
+            title: "Disconnect Failed",
+            message: response?.message || "Failed to disconnect the bank.",
+          });
+        }
+      } catch (e) {
+        showAlert({
+          title: "Disconnect Failed",
+          message: extractErrorMessage(e, "Failed to disconnect the bank."),
+        });
+      } finally {
+        setDisconnectingId(null);
+      }
+    },
+    [showAlert],
+  );
+
+  const handleDisconnectBank = useCallback(
+    (item: IPlaidItem) => {
+      const name = item.institutionName || "Bank";
+      showAlert({
+        title: "Disconnect Bank?",
+        message: `Disconnect ${name}? Your already-synced transactions will remain in Budgee.`,
+        buttons: [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Disconnect",
+            style: "destructive",
+            onPress: () => {
+              void disconnectBank(item);
+            },
+          },
+        ],
+      });
+    },
+    [showAlert, disconnectBank],
+  );
 
   // ── avatar ───────────────────────────────────────────────────────────────
   const handlePickImage = useCallback(async () => {
@@ -505,6 +700,7 @@ export function useProfile(): UseProfileReturn {
     setMonthlyIncomeInput,
     handleSaveMonthlyIncome,
     monthlyIncomeSaving,
+    actualMonthlyIncome,
     changeOpen,
     closeChangeModal,
     openChangeModal,
@@ -514,5 +710,11 @@ export function useProfile(): UseProfileReturn {
     purchaseRemindersEnabled,
     notificationPermissionDenied,
     handleTogglePurchaseReminders,
+    linking,
+    handleLinkBank,
+    plaidItems,
+    loadingItems,
+    disconnectingId,
+    handleDisconnectBank,
   };
 }

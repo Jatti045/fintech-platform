@@ -16,6 +16,9 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
@@ -33,6 +36,7 @@ import com.fintechapp.fintech_api.service.UserService;
 
 @WebMvcTest(AuthController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, JsonAuthenticationEntryPoint.class, JwtService.class})
+@ImportAutoConfiguration({ServletWebSecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class})
 @TestPropertySource(properties = "app.jwt.secret-key=test-secret-key-test-secret-key-1234567890")
 class AuthControllerSecurityTest {
 
@@ -112,6 +116,7 @@ class AuthControllerSecurityTest {
 						null,
 						"USD",
 						0.0,
+						0.0,
 						Instant.ofEpochSecond(1_700_000_000L),
 						Instant.ofEpochSecond(1_700_003_600L)
 				)
@@ -120,8 +125,8 @@ class AuthControllerSecurityTest {
 		String validToken = createToken(
 				"user-123",
 				"user@example.com",
-				Instant.ofEpochSecond(1_700_000_000L),
-				Instant.ofEpochSecond(1_700_003_600L)
+				Instant.now().minusSeconds(60),
+				Instant.now().plusSeconds(3600)
 		);
 
 		mockMvc.perform(get("/api/auth/me")

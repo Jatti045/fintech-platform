@@ -50,7 +50,13 @@ public class Budget {
     @Column(nullable = false)
     private double spent = 0;
 
-    private String icon;
+    /**
+     * True when this category was auto-created by Plaid transaction ingestion
+     * with a {@code $0} limit. Users should review these and assign a limit
+     * (setting a limit clears the flag).
+     */
+    @Column(name = "is_auto_created", nullable = false)
+    private boolean autoCreated = false;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

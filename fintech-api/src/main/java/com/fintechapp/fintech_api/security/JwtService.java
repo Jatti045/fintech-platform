@@ -25,6 +25,8 @@ public class JwtService {
 
 	private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
 
+	public static final long DEFAULT_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60L;
+
 	@Value("${app.jwt.secret-key:}")
 	private String secretKey;
 
@@ -84,9 +86,16 @@ public class JwtService {
 			String userId = extractStringClaim(payloadJson, "userId");
 			String email = extractStringClaim(payloadJson, "email");
 			Long issuedAt = extractLongClaim(payloadJson, "iat");
+			Long expiresAt = extractLongClaim(payloadJson, "exp");
 
 			if (!StringUtils.hasText(userId) || !StringUtils.hasText(email) || issuedAt == null) {
 				throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Invalid token payload.");
+			}
+
+			long now = Instant.now().getEpochSecond();
+			long expiryEpoch = expiresAt != null ? expiresAt : issuedAt + DEFAULT_TOKEN_TTL_SECONDS;
+			if (now > expiryEpoch) {
+				throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Token has expired.");
 			}
 
 			return new AuthenticatedUser(userId, email, issuedAt);

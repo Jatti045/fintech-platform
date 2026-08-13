@@ -45,7 +45,7 @@ public class BudgetService {
     public BudgetDataResponse createBudget(AuthenticatedUser authenticatedUser, CreateBudgetRequest request) {
         String userId = requireUserId(authenticatedUser);
         if (request == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category, icon, and limit are required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category and limit are required");
         }
 
         Integer month = request.month();
@@ -57,8 +57,8 @@ public class BudgetService {
         Instant monthStart = monthStart(year, month);
         Instant nextMonthStart = nextMonthStart(year, month);
 
-        if (!StringUtils.hasText(request.category()) || !StringUtils.hasText(request.icon()) || request.limit() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category, icon, and limit are required");
+        if (!StringUtils.hasText(request.category()) || request.limit() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category and limit are required");
         }
 
         boolean exists = budgetRepository.existsByUser_IdAndCategoryAndDateGreaterThanEqualAndDateLessThan(
@@ -78,9 +78,9 @@ public class BudgetService {
         Budget budget = new Budget();
         budget.setUser(user);
         budget.setCategory(request.category().trim());
-        budget.setIcon(request.icon().trim());
         budget.setLimit(request.limit());
         budget.setDate(monthStart);
+        budget.setAutoCreated(false); // manual budgets always start budgeted
 
         Budget saved = budgetRepository.save(budget);
         return new BudgetDataResponse(true, "Budget created successfully", toBudgetItem(saved));
@@ -200,14 +200,12 @@ public class BudgetService {
                 );
             }
             existing.setLimit(request.limit());
+            // Assigning a limit clears the auto-created/unbudgeted flag.
+            existing.setAutoCreated(false);
         }
 
         if (request.category() != null) {
             existing.setCategory(newCategory);
-        }
-
-        if (request.icon() != null) {
-            existing.setIcon(StringUtils.hasText(request.icon()) ? request.icon().trim() : null);
         }
 
         if (request.month() != null || request.year() != null) {
@@ -226,7 +224,7 @@ public class BudgetService {
                 budget.getCategory(),
                 budget.getLimit(),
                 budget.getSpent(),
-                budget.getIcon(),
+                budget.isAutoCreated(),
                 budget.getCreatedAt(),
                 budget.getUpdatedAt()
         );

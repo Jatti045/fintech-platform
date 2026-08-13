@@ -2,7 +2,7 @@
   "expo": {
     "name": "Budgee",
     "slug": "budgee-app",
-    "version": "2.3.5",
+    "version": "3.0.0",
     "description": "Budgee — budgeting made easy",
     "orientation": "portrait",
     "privacy": "public",
@@ -11,7 +11,18 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleTypeRole": "Editor",
+            "CFBundleURLSchemes": [
+              "plaidlink"
+            ]
+          }
+        ]
+      },
+      "bundleIdentifier": "com.budgee.finance"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +31,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.budgee.finance",
-      "versionCode": 41,
+      "versionCode": 42,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -53,6 +64,14 @@
           "icon": "./assets/images/icon.png",
           "color": "#ffffff",
           "defaultChannel": "purchase-reminders"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
         }
       ]
     ],

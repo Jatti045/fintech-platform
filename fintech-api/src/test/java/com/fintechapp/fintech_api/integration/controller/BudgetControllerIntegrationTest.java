@@ -32,14 +32,14 @@ class BudgetControllerIntegrationTest extends BaseIntegrationTest {
                         .contentType(json())
                         .content(asJson(Map.of(
                                 "category", "Food",
-                                "icon", "food-icon",
                                 "limit", 300.0,
                                 "month", 2,
                                 "year", 2026
                         ))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.category").value("Food"));
+                .andExpect(jsonPath("$.data.category").value("Food"))
+                .andExpect(jsonPath("$.data.autoCreated").value(false));
 
         org.junit.jupiter.api.Assertions.assertEquals(1, budgetRepository.findByUser_IdOrderByDateDesc(user.getId()).size());
     }
@@ -68,7 +68,6 @@ class BudgetControllerIntegrationTest extends BaseIntegrationTest {
                         .contentType(json())
                         .content(asJson(Map.of(
                                 "category", "Food",
-                                "icon", "food-icon",
                                 "limit", 300.0,
                                 "month", 2,
                                 "year", 2026
@@ -81,8 +80,8 @@ class BudgetControllerIntegrationTest extends BaseIntegrationTest {
     @Test
     void getBudgets_validMonthYear_returnsFilteredBudgets() throws Exception {
         User user = createUser("budget-list@example.com", "Password123!", "budget-list");
-        createBudget(user, "Food", 300, LocalDate.of(2026, 3, 1).atStartOfDay().toInstant(ZoneOffset.UTC), "food-icon");
-        createBudget(user, "Transport", 200, LocalDate.of(2026, 2, 1).atStartOfDay().toInstant(ZoneOffset.UTC), "transport-icon");
+        createBudget(user, "Food", 300, LocalDate.of(2026, 3, 1).atStartOfDay().toInstant(ZoneOffset.UTC));
+        createBudget(user, "Transport", 200, LocalDate.of(2026, 2, 1).atStartOfDay().toInstant(ZoneOffset.UTC));
 
         mockMvc.perform(get("/api/budgets")
                         .header(authHeaderName(), authHeader(user))
@@ -110,18 +109,16 @@ class BudgetControllerIntegrationTest extends BaseIntegrationTest {
                 user,
                 "Food",
                 300,
-                LocalDate.of(2026, 3, 1).atStartOfDay().toInstant(ZoneOffset.UTC),
-                "food-icon"
+                LocalDate.of(2026, 3, 1).atStartOfDay().toInstant(ZoneOffset.UTC)
         );
 
         mockMvc.perform(patch("/api/budgets/{budgetId}", budget.getId())
                         .header(authHeaderName(), authHeader(user))
                         .contentType(json())
-                        .content(asJson(Map.of("limit", 450.0, "icon", "updated-icon"))))
+                        .content(asJson(Map.of("limit", 450.0))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.limit").value(450.0))
-                .andExpect(jsonPath("$.data.icon").value("updated-icon"));
+                .andExpect(jsonPath("$.data.limit").value(450.0));
 
         Budget reloaded = budgetRepository.findById(budget.getId()).orElseThrow();
         org.junit.jupiter.api.Assertions.assertEquals(450.0, reloaded.getLimit());
@@ -158,8 +155,7 @@ class BudgetControllerIntegrationTest extends BaseIntegrationTest {
                 user,
                 "Food",
                 300,
-                Instant.parse("2026-03-01T00:00:00Z"),
-                "food-icon"
+                Instant.parse("2026-03-01T00:00:00Z")
         );
 
         mockMvc.perform(delete("/api/budgets/{budgetId}", budget.getId())

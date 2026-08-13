@@ -27,7 +27,6 @@ public record TransactionsResponse(
                         String baseCurrency,
                         Double originalAmount,
                         String originalCurrency,
-                        String icon,
                         String description,
                         BudgetInfo budget,
                         GoalInfo goal) {
@@ -58,6 +57,8 @@ public record TransactionsResponse(
         public record Summary(
                         double totalAmount,
                         double monthlyIncome,
+                        double expectedIncome,
+                        double actualIncome,
                         double netSpent,
                         double netRemaining,
                         double spentPercentageOfIncome,

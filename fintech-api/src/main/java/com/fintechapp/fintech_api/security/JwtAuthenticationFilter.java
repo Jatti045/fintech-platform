@@ -36,7 +36,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			"/api/auth/signup",
 			"/api/auth/forgot-password",
 			"/api/auth/reset-password",
-			"/api/auth/google"
+			"/api/auth/google",
+			"/api/plaid/webhook"
 	);
 
 	private final JwtService jwtService;
@@ -53,7 +54,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		if (HttpMethod.OPTIONS.matches(request.getMethod())) {
 			return true;
 		}
-		String requestPath = request.getServletPath();
+		// Use the full request URI rather than getServletPath(), which can be
+		// empty in embedded/test contexts and would cause API paths to be
+		// misclassified as non-API (and therefore skipped).
+		String requestPath = request.getRequestURI();
 		return !requestPath.startsWith("/api/") || PUBLIC_PATHS.contains(requestPath);
 	}
 

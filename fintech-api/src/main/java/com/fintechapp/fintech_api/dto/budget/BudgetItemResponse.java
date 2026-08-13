@@ -9,7 +9,7 @@ public record BudgetItemResponse(
         String category,
         double limit,
         double spent,
-        String icon,
+        boolean autoCreated,
         Instant createdAt,
         Instant updatedAt
 ) {

@@ -2,6 +2,7 @@
 
 import type { IUser } from "@/types/user/types";
 import type { ITheme } from "@/types/theme/types";
+import type { IPlaidItem } from "@/types/plaid/types";
 
 /** Represents a single item in the Settings list. */
 export interface SettingsItem {
@@ -80,5 +81,18 @@ export interface CurrencyPickerModalProps extends ThemedProps {
   onClose: () => void;
 }
 
-/** Props for BankConnections placeholder. */
-export interface BankConnectionsProps extends ThemedProps {}
+/** Props for BankConnections. */
+export interface BankConnectionsProps extends ThemedProps {
+  /** True while the Plaid Link flow is open / token exchange is in flight. */
+  linking: boolean;
+  /** Starts the bank-connection flow (fetch link token + open Plaid Link). */
+  onLinkBank: () => Promise<void> | void;
+  /** Active bank connections linked to the user's profile. */
+  items: IPlaidItem[];
+  /** True while the connected-items list is being fetched. */
+  loadingItems: boolean;
+  /** Id of the item currently being disconnected (spinner state), or null. */
+  disconnectingId: string | null;
+  /** Prompts for confirmation and disconnects the given bank item. */
+  onDisconnect: (item: IPlaidItem) => void;
+}

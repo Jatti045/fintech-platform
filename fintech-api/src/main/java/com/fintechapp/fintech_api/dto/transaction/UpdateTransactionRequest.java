@@ -14,8 +14,6 @@ public record UpdateTransactionRequest(
 
         @DecimalMin(value = "0.01", inclusive = true, message = "Amount must be greater than 0") Double amount,
 
-        @Size(max = 64, message = "Icon value is too long") String icon,
-
         @Size(max = 1000, message = "Description is too long") String description,
         String budgetId,
         String goalId,

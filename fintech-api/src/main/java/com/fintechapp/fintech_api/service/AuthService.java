@@ -2,6 +2,8 @@ package com.fintechapp.fintech_api.service;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Optional;
@@ -43,7 +45,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
-    private final MonthlyIncomeService monthlyIncomeService;
+    private final IncomeCalculationService incomeCalculationService;
 
     public AuthService(
             UserRepository userRepository,
@@ -51,13 +53,13 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             EmailService emailService,
-            MonthlyIncomeService monthlyIncomeService) {
+            IncomeCalculationService incomeCalculationService) {
         this.userRepository = userRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailService = emailService;
-        this.monthlyIncomeService = monthlyIncomeService;
+        this.incomeCalculationService = incomeCalculationService;
     }
 
     @Transactional
@@ -239,13 +241,19 @@ public class AuthService {
     }
 
     private UserSummaryResponse toUserSummary(User user) {
+        LocalDate utcNow = LocalDate.now(ZoneOffset.UTC);
+        int year = utcNow.getYear();
+        int month = utcNow.getMonthValue() - 1;
+        double expectedIncome = incomeCalculationService.resolveExpectedForMonth(user, year, month);
+        double actualIncome = incomeCalculationService.resolveActualForMonth(user, year, month);
         return new UserSummaryResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getProfilePic(),
                 user.getCurrency(),
-                monthlyIncomeService.resolveForCurrentMonth(user),
+                expectedIncome,
+                actualIncome,
                 user.getCreatedAt(),
                 user.getUpdatedAt());
     }

@@ -1,10 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  RefreshControl,
-} from "react-native";
+import { View, Text, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useProfile } from "@/hooks/profile/useProfile";
 import { DEFAULT_CURRENCY } from "@/constants/Currencies";
@@ -15,6 +10,7 @@ import CurrencySelector from "@/components/profile/CurrencySelector";
 import SettingsList from "@/components/profile/SettingsList";
 import NotificationPreference from "@/components/profile/NotificationPreference";
 import MonthlyIncome from "@/components/profile/MonthlyIncome";
+import BankConnections from "@/components/profile/BankConnections";
 import ChangePasswordModal from "@/components/profile/ChangePasswordModal";
 import CurrencyPickerModal from "@/components/profile/CurrencyPickerModal";
 
@@ -38,6 +34,7 @@ export default function ProfileScreen() {
     setMonthlyIncomeInput,
     handleSaveMonthlyIncome,
     monthlyIncomeSaving,
+    actualMonthlyIncome,
     changeOpen,
     closeChangeModal,
     handleChangePassword,
@@ -46,6 +43,12 @@ export default function ProfileScreen() {
     purchaseRemindersEnabled,
     notificationPermissionDenied,
     handleTogglePurchaseReminders,
+    linking,
+    handleLinkBank,
+    plaidItems,
+    loadingItems,
+    disconnectingId,
+    handleDisconnectBank,
   } = useProfile();
 
   return (
@@ -84,6 +87,31 @@ export default function ProfileScreen() {
           deleting={deleting}
           onPickImage={handlePickImage}
           onDeleteImage={handleDeleteImage}
+        />
+
+        <Text
+          style={{
+            color: THEME.textSecondary,
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 0.6,
+            textTransform: "uppercase",
+            marginBottom: 8,
+            marginTop: 4,
+          }}
+        >
+          Bank
+        </Text>
+
+        {/* Bank connections */}
+        <BankConnections
+          THEME={THEME}
+          linking={linking}
+          onLinkBank={handleLinkBank}
+          items={plaidItems}
+          loadingItems={loadingItems}
+          disconnectingId={disconnectingId}
+          onDisconnect={handleDisconnectBank}
         />
 
         {/* Preferences */}
@@ -128,6 +156,7 @@ export default function ProfileScreen() {
           monthLabel={selectedMonthLabel}
           saving={monthlyIncomeSaving}
           onSave={handleSaveMonthlyIncome}
+          actualIncome={actualMonthlyIncome}
         />
 
         {/* Security & account */}
