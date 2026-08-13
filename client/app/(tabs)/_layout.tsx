@@ -8,8 +8,33 @@ import { fetchTransaction } from "@/store/slices/transactionSlice";
 import { fetchBudgets } from "@/store/slices/budgetSlice";
 import { fetchGoals } from "@/store/slices/goalSlice";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
+import { View } from "react-native";
+import { hexToRgba, tintHex } from "@/utils/helper";
+
+interface TabIndicatorProps {
+  focused: boolean;
+}
+
+function TabIndicator({ focused }: TabIndicatorProps) {
+  const { THEME } = useTheme();
+
+  if (!focused) return null;
+
+  return (
+    <View
+      style={{
+        width: 5,
+        height: 5,
+        borderRadius: 1000,
+        backgroundColor: THEME.primary,
+        marginTop: 4,
+      }}
+    />
+  );
+}
 
 export default function TabsLayout() {
+  const TAB_ICON_SIZE = 28;
   const dispatch = useAppDispatch();
   const { THEME } = useTheme();
   const { month, year } = useCalendar();
@@ -40,11 +65,24 @@ export default function TabsLayout() {
         headerTitle: () => null,
         headerStyle: {
           backgroundColor: THEME.border,
-          height: 80,
+          height: 70,
         },
+        tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: THEME.inputBackground,
-          borderTopColor: THEME.border,
+          backgroundColor: tintHex(THEME.surface, 6),
+          borderTopColor: hexToRgba(THEME.border, 0.55),
+          borderTopWidth: 1,
+          height: 70,
+
+          shadowColor: "#000",
+          shadowOffset: {
+            width: 0,
+            height: -4,
+          },
+          shadowOpacity: 0.15,
+          shadowRadius: 12,
+
+          elevation: 8,
         },
         tabBarActiveTintColor: THEME.primary,
         tabBarInactiveTintColor: THEME.textSecondary,
@@ -54,8 +92,15 @@ export default function TabsLayout() {
         name="index"
         options={{
           tabBarLabel: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{ alignItems: "center" }}>
+              <Ionicons
+                name={focused ? "home" : "home-outline"}
+                size={TAB_ICON_SIZE}
+                color={color}
+              />
+              <TabIndicator focused={focused} />
+            </View>
           ),
         }}
       />
@@ -64,8 +109,15 @@ export default function TabsLayout() {
         name="transaction"
         options={{
           tabBarLabel: "Transactions",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{ alignItems: "center" }}>
+              <Ionicons
+                name={focused ? "documents" : "documents-outline"}
+                size={TAB_ICON_SIZE}
+                color={color}
+              />
+              <TabIndicator focused={focused} />
+            </View>
           ),
         }}
       />
@@ -73,9 +125,16 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="budget"
         options={{
-          tabBarLabel: "Budget",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wallet" color={color} size={size} />
+          tabBarLabel: "budget",
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{ alignItems: "center" }}>
+              <Ionicons
+                name={focused ? "card" : "card-outline"}
+                color={color}
+                size={TAB_ICON_SIZE}
+              />
+              <TabIndicator focused={focused} />
+            </View>
           ),
         }}
       />
@@ -100,8 +159,15 @@ export default function TabsLayout() {
         name="profile"
         options={{
           tabBarLabel: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" color={color} size={size} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{ alignItems: "center" }}>
+              <Ionicons
+                name={focused ? "person-circle" : "person-circle-outline"}
+                color={color}
+                size={TAB_ICON_SIZE}
+              />
+              <TabIndicator focused={focused} />
+            </View>
           ),
         }}
       />

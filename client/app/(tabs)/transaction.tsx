@@ -296,7 +296,7 @@ export default function TransactionScreen() {
     () => (
       <>
         {/* Screen title */}
-        <View className="items-center justify-center mt-4 mb-6">
+        <View className="flex justify-center items-start mt-4 mb-2">
           <Text
             style={{ color: THEME.textPrimary }}
             className="text-2xl font-bold"
