@@ -33,9 +33,7 @@ class BudgetAPI extends BaseAPI {
 
   async update(
     budgetId: string,
-    updates: Partial<
-      IBudgetData & { category?: string; limit?: number; icon?: string }
-    >,
+    updates: Partial<IBudgetData & { category?: string; limit?: number }>,
   ): Promise<IApiResponse<any>> {
     return this.makeRequest<any>(`/budget/${budgetId}`, {
       method: "PUT",

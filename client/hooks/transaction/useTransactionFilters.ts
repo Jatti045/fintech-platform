@@ -41,7 +41,8 @@ export function useTransactionFilters(transactions: any[], budgets: any[]) {
 
   /**
    * Transactions filtered by category, amount range, and search query.
-   * Only EXPENSE-type transactions are shown.
+   * Both INCOME and EXPENSE transactions are shown so money coming in is
+   * visible alongside spending.
    */
   const filteredTransactions = useMemo(() => {
     const minParsed = minAmount.trim() !== "" ? Number(minAmount) || 0 : null;
@@ -57,9 +58,6 @@ export function useTransactionFilters(transactions: any[], budgets: any[]) {
           if (String(t.category).toLowerCase() !== filterCat) return false;
         }
       }
-
-      // Only expenses
-      if ((t.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") return false;
 
       // Amount range
       const amt = safeAmount(t.displayAmount ?? t.amount);
@@ -95,12 +93,20 @@ export function useTransactionFilters(transactions: any[], budgets: any[]) {
           return {
             title,
             data,
+            // Day-total reflects spending only (income shows in the rows but
+            // shouldn't inflate the "spent that day" figure).
             total:
               Math.round(
-                data.reduce(
-                  (sum, tx) => sum + safeAmount(tx.displayAmount ?? tx.amount),
-                  0,
-                ) * 100,
+                data
+                  .filter(
+                    (tx) =>
+                      (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE",
+                  )
+                  .reduce(
+                    (sum, tx) =>
+                      sum + safeAmount(tx.displayAmount ?? tx.amount),
+                    0,
+                  ) * 100,
               ) / 100,
           };
         })

@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { Text, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { useTheme, useBudgets } from "@/hooks/useRedux";
 import { capitalizeFirst, formatCurrency, hexToRgba } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
@@ -24,8 +23,8 @@ const RecentFlow = React.memo(function RecentFlow({
   const budgets = useBudgets();
 
   const budgetMap = useMemo(() => {
-    const map = new Map<string, { category: string; icon?: string }>();
-    for (const b of budgets) map.set(b.id, { category: b.category, icon: b.icon });
+    const map = new Map<string, { category: string }>();
+    for (const b of budgets) map.set(b.id, { category: b.category });
     return map;
   }, [budgets]);
 
@@ -79,7 +78,6 @@ const RecentFlow = React.memo(function RecentFlow({
       {recent.map((tx, i) => {
         const meta = tx.budgetId ? budgetMap.get(tx.budgetId) : undefined;
         const category = meta?.category ?? tx.category ?? "Uncategorized";
-        const icon = (meta?.icon || tx.icon || "circle") as keyof typeof Feather.glyphMap;
         const amount = safeAmount(tx.displayAmount ?? tx.amount);
         const currency = (tx.displayCurrency || tx.baseCurrency || currencyCode).toUpperCase();
         const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE";
@@ -95,26 +93,6 @@ const RecentFlow = React.memo(function RecentFlow({
               borderTopColor: hexToRgba(THEME.border, 0.7),
             }}
           >
-            <View
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 11,
-                backgroundColor: hexToRgba(
-                  isExpense ? THEME.primary : THEME.success,
-                  0.14,
-                ),
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: 12,
-              }}
-            >
-              <Feather
-                name={icon}
-                size={15}
-                color={isExpense ? THEME.primary : THEME.success}
-              />
-            </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text
                 style={{ color: THEME.textPrimary, fontSize: 13, fontWeight: "700" }}

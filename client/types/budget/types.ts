@@ -6,12 +6,12 @@ export interface IBudget {
   id: string;
   date: Date;
   category: string;
-  icon: string;
   limit: number;
   spent: number;
   userId: string;
   createdAt: string;
   updatedAt: string;
+  autoCreated?: boolean;
   transactions?: ITransaction[];
 }
 

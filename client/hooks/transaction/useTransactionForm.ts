@@ -12,7 +12,8 @@ export const useTransactionForm = () => {
 
   const userCurrency = user?.currency || DEFAULT_CURRENCY;
 
-  const type = TransactionType.EXPENSE; // default to expense, can be extended to support income if needed
+  // Default to expense; the user can switch to income in the transaction modal.
+  const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
   const monthStartDate = new Date(currentYear, currentMonth, 1);
   const today = new Date();
   const isCurrentMonth =
@@ -49,10 +50,11 @@ export const useTransactionForm = () => {
     txCurrency,
     setTxCurrency,
     userCurrency,
+    type,
+    setType,
     monthStartDate,
     monthEndDate,
     currentMonth,
     currentYear,
-    type,
   };
 };

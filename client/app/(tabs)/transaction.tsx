@@ -311,6 +311,8 @@ export default function TransactionScreen() {
           month={calendar.month}
           year={calendar.year}
           monthlyIncome={monthlyIncome}
+          actualIncome={Number(monthSummary.actualIncome || 0)}
+          expectedIncome={Number(monthSummary.expectedIncome || 0)}
           currencyCode={activeCurrency}
         />
 
@@ -414,7 +416,7 @@ export default function TransactionScreen() {
       />
 
       {/* Floating action button */}
-      <AddNewTransactionButton setOpenSheet={setOpenSheet} budgets={budgets} />
+      <AddNewTransactionButton setOpenSheet={setOpenSheet} />
 
       {/* Full-screen loader overlay */}
       {isLoaderVisible ? <Loader msg={loaderMessage} /> : null}

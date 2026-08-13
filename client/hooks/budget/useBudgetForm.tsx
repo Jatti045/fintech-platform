@@ -8,15 +8,12 @@ import { useState } from "react";
  */
 export const useBudgetForm = () => {
   const [budgetCategory, setBudgetCategory] = useState("");
-  const [budgetIcon, setBudgetIcon] = useState("");
   const [budgetLimit, setBudgetLimit] = useState("");
   const [budgetSaving, setBudgetSaving] = useState(false);
 
   return {
     budgetCategory,
     setBudgetCategory,
-    budgetIcon,
-    setBudgetIcon,
     budgetLimit,
     setBudgetLimit,
     budgetSaving,

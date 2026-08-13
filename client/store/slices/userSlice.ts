@@ -452,9 +452,15 @@ const userSlice = createSlice({
           const resolvedMonthlyIncome = Number(
             payloadAny?.monthlyIncome ?? payloadAny?.data?.monthlyIncome ?? 0,
           );
+          const resolvedActualMonthlyIncome = Number(
+            payloadAny?.actualMonthlyIncome ??
+              payloadAny?.data?.actualMonthlyIncome ??
+              0,
+          );
           state.user = {
             ...state.user,
             monthlyIncome: resolvedMonthlyIncome,
+            actualMonthlyIncome: resolvedActualMonthlyIncome,
           };
         }
         state.error = null;

@@ -4,7 +4,7 @@ import {
   useTransactionMonthSummary,
 } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   ActivityIndicator,
@@ -31,6 +31,7 @@ import {
   getCurrencySymbol,
 } from "@/constants/Currencies";
 import { getExchangeRate } from "@/utils/currencyConverter";
+import { TransactionType } from "@/types/transaction/types";
 
 function TransactionModal({
   openSheet,
@@ -67,6 +68,8 @@ function TransactionModal({
     txCurrency,
     setTxCurrency,
     userCurrency,
+    type,
+    setType,
     monthStartDate,
     monthEndDate,
     handleCreateTransaction,
@@ -84,6 +87,7 @@ function TransactionModal({
         setTxSelectedCategoryAndId({ id: "", name: "" });
         setTxDate(new Date());
         setTxCurrency(userCurrency);
+        setType(TransactionType.EXPENSE);
         setConversionPreview(null);
         setIsCalculatingConversion(false);
         setConvertedAmountForPreview(0);
@@ -118,6 +122,11 @@ function TransactionModal({
           id: editingTransaction.budgetId || "",
           name: editingTransaction.category || "",
         });
+        setType(
+          editingTransaction.type === TransactionType.INCOME
+            ? TransactionType.INCOME
+            : TransactionType.EXPENSE,
+        );
       } catch (e) {
         // ignore
       }
@@ -233,6 +242,57 @@ function TransactionModal({
                   ? "Edit Transaction"
                   : "Add New Transaction"}
               </Text>
+
+              {/* Type selector — Expense by default, income optional */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  backgroundColor: THEME.inputBackground,
+                  borderRadius: 12,
+                  padding: 4,
+                  marginBottom: 6,
+                }}
+              >
+                {[
+                  { key: TransactionType.EXPENSE, label: "Expense" },
+                  { key: TransactionType.INCOME, label: "Income" },
+                ].map((opt) => {
+                  const active = type === opt.key;
+                  const activeColor =
+                    opt.key === TransactionType.INCOME
+                      ? THEME.success
+                      : THEME.primary;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      onPress={() => setType(opt.key)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${opt.label} transaction`}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 9,
+                        alignItems: "center",
+                        backgroundColor: active
+                          ? activeColor
+                          : "transparent",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: active ? "#FFFFFF" : THEME.textSecondary,
+                          fontWeight: "800",
+                          fontSize: 14,
+                        }}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
               <View className="flex-1 gap-6">
                 {/* Name Input (simplified + example) */}
                 <View>
@@ -292,55 +352,57 @@ function TransactionModal({
                     dot for decimals.
                   </Text>
 
-                  <View
-                    style={{
-                      marginTop: 10,
-                      backgroundColor: THEME.surface,
-                      borderColor: THEME.border,
-                      borderWidth: 1,
-                      borderRadius: 10,
-                      padding: 10,
-                    }}
-                  >
-                    {monthlyIncome > 0 ? (
-                      <>
-                        <Text
-                          style={{
-                            color: THEME.textPrimary,
-                            fontWeight: "600",
-                          }}
-                        >
-                          Net spending preview
+                  {type === TransactionType.EXPENSE && (
+                    <View
+                      style={{
+                        marginTop: 10,
+                        backgroundColor: THEME.surface,
+                        borderColor: THEME.border,
+                        borderWidth: 1,
+                        borderRadius: 10,
+                        padding: 10,
+                      }}
+                    >
+                      {monthlyIncome > 0 ? (
+                        <>
+                          <Text
+                            style={{
+                              color: THEME.textPrimary,
+                              fontWeight: "600",
+                            }}
+                          >
+                            Net spending preview
+                          </Text>
+                          <Text
+                            style={{ color: THEME.textSecondary, marginTop: 4 }}
+                          >
+                            After this purchase: {getCurrencySymbol(userCurrency)}
+                            {projectedSpent.toFixed(2)} spent of{" "}
+                            {getCurrencySymbol(userCurrency)}
+                            {monthlyIncome.toFixed(2)} (
+                            {projectedPercent.toFixed(1)}%).
+                          </Text>
+                          <Text
+                            style={{
+                              marginTop: 4,
+                              color:
+                                projectedRemaining >= 0
+                                  ? THEME.primary
+                                  : THEME.danger,
+                            }}
+                          >
+                            Remaining: {getCurrencySymbol(userCurrency)}
+                            {projectedRemaining.toFixed(2)}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={{ color: THEME.textSecondary }}>
+                          Set your monthly income in Profile to see net spending
+                          vs income.
                         </Text>
-                        <Text
-                          style={{ color: THEME.textSecondary, marginTop: 4 }}
-                        >
-                          After this purchase: {getCurrencySymbol(userCurrency)}
-                          {projectedSpent.toFixed(2)} spent of{" "}
-                          {getCurrencySymbol(userCurrency)}
-                          {monthlyIncome.toFixed(2)} (
-                          {projectedPercent.toFixed(1)}%).
-                        </Text>
-                        <Text
-                          style={{
-                            marginTop: 4,
-                            color:
-                              projectedRemaining >= 0
-                                ? THEME.primary
-                                : THEME.danger,
-                          }}
-                        >
-                          Remaining: {getCurrencySymbol(userCurrency)}
-                          {projectedRemaining.toFixed(2)}
-                        </Text>
-                      </>
-                    ) : (
-                      <Text style={{ color: THEME.textSecondary }}>
-                        Set your monthly income in Profile to see net spending
-                        vs income.
-                      </Text>
-                    )}
-                  </View>
+                      )}
+                    </View>
+                  )}
                 </View>
 
                 {/* Currency Selector */}
@@ -453,42 +515,39 @@ function TransactionModal({
                   )}
                 </View>
 
-                {/* Category Selector */}
-                <View>
-                  <Text style={{ color: THEME.textPrimary }} className="mb-4">
-                    Category
-                  </Text>
-                  {budgets.map((budget) => (
-                    <TouchableOpacity
-                      key={budget.id}
-                      activeOpacity={1}
-                      style={{
-                        backgroundColor: THEME.inputBackground,
-                        borderColor: THEME.border,
-                      }}
-                      onPress={() =>
-                        setTxSelectedCategoryAndId({
-                          id: budget.id,
-                          name: budget.category,
-                        })
-                      }
-                      className={`py-3 px-4 mb-2 flex-row items-center gap-4 rounded-lg border ${
-                        txSelectedCategoryAndId.id === budget.id
-                          ? "border-4 py-4"
-                          : "border-1"
-                      }`}
-                    >
-                      <Feather
-                        name={budget.icon as keyof typeof Feather.glyphMap}
-                        size={24}
-                        color={THEME.secondary}
-                      />
-                      <Text style={{ color: THEME.textPrimary }}>
-                        {capitalizeFirst(budget.category)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {/* Category Selector (expenses only — income has no budget) */}
+                {type === TransactionType.EXPENSE && (
+                  <View>
+                    <Text style={{ color: THEME.textPrimary }} className="mb-4">
+                      Category
+                    </Text>
+                    {budgets.map((budget) => (
+                      <TouchableOpacity
+                        key={budget.id}
+                        activeOpacity={1}
+                        style={{
+                          backgroundColor: THEME.inputBackground,
+                          borderColor: THEME.border,
+                        }}
+                        onPress={() =>
+                          setTxSelectedCategoryAndId({
+                            id: budget.id,
+                            name: budget.category,
+                          })
+                        }
+                        className={`py-3 px-4 mb-2 flex-row items-center gap-4 rounded-lg border ${
+                          txSelectedCategoryAndId.id === budget.id
+                            ? "border-4 py-4"
+                            : "border-1"
+                        }`}
+                      >
+                        <Text style={{ color: THEME.textPrimary }}>
+                          {capitalizeFirst(budget.category)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
                 {/* Date Picker (compact) */}
                 <View className="mx-auto w-full">
                   <Text className="mb-2" style={{ color: THEME.textPrimary }}>

@@ -38,6 +38,8 @@ export const useTransactionOperations = () => {
     txSelectedCategoryAndId,
     txCurrency,
     userCurrency,
+    type,
+    setType,
     setTxName,
     setTxAmount,
     setTxDate,
@@ -93,9 +95,8 @@ export const useTransactionOperations = () => {
         year: calendar.year,
         date: txDate.toISOString(),
         category: txSelectedCategoryAndId.name || "Uncategorized",
-        type: TransactionType.EXPENSE,
+        type,
         amount: finalAmount,
-        icon: null,
         budgetId: txSelectedCategoryAndId.id || null,
         baseCurrency,
         originalCurrency,
@@ -116,6 +117,7 @@ export const useTransactionOperations = () => {
           setTxSelectedCategoryAndId({ id: "", name: "" });
           setTxDate(new Date());
           setTxCurrency(userCurrency);
+          setType(TransactionType.EXPENSE);
           dispatch(
             fetchTransaction({
               searchQuery: "",
@@ -145,11 +147,13 @@ export const useTransactionOperations = () => {
       txSelectedCategoryAndId,
       txCurrency,
       userCurrency,
+      type,
       setTxName,
       setTxAmount,
       setTxDate,
       setTxSelectedCategoryAndId,
       setTxCurrency,
+      setType,
       showAlert,
       calendar,
       dispatch,
@@ -180,7 +184,8 @@ export const useTransactionOperations = () => {
           (txSelectedCategoryAndId.id || "") &&
         new Date(editingTransaction.date).toISOString() ===
           txDate.toISOString() &&
-        existingOriginalCurrency === txCurrency;
+        existingOriginalCurrency === txCurrency &&
+        (editingTransaction.type || "EXPENSE") === type;
 
       if (noChange) {
         showAlert({
@@ -220,6 +225,8 @@ export const useTransactionOperations = () => {
         updates.name = txName.trim();
       if (Number(editingTransaction.amount) !== finalAmount)
         updates.amount = finalAmount;
+      if ((editingTransaction.type || "EXPENSE") !== type)
+        updates.type = type;
       if (
         (editingTransaction.budgetId || "") !==
         (txSelectedCategoryAndId.id || "")
@@ -294,6 +301,8 @@ export const useTransactionOperations = () => {
       txSelectedCategoryAndId,
       txCurrency,
       userCurrency,
+      type,
+      setType,
       showAlert,
       calendar,
       dispatch,

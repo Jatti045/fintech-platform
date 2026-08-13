@@ -91,8 +91,6 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
     transform: [{ rotate: `${rotate.value}deg` }],
   }));
 
-  const safeIcon = (budget.icon || "circle") as keyof typeof Feather.glyphMap;
-
   return (
     <SwipeableRow
       onDelete={() => onDelete(budget.id)}
@@ -112,20 +110,6 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
         >
           <View style={{ padding: 14, paddingBottom: 0 }}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
-                  backgroundColor: hexToRgba(accent, 0.16),
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: 12,
-                }}
-              >
-                <Feather name={safeIcon} size={19} color={accent} />
-              </View>
-
               <View style={{ flex: 1 }}>
                 <Text
                   style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "800" }}

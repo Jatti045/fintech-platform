@@ -27,7 +27,6 @@ export const createBudget = createAsyncThunk(
   async (
     budgetData: {
       category: string;
-      icon: string;
       limit: number;
       month: number;
       year: number;

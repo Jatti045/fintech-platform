@@ -33,7 +33,6 @@ const makeBudget = (overrides: Partial<IBudget> = {}): IBudget => ({
   id: "b-1",
   date: new Date("2026-02-01"),
   category: "Food",
-  icon: "coffee",
   limit: 500,
   spent: 100,
   userId: "user-1",

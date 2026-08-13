@@ -2,7 +2,7 @@ import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
-import { hexToRgba } from "@/utils/helper";
+import { formatCurrency, hexToRgba } from "@/utils/helper";
 import GlassPanel from "@/components/global/GlassPanel";
 import type { ITheme } from "@/types/theme/types";
 
@@ -13,6 +13,8 @@ export interface MonthlyIncomeProps {
   monthLabel: string;
   saving: boolean;
   onSave: () => void;
+  /** Actual inflow (sum of INCOME transactions) for the selected month. */
+  actualIncome?: number;
 }
 
 /**
@@ -26,8 +28,11 @@ export default function MonthlyIncome({
   monthLabel,
   saving,
   onSave,
+  actualIncome = 0,
 }: MonthlyIncomeProps) {
   const { THEME: T } = useTheme();
+  const expected = Number(input) || 0;
+  const actual = Number(actualIncome) || 0;
   return (
     <GlassPanel padding={14} radius={18} style={{ marginBottom: 16 }}>
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
@@ -55,9 +60,36 @@ export default function MonthlyIncome({
       </View>
 
       <Text style={{ color: THEME.textSecondary, fontSize: 12, marginBottom: 10 }}>
-        Set your monthly income to see your net position and how spending
-        compares against it.
+        Set your expected monthly income as a planning baseline.
       </Text>
+
+      {/* Actual vs expected readout */}
+      {actual > 0 && (
+        <View
+          style={{
+            backgroundColor: hexToRgba(THEME.success, 0.1),
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            marginBottom: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Text style={{ color: THEME.textSecondary, fontSize: 12, flex: 1 }}>
+            Earned this month
+          </Text>
+          <Text
+            style={{ color: THEME.success, fontSize: 13, fontWeight: "800" }}
+          >
+            {formatCurrency(actual, "USD")}
+            {expected > 0
+              ? ` of ${formatCurrency(expected, "USD")} expected`
+              : " (no target set)"}
+          </Text>
+        </View>
+      )}
 
       <TextInput
         value={input}

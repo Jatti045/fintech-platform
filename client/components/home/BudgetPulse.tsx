@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import { Text, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import AnimatedNumber from "react-native-animated-numbers";
 import { useTheme } from "@/hooks/useRedux";
 import { capitalizeFirst, hexToRgba } from "@/utils/helper";
@@ -13,7 +12,6 @@ import SpringFill from "@/components/global/SpringFill";
 export interface BudgetPulseItem {
   id: string;
   category: string;
-  icon?: string;
   displayLimit?: number;
   displaySpent?: number;
   displayCurrency?: string;
@@ -138,23 +136,6 @@ const BudgetPulse = React.memo(function BudgetPulse({
                   marginBottom: 5,
                 }}
               >
-                <View
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 8,
-                    backgroundColor: hexToRgba(tierColor, 0.16),
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: 8,
-                  }}
-                >
-                  <Feather
-                    name={(b.icon || "circle") as keyof typeof Feather.glyphMap}
-                    size={13}
-                    color={tierColor}
-                  />
-                </View>
                 <Text
                   style={{ color: THEME.textPrimary, fontSize: 13, fontWeight: "700", flex: 1 }}
                   numberOfLines={1}

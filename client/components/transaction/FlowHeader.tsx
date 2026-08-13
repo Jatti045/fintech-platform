@@ -19,6 +19,10 @@ export interface FlowHeaderProps {
   year: number;
   monthlyIncome: number;
   currencyCode: string;
+  /** Actual inflow (sum of INCOME transactions) for the month. */
+  actualIncome?: number;
+  /** Expected income baseline the user set on their profile. */
+  expectedIncome?: number;
 }
 
 const CHART_H = 42;
@@ -36,6 +40,8 @@ const FlowHeader = React.memo(function FlowHeader({
   year,
   monthlyIncome,
   currencyCode,
+  actualIncome = 0,
+  expectedIncome = 0,
 }: FlowHeaderProps) {
   const { THEME } = useTheme();
   const [width, setWidth] = useState(0);
@@ -54,6 +60,8 @@ const FlowHeader = React.memo(function FlowHeader({
   );
   const income = Math.max(0, monthlyIncome || 0);
   const net = income - total;
+  const actual = Math.max(0, actualIncome || 0);
+  const expected = Math.max(0, expectedIncome || 0);
 
   return (
     <GlassPanel
@@ -111,6 +119,40 @@ const FlowHeader = React.memo(function FlowHeader({
           </Text>
         </View>
       </View>
+
+      {/* Actual vs expected income readout */}
+      {actual > 0 && (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: 10,
+            borderRadius: 10,
+            paddingHorizontal: 10,
+            paddingVertical: 7,
+            backgroundColor: hexToRgba(THEME.success, 0.1),
+          }}
+        >
+          <Text
+            style={{
+              color: THEME.textSecondary,
+              fontSize: 11,
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+            }}
+          >
+            Earned this month
+          </Text>
+          <Text style={{ color: THEME.success, fontSize: 12, fontWeight: "800" }}>
+            {formatCurrency(actual, currencyCode)}
+            {expected > 0
+              ? ` of ${formatCurrency(expected, currencyCode)} expected`
+              : ""}
+          </Text>
+        </View>
+      )}
 
       {/* Daily sparkline */}
       <View

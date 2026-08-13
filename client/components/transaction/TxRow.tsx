@@ -1,10 +1,9 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useBudgets, useTheme } from "@/hooks/useRedux";
-import { capitalizeFirst, formatCurrency, hexToRgba } from "@/utils/helper";
+import { capitalizeFirst, formatCurrency } from "@/utils/helper";
 import { safeAmount } from "../../utils/transaction/helpers";
 import type { TransactionItem } from "../../types/transaction/types";
-import { Feather } from "@expo/vector-icons";
 import { hapticHeavy } from "@/utils/haptics";
 import SwipeableRow from "@/components/global/SwipeableRow";
 import GlassPanel from "@/components/global/GlassPanel";
@@ -80,14 +79,7 @@ const TransactionRow = React.memo(function TransactionRow({
     return tx.category;
   }, [tx.budgetId, tx.category, budgets]);
 
-  const displayTxIcon = useMemo(() => {
-    if (tx.budgetId) {
-      const linked = budgets.find((b) => b.id === tx.budgetId);
-      if (linked) return linked.icon;
-    }
-
-    return tx.icon;
-  }, [tx.budgetId, tx.icon, budgets]);
+  const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE";
 
   return (
     <SwipeableRow onDelete={() => onDelete(tx.id)} dangerColor={THEME.danger}>
@@ -103,24 +95,6 @@ const TransactionRow = React.memo(function TransactionRow({
           accessibilityLabel={`${capitalizeFirst(displayCategory)}, ${formatCurrency(amountToDisplay, currencyToDisplay)}`}
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 13,
-                backgroundColor: hexToRgba(THEME.primary, 0.14),
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: 12,
-              }}
-            >
-              <Feather
-                name={displayTxIcon as keyof typeof Feather.glyphMap}
-                size={18}
-                color={THEME.primary}
-              />
-            </View>
-
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text
                 style={{ color: THEME.textPrimary, fontWeight: "700", fontSize: 14 }}
@@ -149,11 +123,16 @@ const TransactionRow = React.memo(function TransactionRow({
 
             <View style={{ marginLeft: 10, alignItems: "flex-end" }}>
               <Text
-                style={{ color: THEME.danger, fontWeight: "800", fontSize: 14 }}
+                style={{
+                  color: isExpense ? THEME.danger : THEME.success,
+                  fontWeight: "800",
+                  fontSize: 14,
+                }}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                − {formatCurrency(amountToDisplay, currencyToDisplay)}
+                {isExpense ? "− " : "+ "}
+                {formatCurrency(amountToDisplay, currencyToDisplay)}
               </Text>
             </View>
           </View>

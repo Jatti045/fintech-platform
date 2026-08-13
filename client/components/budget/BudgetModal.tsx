@@ -14,7 +14,6 @@ import ModalCloseButton from "../global/modalCloseButton";
 import { LinearGradient } from "expo-linear-gradient";
 import Loader from "@/utils/loader";
 import { SafeAreaView } from "react-native-safe-area-context";
-import IconSelectorModal from "./IconSelectorModal";
 import { getCurrencySymbol } from "@/constants/Currencies";
 import PresetChips from "@/components/global/PresetChips";
 
@@ -37,8 +36,6 @@ function BudgetModal({
   const {
     budgetCategory: category,
     setBudgetCategory: setCategory,
-    budgetIcon: icon,
-    setBudgetIcon: setIcon,
     budgetLimit: limit,
     setBudgetLimit: setLimit,
     budgetSaving: saving,
@@ -46,15 +43,12 @@ function BudgetModal({
     handleUpdateBudget,
   } = useBudgetOperations();
 
-  const [openIconSelector, setOpenIconSelector] = React.useState(false);
-
   const prevOpenRef = useRef(openSheet);
   useEffect(() => {
     if (!openSheet && prevOpenRef.current) {
       // Modal closed — reset form fields
       try {
         setCategory("");
-        setIcon("");
         setLimit("");
       } catch (e) {
         // ignore
@@ -68,7 +62,6 @@ function BudgetModal({
     if (editingBudget) {
       setCategory(String(editingBudget.category ?? ""));
       setLimit(String(editingBudget.displayLimit ?? editingBudget.limit ?? ""));
-      setIcon(String(editingBudget.icon ?? ""));
     }
   }, [editingBudget]);
 
@@ -139,45 +132,6 @@ function BudgetModal({
                 Tip: Pick a short category name like 'Groceries' or 'Transport'.
               </Text>
             </View>
-
-            {/* Icon Selector Modal */}
-            <View className="mt-4">
-              <Text style={{ color: THEME.textSecondary }} className="mb-2">
-                Category Icon
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => setOpenIconSelector(true)}
-                className="py-3 px-3 rounded-md"
-                style={{ backgroundColor: THEME.inputBackground, borderColor: THEME.border, borderWidth: 1 }}
-              >
-                <Text
-                  style={{
-                    color:
-                      icon === "" ? THEME.textSecondary : THEME.textPrimary,
-                  }}
-                >
-                  {icon === "" ? "Choose an icon" : icon}
-                </Text>
-              </TouchableOpacity>
-
-              <Text
-                style={{ color: THEME.textSecondary, marginTop: 6 }}
-                className="text-sm"
-              >
-                Tip: Pick an icon that helps you recognize this category at a
-                glance.
-              </Text>
-            </View>
-
-            {openIconSelector && (
-              <IconSelectorModal
-                openIconSelector={openIconSelector}
-                setOpenIconSelector={setOpenIconSelector}
-                editingBudget={editingBudget}
-                setIcon={setIcon}
-              />
-            )}
 
             <View className="mt-4">
               <Text style={{ color: THEME.textSecondary }} className="mb-2">

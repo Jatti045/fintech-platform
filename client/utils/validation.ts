@@ -93,13 +93,12 @@ export const validateResetPasswordForm = (
 
 export const validateBudgetForm = (
   category: string,
-  icon: string,
   limit: string,
 ): ValidationResult => {
-  if (!category.trim() || !limit.trim() || !icon.trim())
+  if (!category.trim() || !limit.trim())
     return {
       valid: false,
-      message: "Please enter category, icon, and limit",
+      message: "Please enter category and limit",
     };
   const parsed = Number(limit);
   if (isNaN(parsed) || parsed <= 0)

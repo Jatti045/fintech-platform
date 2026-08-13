@@ -19,6 +19,7 @@ export interface IUser {
   profilePic?: string | null;
   currency?: string;
   monthlyIncome?: number;
+  actualMonthlyIncome?: number;
   createdAt?: string;
   updatedAt?: string;
 }

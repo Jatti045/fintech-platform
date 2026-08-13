@@ -501,6 +501,8 @@ const transactionSlice = createSlice({
           state.monthSummary = {
             totalAmount: action.payload.summary.totalAmount || 0,
             monthlyIncome: action.payload.summary.monthlyIncome || 0,
+            expectedIncome: action.payload.summary.expectedIncome || 0,
+            actualIncome: action.payload.summary.actualIncome || 0,
             netSpent: action.payload.summary.netSpent || 0,
             netRemaining: action.payload.summary.netRemaining || 0,
             spentPercentageOfIncome:

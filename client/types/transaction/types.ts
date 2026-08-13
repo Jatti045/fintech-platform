@@ -20,7 +20,6 @@ export interface ITransaction {
   displayCurrency?: string;
   date: string;
   type: TransactionType;
-  icon?: string;
   createdAt?: string;
   updatedAt?: string;
   budgetId?: string | null;
@@ -89,6 +88,8 @@ export interface TransactionState {
   monthSummary: {
     totalAmount: number;
     monthlyIncome?: number;
+    expectedIncome?: number;
+    actualIncome?: number;
     netSpent?: number;
     netRemaining?: number;
     spentPercentageOfIncome?: number;
@@ -111,7 +112,6 @@ export interface TransactionItem {
   category: string;
   budgetId?: string;
   type?: string;
-  icon?: string;
 }
 
 /** A single day-group for the SectionList. */

@@ -27,10 +27,8 @@ export const useBudgetOperations = () => {
 
   const {
     budgetCategory,
-    budgetIcon,
     budgetLimit,
     setBudgetCategory,
-    setBudgetIcon,
     setBudgetLimit,
     setBudgetSaving,
   } = form;
@@ -41,14 +39,13 @@ export const useBudgetOperations = () => {
    */
   const handleCreateBudget = useCallback(
     async (setOpenSheet: (v: boolean) => void) => {
-      const check = validateBudgetForm(budgetCategory, budgetIcon, budgetLimit);
+      const check = validateBudgetForm(budgetCategory, budgetLimit);
       if (!check.valid) {
         showAlert({ title: "Missing Information", message: check.message });
         return;
       }
 
       const parsedCategory = capitalizeFirst(budgetCategory.trim());
-      const parsedIcon = budgetIcon.trim();
       const parsedLimit = Number(budgetLimit);
 
       setBudgetSaving(true);
@@ -56,7 +53,6 @@ export const useBudgetOperations = () => {
         const response: any = await dispatch(
           createBudget({
             category: parsedCategory,
-            icon: parsedIcon,
             limit: parsedLimit,
             month: calendar.month,
             year: calendar.year,
@@ -70,7 +66,6 @@ export const useBudgetOperations = () => {
         hapticSuccess();
         // Reset form only on success, preserving input on error for correction
         setBudgetCategory("");
-        setBudgetIcon("");
         setBudgetLimit("");
         setOpenSheet(false);
       } catch (err: any) {
@@ -81,10 +76,8 @@ export const useBudgetOperations = () => {
     },
     [
       budgetCategory,
-      budgetIcon,
       budgetLimit,
       setBudgetCategory,
-      setBudgetIcon,
       setBudgetLimit,
       setBudgetSaving,
       showAlert,
@@ -101,14 +94,13 @@ export const useBudgetOperations = () => {
     async (editingBudget: any, setOpenSheet: (v: boolean) => void) => {
       if (!editingBudget) return;
 
-      const check = validateBudgetForm(budgetCategory, budgetIcon, budgetLimit);
+      const check = validateBudgetForm(budgetCategory, budgetLimit);
       if (!check.valid) {
         showAlert({ title: "Missing Information", message: check.message });
         return;
       }
 
       const parsedCategory = budgetCategory.trim();
-      const parsedIcon = budgetIcon.trim();
       const parsedLimit = Number(budgetLimit);
       const existingDisplayLimit = Number(
         editingBudget.displayLimit ?? editingBudget.limit,
@@ -117,8 +109,7 @@ export const useBudgetOperations = () => {
       // Detect no-op: skip API call if nothing has changed
       const noChange =
         parsedCategory === String(editingBudget.category) &&
-        Number(parsedLimit) === existingDisplayLimit &&
-        parsedIcon === String(editingBudget.icon);
+        Number(parsedLimit) === existingDisplayLimit;
 
       if (noChange) {
         showAlert({
@@ -132,7 +123,6 @@ export const useBudgetOperations = () => {
       const updates: any = {};
       if (parsedCategory !== String(editingBudget.category))
         updates.category = parsedCategory;
-      if (parsedIcon !== String(editingBudget.icon)) updates.icon = parsedIcon;
       if (Number(parsedLimit) !== existingDisplayLimit)
         updates.limit = parsedLimit;
 
@@ -162,7 +152,6 @@ export const useBudgetOperations = () => {
     },
     [
       budgetCategory,
-      budgetIcon,
       budgetLimit,
       setBudgetSaving,
       showAlert,
