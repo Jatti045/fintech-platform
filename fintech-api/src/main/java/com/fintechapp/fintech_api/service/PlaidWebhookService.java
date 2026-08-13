@@ -1,6 +1,7 @@
 package com.fintechapp.fintech_api.service;
 
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +22,18 @@ public class PlaidWebhookService {
     private static final Logger logger = LoggerFactory.getLogger(PlaidWebhookService.class);
 
     private static final String WEBHOOK_TYPE_TRANSACTIONS = "TRANSACTIONS";
-    private static final String WEBHOOK_CODE_SYNC_UPDATES_AVAILABLE = "SYNC_UPDATES_AVAILABLE";
+
+    /**
+     * Plaid TRANSACTIONS webhook codes that signal new data is available to
+     * pull via {@code /transactions/sync}, or that transactions were removed
+     * and the local store must be reconciled.
+     */
+    private static final Set<String> SYNC_TRIGGER_CODES = Set.of(
+            "SYNC_UPDATES_AVAILABLE",
+            "INITIAL_UPDATE",
+            "DEFAULT_UPDATE",
+            "TRANSACTIONS_REMOVED"
+    );
 
     private final PlaidTransactionSyncService syncService;
 
@@ -43,7 +55,7 @@ public class PlaidWebhookService {
             return;
         }
 
-        if (!WEBHOOK_CODE_SYNC_UPDATES_AVAILABLE.equals(webhookCode)) {
+        if (!SYNC_TRIGGER_CODES.contains(webhookCode)) {
             logger.debug("Ignoring non-sync transaction webhook code={}", webhookCode);
             return;
         }
