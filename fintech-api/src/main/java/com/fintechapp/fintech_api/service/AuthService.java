@@ -70,8 +70,8 @@ public class AuthService {
         }
 
         GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                new NetHttpTransport(), new GsonFactory()
-        ).setAudience(Collections.singletonList(googleClientId)).build();
+                new NetHttpTransport(), new GsonFactory()).setAudience(Collections.singletonList(googleClientId))
+                .build();
 
         GoogleIdToken googleToken = verifier.verify(request.idToken());
 
@@ -93,7 +93,8 @@ public class AuthService {
             userRepository.save(newUser);
         }
 
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "User creation failed."));
+        User user = userRepository.findByEmail(email).orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "User creation failed."));
 
         String token = jwtService.generateToken(user.getId(), user.getEmail());
         LoginData data = new LoginData(toUserSummary(user), token);
@@ -122,6 +123,7 @@ public class AuthService {
         User user = new User();
         user.setUsername(request.username().trim());
         user.setEmail(email);
+        user.setAuthProvider(AuthProvider.EMAIL);
         user.setPassword(passwordEncoder.encode(request.password()));
 
         User savedUser = userRepository.save(user);
@@ -189,7 +191,8 @@ public class AuthService {
         AuthProvider authProvider = user.getAuthProvider();
 
         if (authProvider.equals(AuthProvider.GOOGLE)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password reset not allowed for " + authProvider + " accounts.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Password reset not allowed for " + authProvider + " accounts.");
         }
 
         PasswordResetToken latestToken = passwordResetTokenRepository
