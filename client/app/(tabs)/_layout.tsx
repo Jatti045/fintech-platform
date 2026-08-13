@@ -30,7 +30,7 @@ export default function TabsLayout() {
       }),
     );
     dispatch(fetchBudgets({ currentMonth: month, currentYear: year }));
-    dispatch(fetchGoals({currentMonth: month, currentYear: year}));
+    dispatch(fetchGoals({ currentMonth: month, currentYear: year }));
   }, [dispatch, month, year]);
 
   return (
@@ -80,6 +80,7 @@ export default function TabsLayout() {
         }}
       />
 
+      {/*
       <Tabs.Screen
         name="goals"
         options={{
@@ -89,6 +90,11 @@ export default function TabsLayout() {
           ),
         }}
       />
+      */}
+      {/* Expo Router auto-registers every route in this folder, so without
+          this entry the Goals tab would reappear with default styling. Setting
+          `href: null` hides it from the tab bar entirely. */}
+      <Tabs.Screen name="goals" options={{ href: null }} />
 
       <Tabs.Screen
         name="profile"
