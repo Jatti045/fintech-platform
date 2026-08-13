@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
  * async sync service. The caller (controller) always returns 200 OK before
  * this does any real work.
  */
+
 @Service
 public class PlaidWebhookService {
 
@@ -21,9 +22,6 @@ public class PlaidWebhookService {
 
     private static final String WEBHOOK_TYPE_TRANSACTIONS = "TRANSACTIONS";
     private static final String WEBHOOK_CODE_SYNC_UPDATES_AVAILABLE = "SYNC_UPDATES_AVAILABLE";
-    private static final String WEBHOOK_CODE_INITIAL_UPDATE = "INITIAL_UPDATE";
-    private static final String WEBHOOK_CODE_DEFAULT_UPDATE = "DEFAULT_UPDATE";
-    private static final String WEBHOOK_CODE_TRANSACTIONS_REMOVED = "TRANSACTIONS_REMOVED";
 
     private final PlaidTransactionSyncService syncService;
 
@@ -31,10 +29,6 @@ public class PlaidWebhookService {
         this.syncService = syncService;
     }
 
-    /**
-     * Handles a webhook payload. Only TRANSACTIONS sync triggers are processed;
-     * all other webhook types are acknowledged (no-op).
-     */
     public void handleWebhook(Map<String, Object> payload) {
         if (payload == null) {
             return;
@@ -49,12 +43,7 @@ public class PlaidWebhookService {
             return;
         }
 
-        boolean isSyncTrigger = WEBHOOK_CODE_SYNC_UPDATES_AVAILABLE.equals(webhookCode)
-                || WEBHOOK_CODE_INITIAL_UPDATE.equals(webhookCode)
-                || WEBHOOK_CODE_DEFAULT_UPDATE.equals(webhookCode)
-                || WEBHOOK_CODE_TRANSACTIONS_REMOVED.equals(webhookCode);
-
-        if (!isSyncTrigger) {
+        if (!WEBHOOK_CODE_SYNC_UPDATES_AVAILABLE.equals(webhookCode)) {
             logger.debug("Ignoring non-sync transaction webhook code={}", webhookCode);
             return;
         }

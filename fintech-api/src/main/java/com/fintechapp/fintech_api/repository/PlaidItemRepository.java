@@ -17,4 +17,6 @@ public interface PlaidItemRepository extends JpaRepository<PlaidItem, String> {
 
     /** Active (non-deleted) items for a user, newest connection first. */
     List<PlaidItem> findByUser_IdOrderByCreatedAtDesc(String userId);
+
+    long deleteByUser_Id(String userId);
 }

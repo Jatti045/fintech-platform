@@ -25,4 +25,6 @@ public interface GoalAllocationRepository extends JpaRepository<GoalAllocation, 
             @Param("to") Instant to);
 
     long deleteByGoal_IdAndUser_Id(String goalId, String userId);
+
+    long deleteByUser_Id(String userId);
 }

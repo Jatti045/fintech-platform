@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
 import tools.jackson.databind.JsonNode;
@@ -90,7 +91,7 @@ public class PlaidService {
         body.put("language", settings.language());
         body.put("user", Map.of("client_user_id", userId));
         body.put("products", List.of(PRODUCT_TRANSACTIONS));
-        body.put("transactions", Map.of("days_requested", 730));
+        body.put("transactions", Map.of("days_requested", 365));
         if (StringUtils.hasText(settings.webhookUrl())) {
             body.put("webhook", settings.webhookUrl());
         }
@@ -130,7 +131,7 @@ public class PlaidService {
 
         PlaidItem item = new PlaidItem();
         item.setUser(user);
-        item.setItemId(itemIdNode.asText());
+        item.setItemId(itemIdNode.asString());
         item.setAccessTokenEncrypted(encryptionService.encrypt(accessTokenNode.asString()));
         return plaidItemRepository.save(item);
     }
@@ -174,15 +175,15 @@ public class PlaidService {
         }
         for (JsonNode node : nodes(response, "removed")) {
             JsonNode txId = node.get("transaction_id");
-            if (txId != null && StringUtils.hasText(txId.asText())) {
-                removedIds.add(txId.asText());
+            if (txId != null && StringUtils.hasText(txId.asString())) {
+                removedIds.add(txId.asString());
             }
         }
         if (!removedIds.isEmpty()) {
             ingestService.removeByPlaidIds(removedIds, user.getId());
         }
 
-        String nextCursor = response.path("next_cursor").asText(null);
+        String nextCursor = response.path("next_cursor").asString(null);
         boolean hasMore = response.path("has_more").asBoolean(false);
         item.setCursor(StringUtils.hasText(nextCursor) ? nextCursor : item.getCursor());
         plaidItemRepository.save(item);
@@ -206,13 +207,13 @@ public class PlaidService {
      * Disconnects a Plaid item owned by the authenticated user: revokes the
      * token at Plaid via {@code /item/remove}, then deletes the persisted item.
      *
-     * <p>
+     * 
      * Revocation is best-effort — if Plaid is unreachable (or the item has
      * already been dropped by Plaid, e.g. a sandbox item), the local record is
      * still removed so the user is no longer presented with a stale
      * connection. Webhooks for the item are then ignored by the sync service
      * because the item lookup no longer resolves.
-     * </p>
+     * 
      *
      * @return the deleted {@code PlaidItem} id
      * @throws ResponseStatusException 404 when the item is missing or belongs
@@ -267,12 +268,12 @@ public class PlaidService {
             }
             JsonNode errorType = response.get("error_type");
             if (errorType != null) {
-                String code = response.path("error_code").asText("unknown");
-                String message = response.path("error_message").asText("Plaid reported an error.");
+                String code = response.path("error_code").asString("unknown");
+                String message = response.path("error_message").asString("Plaid reported an error.");
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid error " + code + ": " + message);
             }
             return response;
-        } catch (org.springframework.web.client.RestClientException ex) {
+        } catch (RestClientException ex) {
             logger.error("Plaid request '{}' failed: {}", path, ex.getMessage());
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY, "Plaid is temporarily unavailable, please try again.");

@@ -18,10 +18,21 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
 import com.fintechapp.fintech_api.model.Budget;
+import com.fintechapp.fintech_api.model.Goal;
+import com.fintechapp.fintech_api.model.GoalAllocation;
+import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
+import com.fintechapp.fintech_api.repository.GoalAllocationRepository;
+import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 
 class UserControllerIntegrationTest extends BaseIntegrationTest {
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private PlaidItemRepository plaidItemRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private GoalAllocationRepository goalAllocationRepository;
 
     // Asserts change password succeeds when current password is correct.
     @Test
@@ -220,6 +231,43 @@ class UserControllerIntegrationTest extends BaseIntegrationTest {
         org.junit.jupiter.api.Assertions.assertFalse(userRepository.findById(user.getId()).isPresent());
         org.junit.jupiter.api.Assertions.assertEquals(0, budgetRepository.findByUser_IdOrderByDateDesc(user.getId()).size());
         org.junit.jupiter.api.Assertions.assertEquals(0, transactionRepository.findByUser_IdOrderByDateDesc(user.getId()).size());
+    }
+
+    // Asserts delete account also removes Plaid items and goal allocations —
+    // both tables hold FK constraints back to users (and goal allocations to
+    // goals), so a user with a linked bank or goal allocations previously
+    // failed deletion with a foreign-key violation.
+    @Test
+    void deleteAccount_userWithPlaidItemAndGoalAllocation_deletesAllRelatedData() throws Exception {
+        User user = createUser("user-delete-plaid@example.com", "Password123!", "user-delete-plaid");
+        Budget budget = createBudget(user, "Food", 200, Instant.parse("2026-03-01T00:00:00Z"));
+        Goal goal = createGoal(user, 1000, 250, "vacation");
+        createTransaction(user, budget, goal, "Lunch", Instant.parse("2026-03-03T10:00:00Z"), "Food", TransactionType.EXPENSE, 10.0);
+
+        GoalAllocation allocation = new GoalAllocation();
+        allocation.setUser(user);
+        allocation.setGoal(goal);
+        allocation.setAmount(50);
+        goalAllocationRepository.save(allocation);
+
+        PlaidItem plaidItem = new PlaidItem();
+        plaidItem.setUser(user);
+        plaidItem.setItemId("plaid-item-delete-test");
+        plaidItem.setAccessTokenEncrypted("encrypted-token");
+        plaidItem.setInstitutionName("Chase");
+        plaidItemRepository.save(plaidItem);
+
+        mockMvc.perform(delete("/api/users/{userId}", user.getId())
+                        .header(authHeaderName(), authHeader(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        org.junit.jupiter.api.Assertions.assertFalse(userRepository.findById(user.getId()).isPresent());
+        org.junit.jupiter.api.Assertions.assertEquals(0, transactionRepository.findByUser_IdOrderByDateDesc(user.getId()).size());
+        org.junit.jupiter.api.Assertions.assertEquals(0, budgetRepository.findByUser_IdOrderByDateDesc(user.getId()).size());
+        org.junit.jupiter.api.Assertions.assertEquals(0, goalRepository.findByUser_Id(user.getId()).size());
+        org.junit.jupiter.api.Assertions.assertEquals(0, plaidItemRepository.findByUser_IdOrderByCreatedAtDesc(user.getId()).size());
+        org.junit.jupiter.api.Assertions.assertEquals(0, goalAllocationRepository.deleteByUser_Id(user.getId()));
     }
 
     // Asserts delete account rejects unauthenticated access.

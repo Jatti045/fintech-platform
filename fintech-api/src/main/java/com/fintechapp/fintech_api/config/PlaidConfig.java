@@ -14,10 +14,12 @@ import org.springframework.web.client.RestClient;
  * Plaid API connectivity settings and an opinionated {@link RestClient} for
  * calling the Plaid HTTP API.
  *
- * <p>Feeds every Plaid integration point: link token creation, item token
+ * <p>
+ * Feeds every Plaid integration point: link token creation, item token
  * exchange, and the "/transactions/sync" cursor loop. The credential material
  * (client id/secret) stays server-side; only the short-lived link token or
- * public token ever crosses the wire to the mobile clients.</p>
+ * public token ever crosses the wire to the mobile clients.
+ * </p>
  */
 @Configuration
 public class PlaidConfig {
@@ -67,6 +69,7 @@ public class PlaidConfig {
 
     private static String resolveBaseUrl(String environment) {
         String env = StringUtils.hasText(environment) ? environment.trim().toLowerCase() : "sandbox";
+
         return switch (env) {
             case "production" -> "https://production.plaid.com";
             case "development" -> "https://development.plaid.com";
