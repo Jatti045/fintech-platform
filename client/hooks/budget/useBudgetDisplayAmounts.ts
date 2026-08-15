@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { convertCurrency } from "@/utils/currencyConverter";
-import type { IBudget } from "@/types/budget/types";
+import type { DisplayBudget, IBudget } from "@/types/budget/types";
 import type { ITransaction } from "@/types/transaction/types";
 
-type DisplayBudget = IBudget & {
-  displayLimit: number;
-  displaySpent: number;
-  displayCurrency: string;
-};
+export type { DisplayBudget };
 
 const normalizeCurrency = (value?: string | null) =>
   String(value || "")

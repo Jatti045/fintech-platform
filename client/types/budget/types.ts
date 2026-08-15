@@ -15,6 +15,20 @@ export interface IBudget {
   transactions?: ITransaction[];
 }
 
+/**
+ * A budget enriched with the amounts actually shown in the UI.
+ *
+ * Produced by `useBudgetDisplayAmounts`: `limit` stays canonical (authored in
+ * the user's default currency), while `spent` may be currency-converted for
+ * display and `displayCurrency` is the normalized active currency. UI
+ * components consume these fields directly instead of re-deriving them.
+ */
+export interface DisplayBudget extends IBudget {
+  displayLimit: number;
+  displaySpent: number;
+  displayCurrency: string;
+}
+
 export interface BudgetState {
   budgets: IBudget[];
   loading: boolean;

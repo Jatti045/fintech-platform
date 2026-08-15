@@ -20,6 +20,12 @@ module.exports = {
     "^react-native-safe-area-context$":
       "<rootDir>/__mocks__/react-native-safe-area-context.ts",
     "^react-native-svg$": "<rootDir>/__mocks__/react-native-svg.ts",
+    "^react-native-reanimated$":
+      "<rootDir>/__mocks__/react-native-reanimated.ts",
+    "^react-native-gesture-handler$":
+      "<rootDir>/__mocks__/react-native-gesture-handler.ts",
+    "^react-native-animated-numbers$":
+      "<rootDir>/__mocks__/react-native-animated-numbers.ts",
     "^expo-linear-gradient$": "<rootDir>/__mocks__/expo-linear-gradient.ts",
     "^@expo/vector-icons$": "<rootDir>/__mocks__/vector-icons.ts",
     "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.ts",

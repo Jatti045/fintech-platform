@@ -38,6 +38,7 @@ export const TouchableWithoutFeedback = hostComponent(
   "TouchableWithoutFeedback",
 );
 export const ActivityIndicator = hostComponent("ActivityIndicator");
+export const RefreshControl = hostComponent("RefreshControl");
 
 // Modal mirrors the native behaviour of only mounting its children while
 // visible, so component tests can assert on modal content per visibility.
@@ -48,6 +49,40 @@ export const Modal = jest.fn((props: Record<string, unknown>) => {
 
 export const Keyboard = {
   dismiss: jest.fn(),
+};
+
+// Minimal `Animated` used by components that reference it as a runtime value
+// (e.g. SwipeableRow renders <Animated.View>). Type-level members come from
+// the real react-native types.
+export const Animated = {
+  View: hostComponent("View"),
+  Text: hostComponent("Text"),
+  Image: hostComponent("Image"),
+  Value: class {
+    _value: unknown;
+    constructor(value: unknown) {
+      this._value = value;
+    }
+    setValue(value: unknown) {
+      this._value = value;
+    }
+    getValue() {
+      return this._value;
+    }
+    addListener() {
+      return { remove: () => undefined };
+    }
+    removeListener() {}
+  },
+  timing: () => ({
+    start: (cb?: (result: { finished: boolean }) => void) =>
+      cb?.({ finished: true }),
+  }),
+  spring: () => ({
+    start: (cb?: (result: { finished: boolean }) => void) =>
+      cb?.({ finished: true }),
+  }),
+  createAnimatedComponent: <T,>(Component: T) => Component,
 };
 
 const WINDOW = { width: 400, height: 800, scale: 2, fontScale: 1 };

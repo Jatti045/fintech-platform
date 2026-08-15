@@ -22,7 +22,11 @@ const NewBudgetButton = React.memo(function NewBudgetButton({
 }: NewBudgetButtonProps) {
   return (
     <View className="absolute bottom-0 right-0 p-4">
-      <TouchableOpacity onPress={onPress}>
+      <TouchableOpacity
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel="New Budget"
+      >
         <LinearGradient
           colors={[primary, secondary]}
           start={[0, 0]}
