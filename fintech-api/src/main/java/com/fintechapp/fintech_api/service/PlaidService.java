@@ -170,11 +170,15 @@ public class PlaidService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
         List<String> removedIds = new ArrayList<>();
 
-        for (JsonNode node : nodes(response, "added")) {
-            ingestService.upsertTransaction(user, toPlaidTransaction(node));
-        }
+        // The batch method reconciles pending transactions first (a posted
+        // transaction references its pending counterpart) and performs the
+        // reconnect fingerprint matching one-to-one within the batch.
+        List<PlaidTransaction> added = nodes(response, "added").stream()
+                .map(this::toPlaidTransaction)
+                .toList();
+        ingestService.upsertAddedBatch(user, added, item.getItemId());
         for (JsonNode node : nodes(response, "modified")) {
-            ingestService.upsertTransaction(user, toPlaidTransaction(node));
+            ingestService.upsertTransaction(user, toPlaidTransaction(node), item.getItemId());
         }
         for (JsonNode node : nodes(response, "removed")) {
             JsonNode txId = node.get("transaction_id");
@@ -304,6 +308,8 @@ public class PlaidService {
 
         return new PlaidTransaction(
                 node.path("transaction_id").asText(null),
+                node.path("pending_transaction_id").asText(null),
+                node.path("pending").asBoolean(false),
                 name,
                 date,
                 category,
@@ -331,12 +337,18 @@ public class PlaidService {
     }
 
     private static Instant parseDate(JsonNode node) {
-        String datetime = node.path("datetime").asText(null);
-        if (StringUtils.hasText(datetime)) {
-            try {
-                return Instant.from(ISO_OFFSET.parse(datetime));
-            } catch (Exception ignored) {
-                // fall through to the "date" field
+        // Prefer the transaction timestamp when Plaid provides one
+        // (authorized_datetime is the current field; datetime is its deprecated
+        // alias). Preserving the time-of-day lets reconnect matching tell apart
+        // multiple same-day transactions instead of relying on day-level data.
+        for (String field : List.of("authorized_datetime", "datetime")) {
+            String raw = node.path(field).asText(null);
+            if (StringUtils.hasText(raw)) {
+                try {
+                    return Instant.from(ISO_OFFSET.parse(raw));
+                } catch (Exception ignored) {
+                    // fall through to the next field
+                }
             }
         }
         String rawDate = node.path("date").asText(null);

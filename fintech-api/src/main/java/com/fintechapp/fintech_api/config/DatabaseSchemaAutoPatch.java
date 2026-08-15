@@ -74,6 +74,24 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
                 WHERE plaid_transaction_id IS NOT NULL
                 """);
 
+        // Plaid Item + pending-transaction provenance. plaid_item_id powers the
+        // reconnect dedup fallback (Plaid issues new transaction_ids for a
+        // reconnected Item, so the same logical transaction can be re-synced
+        // under a different id); plaid_pending_transaction_id records the
+        // pending id a posted transaction replaced.
+        jdbcTemplate.execute("""
+                ALTER TABLE transactions
+                ADD COLUMN IF NOT EXISTS plaid_item_id VARCHAR(128)
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE transactions
+                ADD COLUMN IF NOT EXISTS plaid_pending_transaction_id VARCHAR(128)
+                """);
+        jdbcTemplate.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transactions_plaid_item
+                ON transactions(plaid_item_id)
+                """);
+
         // Icons were removed from budgets and transactions — drop the leftover
         // columns from databases created before the removal.
         jdbcTemplate.execute("""
