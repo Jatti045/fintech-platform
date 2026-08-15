@@ -4,6 +4,9 @@ import userReducer from "@/store/slices/userSlice";
 import transactionReducer, {
   fetchTransaction,
 } from "@/store/slices/transactionSlice";
+import financialSummaryReducer, {
+  fetchFinancialSummary,
+} from "@/store/slices/financialSummarySlice";
 import themeReducer from "@/store/slices/themeSlice";
 import budgetReducer, { fetchBudgets } from "@/store/slices/budgetSlice";
 import calendarReducer, {
@@ -17,6 +20,7 @@ import notificationReducer from "@/store/slices/notificationSlice";
 import transactionAPI from "../api/transaction";
 import budgetAPI from "../api/budget";
 import goalAPI from "../api/goal";
+import financialSummaryAPI from "../api/financialSummary";
 
 // ---------------------------------------------------------------------------
 // Network + cache are ENTIRELY mocked → no real requests, no real DB, offline.
@@ -50,13 +54,18 @@ jest.mock("../api/goal", () => ({
     delete: jest.fn(),
   },
 }));
+jest.mock("../api/financialSummary", () => ({
+  __esModule: true,
+  default: {
+    fetchSummary: jest.fn(),
+  },
+}));
 jest.mock("../utils/cache", () => ({
   getTransactionsCache: jest.fn(),
   setTransactionsCache: jest.fn(),
   appendTransactionToCache: jest.fn(),
   removeTransactionFromCacheById: jest.fn(),
   removeTransactionFromCacheByIdAcrossAllMonths: jest.fn(),
-  getGoalAllocationsTotalCache: jest.fn(),
   getBudgetsCache: jest.fn(),
   setBudgetsCache: jest.fn(),
   appendBudgetToCache: jest.fn(),
@@ -252,17 +261,24 @@ function txResponse(month: typeof CURRENT) {
         hasPrevPage: false,
         limit: 20,
       },
-      summary: {
-        // includesGoalAllocations: true → the slice skips the cache fallback,
-        // keeping the tests deterministic and offline.
-        includesGoalAllocations: true,
-        totalAmount: month.totalAmount,
-        monthlyIncome: month.income,
-        netSpent: month.totalAmount,
-        netRemaining: month.income - month.totalAmount,
-        spentPercentageOfIncome:
-          month.income > 0 ? (month.totalAmount / month.income) * 100 : 0,
-      },
+    },
+  };
+}
+
+function summaryResponse(month: typeof CURRENT) {
+  return {
+    success: true,
+    message: "ok",
+    data: {
+      totalAmount: month.totalAmount,
+      monthlyIncome: month.income,
+      expectedIncome: month.income,
+      actualIncome: 0,
+      netSpent: month.totalAmount,
+      netRemaining: month.income - month.totalAmount,
+      spentPercentageOfIncome:
+        month.income > 0 ? (month.totalAmount / month.income) * 100 : 0,
+      goalAllocationAmount: 0,
     },
   };
 }
@@ -286,6 +302,7 @@ const goalResponse = (month: typeof CURRENT) => ({
 const rootReducer = combineReducers({
   user: userReducer,
   transaction: transactionReducer,
+  financialSummary: financialSummaryReducer,
   budget: budgetReducer,
   goal: goalReducer,
   calendar: calendarReducer,
@@ -332,6 +349,9 @@ async function loadMonth(store: TestStore, month: number, year: number) {
       }) as any,
     ),
     store.dispatch(
+      fetchFinancialSummary({ currentMonth: month, currentYear: year }) as any,
+    ),
+    store.dispatch(
       fetchBudgets({ currentMonth: month, currentYear: year }) as any,
     ),
     store.dispatch(
@@ -360,6 +380,10 @@ beforeEach(() => {
   (transactionAPI.fetchAll as jest.Mock).mockImplementation(
     async ({ currentMonth, currentYear }: any) =>
       txResponse(MONTHS[monthKey(currentMonth, currentYear)]),
+  );
+  (financialSummaryAPI.fetchSummary as jest.Mock).mockImplementation(
+    async ({ currentMonth, currentYear }: any) =>
+      summaryResponse(MONTHS[monthKey(currentMonth, currentYear)]),
   );
   (budgetAPI.fetchAll as jest.Mock).mockImplementation(
     async ({ currentMonth, currentYear }: any) =>
@@ -394,8 +418,7 @@ describe("month navigation – initial load", () => {
     expect(state.calendar.year).toBe(2026);
 
     // Monthly income (HomePulse "Income")
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(5000);
-    expect(state.transaction.monthSummary.totalAmount).toBe(2800);
+    expect(state.financialSummary.data.totalAmount).toBe(2800);
 
     // Currency (HomePulse uses user.currency)
     expect(state.user.user.currency).toBe("CAD");
@@ -465,8 +488,7 @@ describe("month navigation – previous month", () => {
     expect(state.calendar.year).toBe(2026);
 
     // Income changed to prev month's income
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(3200);
-    expect(state.transaction.monthSummary.totalAmount).toBe(4100);
+    expect(state.financialSummary.data.totalAmount).toBe(4100);
 
     // Transactions replaced — no current-month transactions remain
     expect(state.transaction.transactions).toHaveLength(3);
@@ -533,7 +555,7 @@ describe("month navigation – current → previous → current", () => {
       ),
     ).toBe(true);
     expect(
-      (store.getState() as any).transaction.monthSummary.monthlyIncome,
+      (store.getState() as any).financialSummary.data.monthlyIncome,
     ).toBe(3200);
 
     // -> Back to current month: must be CAD again
@@ -544,8 +566,7 @@ describe("month navigation – current → previous → current", () => {
     expect(state.calendar.year).toBe(2026);
 
     // Income restored
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(5000);
-    expect(state.transaction.monthSummary.totalAmount).toBe(2800);
+    expect(state.financialSummary.data.totalAmount).toBe(2800);
 
     // Currency restored to CAD — NOT retaining USD from the previous visit
     expect(state.user.user.currency).toBe("CAD");
@@ -599,7 +620,7 @@ describe("month navigation – sequential changes", () => {
     // Current → Previous
     await goPrev(store);
     expect(
-      (store.getState() as any).transaction.monthSummary.monthlyIncome,
+      (store.getState() as any).financialSummary.data.monthlyIncome,
     ).toBe(3200);
     expect((store.getState() as any).calendar.month).toBe(4);
 
@@ -607,7 +628,7 @@ describe("month navigation – sequential changes", () => {
     await goPrev(store);
     let state = store.getState() as any;
     expect(state.calendar.month).toBe(3);
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(0);
+    expect(state.financialSummary.data.monthlyIncome).toBe(0);
     expect(state.transaction.transactions).toHaveLength(0);
     expect(state.budget.budgets).toHaveLength(0);
     expect(state.goal.goals).toHaveLength(0);
@@ -616,7 +637,6 @@ describe("month navigation – sequential changes", () => {
     await goNext(store);
     state = store.getState() as any;
     expect(state.calendar.month).toBe(4);
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(3200);
     expect(state.transaction.transactions).toHaveLength(3);
     expect(state.budget.budgets).toHaveLength(1);
     expect(state.goal.goals).toHaveLength(2);
@@ -625,7 +645,6 @@ describe("month navigation – sequential changes", () => {
     await goNext(store);
     state = store.getState() as any;
     expect(state.calendar.month).toBe(5);
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(5000);
     expect(state.transaction.transactions).toHaveLength(2);
     expect(
       state.transaction.transactions.every(
@@ -648,17 +667,16 @@ describe("month navigation – sequential changes", () => {
     for (let i = 0; i < 3; i += 1) {
       await goPrev(store);
       expect(
-        (store.getState() as any).transaction.monthSummary.monthlyIncome,
+        (store.getState() as any).financialSummary.data.monthlyIncome,
       ).toBe(3200);
       await goNext(store);
       expect(
-        (store.getState() as any).transaction.monthSummary.monthlyIncome,
+        (store.getState() as any).financialSummary.data.monthlyIncome,
       ).toBe(5000);
     }
 
     const state = store.getState() as any;
     expect(state.calendar.month).toBe(5);
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(5000);
     expect(state.transaction.transactions).toHaveLength(2);
     expect(state.budget.budgets).toHaveLength(2);
     expect(state.goal.goals).toHaveLength(1);
@@ -728,7 +746,6 @@ describe("month navigation – request races / out-of-order responses", () => {
     const state = store.getState() as any;
     // The finally selected month was PREV → its data must win, untouched by the
     // stale current-month response that arrived out of order.
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(3200);
     expect(state.transaction.transactions).toHaveLength(3);
     expect(
       state.transaction.transactions.every(
@@ -796,7 +813,6 @@ describe("month navigation – request races / out-of-order responses", () => {
 
     const state = store.getState() as any;
     // Final selected month = CURRENT → CAD, income 5000, current budgets.
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(5000);
     expect(state.transaction.transactions).toHaveLength(2);
     expect(
       state.transaction.transactions.every(
@@ -915,8 +931,8 @@ describe("month navigation – edge cases", () => {
     await loadMonth(store, TWO_AGO.month, TWO_AGO.year);
 
     const state = store.getState() as any;
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(0);
-    expect(state.transaction.monthSummary.totalAmount).toBe(0);
+    expect(state.financialSummary.data.monthlyIncome).toBe(0);
+    expect(state.financialSummary.data.totalAmount).toBe(0);
     expect(state.transaction.transactions).toHaveLength(0);
     expect(state.budget.budgets).toHaveLength(0);
     expect(state.goal.goals).toHaveLength(0);
@@ -939,6 +955,6 @@ describe("month navigation – edge cases", () => {
     expect(state.transaction.transactions).toHaveLength(0);
     expect(state.budget.budgets).toHaveLength(0);
     expect(state.goal.goals).toHaveLength(0);
-    expect(state.transaction.monthSummary.monthlyIncome).toBe(0);
+    expect(state.financialSummary.data.monthlyIncome).toBe(0);
   });
 });

@@ -1,10 +1,9 @@
 /**
  * Transaction slice – reducer-level unit tests.
  *
- * These tests exercise the synchronous reducer cases that are triggered by the
- * extraReducers builder (pending / fulfilled / rejected) for every transaction
- * async thunk.  The async thunks themselves hit the network; here we only care
- * about how the reducer mutates state in response to those action types.
+ * The transaction slice owns ONLY transaction data. Financial aggregates
+ * (monthly income, totals, percentages, …) live in the financialSummary slice,
+ * so no aggregate fields should ever appear in transaction state.
  */
 
 import transactionReducer, {
@@ -16,31 +15,16 @@ import transactionReducer, {
   updateTransaction,
 } from "@/store/slices/transactionSlice";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const initialState: TransactionState = {
   transactions: [],
   isLoading: false,
   error: null,
   filter: { category: null, dateRange: { start: null, end: null } },
-  totalIncome: 0,
-  totalExpense: 0,
-  balance: 0,
   isAdding: false,
   isEditing: false,
   editingTransaction: null,
   isDeleting: false,
   deleteError: null,
-  isFetchingSummary: false,
-  summary: {
-    incomeByCategory: {},
-    expenseByCategory: {},
-    monthlyTrends: [],
-    topExpenses: [],
-    topIncomes: [],
-  },
   pagination: {
     currentPage: 1,
     totalPages: 1,
@@ -48,7 +32,6 @@ const initialState: TransactionState = {
     hasNextPage: false,
     hasPrevPage: false,
   },
-  monthSummary: { totalAmount: 0 },
   isLoadingMore: false,
 };
 
@@ -63,6 +46,22 @@ const makeTx = (overrides: Record<string, any> = {}) => ({
   date: "2026-02-01T00:00:00.000Z",
   type: "EXPENSE",
   ...overrides,
+});
+
+// ---------------------------------------------------------------------------
+// Domain boundary: transaction state must not own aggregates
+// ---------------------------------------------------------------------------
+
+describe("transactionSlice – domain boundary", () => {
+  it("does not expose aggregate state fields", () => {
+    const state = transactionReducer(initialState, { type: "noop" });
+    expect(state).not.toHaveProperty("monthSummary");
+    expect(state).not.toHaveProperty("summary");
+    expect(state).not.toHaveProperty("totalIncome");
+    expect(state).not.toHaveProperty("totalExpense");
+    expect(state).not.toHaveProperty("balance");
+    expect(state).not.toHaveProperty("isFetchingSummary");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -87,7 +86,6 @@ describe("transactionSlice – fetchTransaction", () => {
         hasNextPage: true,
         hasPrevPage: false,
       },
-      summary: { totalAmount: 42 },
     };
     const action = { type: fetchTransaction.fulfilled.type, payload };
     const state = transactionReducer(initialState, action);
@@ -97,7 +95,6 @@ describe("transactionSlice – fetchTransaction", () => {
     expect(state.transactions[0].name).toBe("Coffee");
     expect(state.pagination.totalCount).toBe(15);
     expect(state.pagination.hasNextPage).toBe(true);
-    expect(state.monthSummary.totalAmount).toBe(42);
   });
 
   it("3. sets error on rejected", () => {
@@ -131,6 +128,25 @@ describe("transactionSlice – fetchTransaction", () => {
     expect(state.transactions).toHaveLength(1);
     expect(state.transactions[0].id).toBe("new-1");
   });
+
+  it("6. ignores stale responses (latest-request-wins)", () => {
+    const stateWith = {
+      ...initialState,
+      transactions: [makeTx({ id: "latest" })] as any[],
+      latestRequestId: "request-2",
+    };
+    const stalePayload = {
+      transaction: [makeTx({ id: "stale" })],
+      pagination: initialState.pagination,
+    };
+    const action = {
+      type: fetchTransaction.fulfilled.type,
+      payload: stalePayload,
+      meta: { requestId: "request-1" },
+    } as any;
+    const state = transactionReducer(stateWith, action);
+    expect(state.transactions[0].id).toBe("latest");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -138,13 +154,13 @@ describe("transactionSlice – fetchTransaction", () => {
 // ---------------------------------------------------------------------------
 
 describe("transactionSlice – fetchMoreTransactions", () => {
-  it("6. sets isLoadingMore=true on pending", () => {
+  it("7. sets isLoadingMore=true on pending", () => {
     const action = { type: fetchMoreTransactions.pending.type };
     const state = transactionReducer(initialState, action);
     expect(state.isLoadingMore).toBe(true);
   });
 
-  it("7. appends transactions on fulfilled", () => {
+  it("8. appends transactions on fulfilled", () => {
     const stateWith = {
       ...initialState,
       transactions: [makeTx({ id: "a" })] as any[],
@@ -166,7 +182,7 @@ describe("transactionSlice – fetchMoreTransactions", () => {
     expect(state.pagination.currentPage).toBe(2);
   });
 
-  it("8. sets error on rejected", () => {
+  it("9. sets error on rejected", () => {
     const action = {
       type: fetchMoreTransactions.rejected.type,
       payload: "timeout",
@@ -176,7 +192,7 @@ describe("transactionSlice – fetchMoreTransactions", () => {
     expect(state.error).toBe("timeout");
   });
 
-  it("9. handles empty page gracefully", () => {
+  it("10. handles empty page gracefully", () => {
     const stateWith = {
       ...initialState,
       transactions: [makeTx({ id: "a" })] as any[],
@@ -203,14 +219,14 @@ describe("transactionSlice – fetchMoreTransactions", () => {
 // ---------------------------------------------------------------------------
 
 describe("transactionSlice – createTransaction", () => {
-  it("10. sets isAdding=true on pending", () => {
+  it("11. sets isAdding=true on pending", () => {
     const action = { type: createTransaction.pending.type };
     const state = transactionReducer(initialState, action);
     expect(state.isAdding).toBe(true);
     expect(state.error).toBeNull();
   });
 
-  it("11. pushes the created transaction on fulfilled", () => {
+  it("12. pushes the created transaction on fulfilled", () => {
     const tx = makeTx({ id: "new-tx" });
     const action = {
       type: createTransaction.fulfilled.type,
@@ -222,30 +238,17 @@ describe("transactionSlice – createTransaction", () => {
     expect(state.transactions[0].id).toBe("new-tx");
   });
 
-  it("12. increments monthSummary for EXPENSE on fulfilled", () => {
+  it("13. does not touch aggregate state on fulfilled", () => {
     const tx = makeTx({ amount: 25, type: "EXPENSE" });
     const action = {
       type: createTransaction.fulfilled.type,
       payload: { data: { transaction: tx } },
     };
-    const state = transactionReducer(
-      { ...initialState, monthSummary: { totalAmount: 100 } },
-      action,
-    );
-    expect(state.monthSummary.totalAmount).toBe(125);
-  });
-
-  it("13. does NOT increment monthSummary for INCOME on fulfilled", () => {
-    const tx = makeTx({ amount: 25, type: "INCOME" });
-    const action = {
-      type: createTransaction.fulfilled.type,
-      payload: { data: { transaction: tx } },
-    };
-    const state = transactionReducer(
-      { ...initialState, monthSummary: { totalAmount: 100 } },
-      action,
-    );
-    expect(state.monthSummary.totalAmount).toBe(100);
+    const state = transactionReducer(initialState, action);
+    // Summary recomputation belongs to the financial summary domain, refreshed
+    // via fetchFinancialSummary after a successful mutation.
+    expect(state).not.toHaveProperty("monthSummary");
+    expect(state).not.toHaveProperty("summary");
   });
 
   it("14. sets error on rejected", () => {
@@ -256,21 +259,6 @@ describe("transactionSlice – createTransaction", () => {
     const state = transactionReducer(initialState, action);
     expect(state.isAdding).toBe(false);
     expect(state.error).toBe("server down");
-  });
-
-  it("15. uses default type EXPENSE when type is missing", () => {
-    const tx = makeTx({ amount: 10 });
-    delete (tx as any).type;
-    const action = {
-      type: createTransaction.fulfilled.type,
-      payload: { data: { transaction: tx } },
-    };
-    const state = transactionReducer(
-      { ...initialState, monthSummary: { totalAmount: 0 } },
-      action,
-    );
-    // Default should be treated as EXPENSE → summary increases
-    expect(state.monthSummary.totalAmount).toBe(10);
   });
 });
 
@@ -284,17 +272,16 @@ describe("transactionSlice – deleteTransaction", () => {
     transactions: [
       makeTx({ id: "tx-1", amount: 30, type: "EXPENSE" }),
     ] as any[],
-    monthSummary: { totalAmount: 30 },
   };
 
-  it("16. sets isDeleting=true on pending", () => {
+  it("15. sets isDeleting=true on pending", () => {
     const action = { type: deleteTransaction.pending.type };
     const state = transactionReducer(stateWithTx, action);
     expect(state.isDeleting).toBe(true);
     expect(state.deleteError).toBeNull();
   });
 
-  it("17. removes transaction from state on fulfilled", () => {
+  it("16. removes transaction from state on fulfilled", () => {
     const action = {
       type: deleteTransaction.fulfilled.type,
       payload: { data: { deletedTransactionId: "tx-1" } },
@@ -304,39 +291,16 @@ describe("transactionSlice – deleteTransaction", () => {
     expect(state.transactions).toHaveLength(0);
   });
 
-  it("18. decrements monthSummary for deleted EXPENSE", () => {
-    const action = {
-      type: deleteTransaction.fulfilled.type,
-      payload: { data: { deletedTransactionId: "tx-1" } },
-    };
-    const state = transactionReducer(stateWithTx, action);
-    expect(state.monthSummary.totalAmount).toBe(0);
-  });
-
-  it("19. monthSummary never goes below 0", () => {
-    const badState = {
-      ...stateWithTx,
-      monthSummary: { totalAmount: 5 }, // less than the tx amount of 30
-    };
-    const action = {
-      type: deleteTransaction.fulfilled.type,
-      payload: { data: { deletedTransactionId: "tx-1" } },
-    };
-    const state = transactionReducer(badState, action);
-    expect(state.monthSummary.totalAmount).toBe(0);
-  });
-
-  it("20. no-ops if deletedTransactionId is missing from payload", () => {
+  it("17. no-ops if deletedTransactionId is missing from payload", () => {
     const action = {
       type: deleteTransaction.fulfilled.type,
       payload: { data: {} },
     };
     const state = transactionReducer(stateWithTx, action);
-    // Should remain unchanged
     expect(state.transactions).toHaveLength(1);
   });
 
-  it("21. sets deleteError on rejected", () => {
+  it("18. sets deleteError on rejected", () => {
     const action = {
       type: deleteTransaction.rejected.type,
       payload: "not found",
@@ -344,25 +308,6 @@ describe("transactionSlice – deleteTransaction", () => {
     const state = transactionReducer(stateWithTx, action);
     expect(state.isDeleting).toBe(false);
     expect(state.deleteError).toBe("not found");
-  });
-
-  it("22. does not decrement monthSummary for deleted INCOME transaction", () => {
-    const incomeState: TransactionState = {
-      ...initialState,
-      transactions: [
-        makeTx({ id: "inc-1", amount: 100, type: "INCOME" }),
-      ] as any[],
-      monthSummary: { totalAmount: 50 },
-    };
-    const action = {
-      type: deleteTransaction.fulfilled.type,
-      payload: { data: { deletedTransactionId: "inc-1" } },
-    };
-    const state = transactionReducer(incomeState, action);
-    // Should still remove the transaction
-    expect(state.transactions).toHaveLength(0);
-    // But monthSummary (tracks expenses) should be untouched
-    expect(state.monthSummary.totalAmount).toBe(50);
   });
 });
 
@@ -376,17 +321,16 @@ describe("transactionSlice – updateTransaction", () => {
     transactions: [
       makeTx({ id: "tx-1", amount: 20, name: "Old Name", type: "EXPENSE" }),
     ] as any[],
-    monthSummary: { totalAmount: 20 },
   };
 
-  it("23. sets isEditing=true on pending", () => {
+  it("19. sets isEditing=true on pending", () => {
     const action = { type: updateTransaction.pending.type };
     const state = transactionReducer(stateWithTx, action);
     expect(state.isEditing).toBe(true);
     expect(state.error).toBeNull();
   });
 
-  it("24. replaces matching transaction on fulfilled", () => {
+  it("20. replaces matching transaction on fulfilled", () => {
     const updated = makeTx({ id: "tx-1", amount: 35, name: "New Name" });
     const action = {
       type: updateTransaction.fulfilled.type,
@@ -398,33 +342,18 @@ describe("transactionSlice – updateTransaction", () => {
     expect(state.transactions[0].amount).toBe(35);
   });
 
-  it("25. adjusts monthSummary when EXPENSE amount changes", () => {
+  it("21. does not touch aggregate state on fulfilled", () => {
     const updated = makeTx({ id: "tx-1", amount: 35, type: "EXPENSE" });
     const action = {
       type: updateTransaction.fulfilled.type,
       payload: { data: { transaction: updated } },
     };
     const state = transactionReducer(stateWithTx, action);
-    // was 20, now 35 → summary should be 20 - 20 + 35 = 35
-    expect(state.monthSummary.totalAmount).toBe(35);
+    expect(state).not.toHaveProperty("monthSummary");
+    expect(state).not.toHaveProperty("summary");
   });
 
-  it("26. does not adjust monthSummary when amount stays the same", () => {
-    const updated = makeTx({
-      id: "tx-1",
-      amount: 20,
-      name: "Renamed",
-      type: "EXPENSE",
-    });
-    const action = {
-      type: updateTransaction.fulfilled.type,
-      payload: { data: { transaction: updated } },
-    };
-    const state = transactionReducer(stateWithTx, action);
-    expect(state.monthSummary.totalAmount).toBe(20);
-  });
-
-  it("27. sets error on rejected", () => {
+  it("22. sets error on rejected", () => {
     const action = {
       type: updateTransaction.rejected.type,
       payload: "forbidden",
@@ -434,7 +363,7 @@ describe("transactionSlice – updateTransaction", () => {
     expect(state.error).toBe("forbidden");
   });
 
-  it("28. no-ops if updated transaction id is not in state", () => {
+  it("23. no-ops if updated transaction id is not in state", () => {
     const updated = makeTx({ id: "unknown-id", amount: 999 });
     const action = {
       type: updateTransaction.fulfilled.type,
@@ -444,18 +373,7 @@ describe("transactionSlice – updateTransaction", () => {
     expect(state.transactions[0].id).toBe("tx-1");
     expect(state.transactions[0].amount).toBe(20);
   });
-
-  it("29. monthSummary never goes below 0 after update", () => {
-    const weirdState = {
-      ...stateWithTx,
-      monthSummary: { totalAmount: 5 },
-    };
-    const updated = makeTx({ id: "tx-1", amount: 0, type: "EXPENSE" });
-    const action = {
-      type: updateTransaction.fulfilled.type,
-      payload: { data: { transaction: updated } },
-    };
-    const state = transactionReducer(weirdState, action);
-    expect(state.monthSummary.totalAmount).toBe(0);
-  });
 });
+
+
+

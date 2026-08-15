@@ -13,7 +13,6 @@ public record TransactionsResponse(
         public record Data(
                         List<TransactionItem> transaction,
                         Pagination pagination,
-                        Summary summary,
                         Filters filters) {
         }
 
@@ -52,18 +51,6 @@ public record TransactionsResponse(
                         boolean hasNextPage,
                         boolean hasPrevPage,
                         int limit) {
-        }
-
-        public record Summary(
-                        double totalAmount,
-                        double monthlyIncome,
-                        double expectedIncome,
-                        double actualIncome,
-                        double netSpent,
-                        double netRemaining,
-                        double spentPercentageOfIncome,
-                        double goalAllocationAmount,
-                        boolean includesGoalAllocations) {
         }
 
         public record Filters(

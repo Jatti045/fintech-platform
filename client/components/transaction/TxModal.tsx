@@ -1,7 +1,7 @@
 import {
   useBudgets,
   useTheme,
-  useTransactionMonthSummary,
+  useFinancialSummary,
 } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { Ionicons } from "@expo/vector-icons";
@@ -45,7 +45,7 @@ function TransactionModal({
   onClose?: () => void;
 }) {
   const budgets = useBudgets();
-  const monthSummary = useTransactionMonthSummary();
+  const financialSummary = useFinancialSummary();
   const { THEME } = useTheme();
   const { showAlert } = useThemedAlert();
   const [showPicker, setShowPicker] = useState(false);
@@ -167,8 +167,8 @@ function TransactionModal({
     };
   }, [txAmount, txCurrency, userCurrency]);
 
-  const monthlyIncome = Number(monthSummary.monthlyIncome ?? 0);
-  const currentMonthSpent = Number(monthSummary.totalAmount ?? 0);
+  const monthlyIncome = Number(financialSummary?.monthlyIncome ?? 0);
+  const currentMonthSpent = Number(financialSummary?.totalAmount ?? 0);
   const pendingAmount = Number(convertedAmountForPreview || 0);
   const projectedSpent =
     currentMonthSpent + (pendingAmount > 0 ? pendingAmount : 0);

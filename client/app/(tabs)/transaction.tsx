@@ -35,7 +35,7 @@ import {
   useTransactions,
   useTransactionStatus,
   useCalendar,
-  useTransactionMonthSummary,
+  useFinancialSummary,
 } from "@/hooks/useRedux";
 import { useAppDispatch } from "@/store";
 import { fetchBudgets } from "@/store/slices/budgetSlice";
@@ -57,8 +57,8 @@ export default function TransactionScreen() {
     activeCurrency,
   );
 
-  const monthSummary = useTransactionMonthSummary();
-  const monthlyIncome = Number(monthSummary.monthlyIncome || 0);
+  const financialSummary = useFinancialSummary();
+  const monthlyIncome = Number(financialSummary?.monthlyIncome || 0);
 
   // Custom hook encapsulating all filter state + logic for deriving the filtered + grouped transaction data fed into the SectionList.
   const {
@@ -311,8 +311,8 @@ export default function TransactionScreen() {
           month={calendar.month}
           year={calendar.year}
           monthlyIncome={monthlyIncome}
-          actualIncome={Number(monthSummary.actualIncome || 0)}
-          expectedIncome={Number(monthSummary.expectedIncome || 0)}
+          actualIncome={Number(financialSummary?.actualIncome || 0)}
+          expectedIncome={Number(financialSummary?.expectedIncome || 0)}
           currencyCode={activeCurrency}
         />
 

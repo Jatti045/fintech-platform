@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import userReducer from "./slices/userSlice";
 import transactionReducer from "./slices/transactionSlice";
+import financialSummaryReducer from "./slices/financialSummarySlice";
 import themeReducer from "./slices/themeSlice";
 import budgetReducer from "./slices/budgetSlice";
 import calendarReducer from "./slices/calendarSlice";
@@ -12,14 +13,12 @@ export const store = configureStore({
   reducer: {
     user: userReducer,
     transaction: transactionReducer,
+    financialSummary: financialSummaryReducer,
     budget: budgetReducer,
     goal: goalReducer,
     calendar: calendarReducer,
     theme: themeReducer,
     notifications: notificationReducer,
-    // Add more reducers here as you build other features
-    // budgets: budgetReducer,
-    // categories: categoryReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

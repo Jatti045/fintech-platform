@@ -49,8 +49,16 @@ export const useTransactionPagination = () => {
   return useAppSelector((state) => state.transaction.pagination);
 };
 
-export const useTransactionMonthSummary = () => {
-  return useAppSelector((state) => state.transaction.monthSummary);
+// Custom hooks for financial summary state selections
+export const useFinancialSummary = () => {
+  return useAppSelector((state) => state.financialSummary.data);
+};
+
+export const useFinancialSummaryStatus = () => {
+  return useAppSelector((state) => ({
+    isLoading: state.financialSummary.isLoading,
+    error: state.financialSummary.error,
+  }));
 };
 
 // Custom hooks for budget state selections

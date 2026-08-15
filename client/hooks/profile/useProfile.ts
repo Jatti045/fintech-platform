@@ -34,6 +34,7 @@ import {
 import { userAPI } from "@/api/user";
 import { plaidAPI } from "@/api/plaid";
 import { fetchTransaction } from "@/store/slices/transactionSlice";
+import { fetchFinancialSummary } from "@/store/slices/financialSummarySlice";
 import type { LinkSuccess } from "react-native-plaid-link-sdk";
 
 import { useThemedAlert } from "@/utils/themedAlert";
@@ -289,6 +290,14 @@ export function useProfile(): UseProfileReturn {
                 useCache: false,
               }),
             );
+            // Bank-synced transactions change the month's totals; refresh the
+            // financial summary so Home/Transaction headers stay accurate.
+            await dispatch(
+              fetchFinancialSummary({
+                currentMonth: calendar.month,
+                currentYear: calendar.year,
+              }),
+            );
           } catch (e) {
             showAlert({
               title: "Connection Failed",
@@ -520,6 +529,14 @@ export function useProfile(): UseProfileReturn {
       );
       if (updateUserMonthlyIncome.fulfilled.match(result)) {
         await loadMonthlyIncomeForSelectedMonth();
+        // The expected income feeds the month's financial summary; refresh it so
+        // Home/Transaction headers reflect the new baseline immediately.
+        dispatch(
+          fetchFinancialSummary({
+            currentMonth: calendar.month,
+            currentYear: calendar.year,
+          }),
+        );
         showAlert({
           title: "Monthly income updated",
           message: `Your monthly income is now ${parsed.toFixed(2)} ${user?.currency || DEFAULT_CURRENCY}.`,

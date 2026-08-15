@@ -32,3 +32,13 @@ export {
 
 // Export user slice types
 export type { UserState } from "./slices/userSlice";
+
+// Export financial summary slice actions and types
+export {
+  fetchFinancialSummary,
+  clearFinancialSummary,
+} from "./slices/financialSummarySlice";
+export type {
+  FinancialSummaryState,
+  IFinancialSummary,
+} from "./slices/financialSummarySlice";

@@ -62,37 +62,17 @@ export interface TransactionState {
     category: string | null;
     dateRange: { start: string | null; end: string | null };
   };
-  totalIncome: number;
-  totalExpense: number;
-  balance: number;
   isAdding: boolean;
   isEditing: boolean;
   editingTransaction: ITransaction | null;
   isDeleting: boolean;
   deleteError: string | null;
-  isFetchingSummary: boolean;
-  summary: {
-    incomeByCategory: Record<string, number>;
-    expenseByCategory: Record<string, number>;
-    monthlyTrends: { month: string; income: number; expense: number }[];
-    topExpenses: ITransaction[];
-    topIncomes: ITransaction[];
-  };
   pagination: {
     currentPage: number;
     totalPages: number;
     totalCount: number;
     hasNextPage: boolean;
     hasPrevPage: boolean;
-  };
-  monthSummary: {
-    totalAmount: number;
-    monthlyIncome?: number;
-    expectedIncome?: number;
-    actualIncome?: number;
-    netSpent?: number;
-    netRemaining?: number;
-    spentPercentageOfIncome?: number;
   };
   isLoadingMore: boolean;
   latestRequestId?: string | null;

@@ -6,6 +6,7 @@ import {
   deleteTransaction,
 } from "@/store/slices/transactionSlice";
 import { fetchBudgets } from "@/store/slices/budgetSlice";
+import { fetchFinancialSummary } from "@/store/slices/financialSummarySlice";
 import { TransactionType } from "@/types/transaction/types";
 import { formatCurrency } from "@/utils/helper";
 import { useThemedAlert } from "@/utils/themedAlert";
@@ -125,6 +126,13 @@ export const useTransactionOperations = () => {
               currentYear: calendar.year,
               useCache: false,
             } as any),
+          );
+          // Keep the month's financial summary in sync with the new transaction.
+          dispatch(
+            fetchFinancialSummary({
+              currentMonth: calendar.month,
+              currentYear: calendar.year,
+            }),
           );
           return;
         }
@@ -281,6 +289,13 @@ export const useTransactionOperations = () => {
               currentYear: calendar.year,
             }),
           );
+          // Keep the month's financial summary in sync with the updated transaction.
+          dispatch(
+            fetchFinancialSummary({
+              currentMonth: calendar.month,
+              currentYear: calendar.year,
+            }),
+          );
           return;
         }
         showAlert({
@@ -328,6 +343,15 @@ export const useTransactionOperations = () => {
               try {
                 const response: any = await dispatch(deleteTransaction(id));
                 const { success, message } = response?.payload ?? {};
+                if (success) {
+                  // Keep the month's financial summary in sync after the delete.
+                  dispatch(
+                    fetchFinancialSummary({
+                      currentMonth: calendar.month,
+                      currentYear: calendar.year,
+                    }),
+                  );
+                }
                 // Small delay so the confirmation alert fully dismisses first
                 setTimeout(() => {
                   if (success) {
@@ -352,7 +376,7 @@ export const useTransactionOperations = () => {
         ],
       });
     },
-    [showAlert, dispatch],
+    [showAlert, dispatch, calendar],
   );
 
   return {

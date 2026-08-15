@@ -4,6 +4,7 @@ import { RefreshControl, ScrollView, View } from "react-native";
 import { useAppDispatch } from "@/store";
 import { nextMonth, prevMonth } from "@/store/slices/calendarSlice";
 import { fetchTransaction } from "@/store/slices/transactionSlice";
+import { fetchFinancialSummary } from "@/store/slices/financialSummarySlice";
 import { fetchBudgets } from "@/store/slices/budgetSlice";
 import { useThemedAlert } from "@/utils/themedAlert";
 import TransactionModal from "@/components/transaction/TxModal";
@@ -26,7 +27,7 @@ import {
   useGoals,
   useCalendar,
   useUser,
-  useTransactionMonthSummary,
+  useFinancialSummary,
 } from "@/hooks/useRedux";
 import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
@@ -40,7 +41,7 @@ export default function Index() {
   const user = useUser();
   const activeCurrency = user?.currency || "USD";
   const calendar = useCalendar();
-  const monthSummary = useTransactionMonthSummary();
+  const financialSummary = useFinancialSummary();
   const dispatch = useAppDispatch();
   const { displayTransactions } = useTransactionDisplayAmounts(
     transactions,
@@ -52,7 +53,7 @@ export default function Index() {
     activeCurrency,
   );
   const [convertedExpenseTotal, setConvertedExpenseTotal] = useState(
-    Number(monthSummary.totalAmount || 0),
+    Number(financialSummary?.totalAmount || 0),
   );
 
   const [helpOpen, setHelpOpen] = useState(false);
@@ -72,6 +73,12 @@ export default function Index() {
             page: 1,
             limit: PAGINATION_LIMIT,
             useCache: false,
+          }),
+        ),
+        dispatch(
+          fetchFinancialSummary({
+            currentMonth: calendar.month,
+            currentYear: calendar.year,
           }),
         ),
         dispatch(
@@ -99,6 +106,12 @@ export default function Index() {
         }),
       ),
       dispatch(
+        fetchFinancialSummary({
+          currentMonth: calendar.month,
+          currentYear: calendar.year,
+        }),
+      ),
+      dispatch(
         fetchBudgets({
           currentMonth: calendar.month,
           currentYear: calendar.year,
@@ -119,7 +132,7 @@ const monthStartDate = useMemo(
   );
 
   const expenseTotal = convertedExpenseTotal;
-  const monthlyIncome = Number(monthSummary.monthlyIncome || 0);
+  const monthlyIncome = Number(financialSummary?.monthlyIncome || 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,7 +162,7 @@ const monthStartDate = useMemo(
     };
 
     const run = async () => {
-      const rawTotal = Number(monthSummary.totalAmount || 0);
+      const rawTotal = Number(financialSummary?.totalAmount || 0);
       const toCurrency = normalize(activeCurrency) || "USD";
       const fromCurrency = inferSourceCurrency();
 
@@ -175,7 +188,7 @@ const monthStartDate = useMemo(
     return () => {
       cancelled = true;
     };
-  }, [monthSummary.totalAmount, activeCurrency, transactions, user?.currency]);
+  }, [financialSummary?.totalAmount, activeCurrency, transactions, user?.currency]);
 
   const now = new Date();
   const isCurrentMonth =

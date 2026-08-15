@@ -1,8 +1,4 @@
-import {
-  createSlice,
-  createAsyncThunk,
-  type PayloadAction,
-} from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import transactionAPI from "../../api/transaction";
 import type { ITransaction } from "@/types/transaction/types";
 import type { TransactionState } from "@/types/transaction/types";
@@ -12,52 +8,11 @@ import {
   appendTransactionToCache,
   removeTransactionFromCacheById,
   removeTransactionFromCacheByIdAcrossAllMonths,
-  getGoalAllocationsTotalCache,
 } from "../../utils/cache";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import { logger } from "@/utils/logger";
 
 export type { TransactionState };
-
-const round2 = (value: number) => Math.round(value * 100) / 100;
-
-const withGoalAllocationFallback = async (
-  payload: any,
-  currentYear: number,
-  currentMonth: number,
-) => {
-  const base = payload ?? {};
-  const summary = base.summary ?? null;
-  if (!summary) return base;
-
-  const includesGoalAllocations = Boolean(summary.includesGoalAllocations);
-  if (includesGoalAllocations) return base;
-
-  const cachedGoalAllocations = await getGoalAllocationsTotalCache(
-    currentYear,
-    currentMonth,
-  );
-  if (!cachedGoalAllocations) return base;
-
-  const totalAmount = round2(
-    Number(summary.totalAmount || 0) + Number(cachedGoalAllocations || 0),
-  );
-  const monthlyIncome = Number(summary.monthlyIncome || 0);
-
-  return {
-    ...base,
-    summary: {
-      ...summary,
-      totalAmount,
-      netSpent: totalAmount,
-      netRemaining: round2(monthlyIncome - totalAmount),
-      spentPercentageOfIncome:
-        monthlyIncome > 0 ? round2((totalAmount / monthlyIncome) * 100) : 0,
-      goalAllocationAmount: Number(summary.goalAllocationAmount || 0),
-      includesGoalAllocations: false,
-    },
-  };
-};
 
 const initialState: TransactionState = {
   transactions: [],
@@ -67,35 +22,17 @@ const initialState: TransactionState = {
     category: null,
     dateRange: { start: null, end: null },
   },
-  totalIncome: 0,
-  totalExpense: 0,
-  balance: 0,
   isAdding: false,
   isEditing: false,
   editingTransaction: null,
   isDeleting: false,
   deleteError: null,
-  isFetchingSummary: false,
-  summary: {
-    incomeByCategory: {},
-    expenseByCategory: {},
-    monthlyTrends: [],
-    topExpenses: [],
-    topIncomes: [],
-  },
   pagination: {
     currentPage: 1,
     totalPages: 1,
     totalCount: 0,
     hasNextPage: false,
     hasPrevPage: false,
-  },
-  monthSummary: {
-    totalAmount: 0,
-    monthlyIncome: 0,
-    netSpent: 0,
-    netRemaining: 0,
-    spentPercentageOfIncome: 0,
   },
   isLoadingMore: false,
   latestRequestId: null,
@@ -170,11 +107,7 @@ export const fetchTransaction = createAsyncThunk(
           }
         }
 
-        return withGoalAllocationFallback(
-          response.data,
-          currentYear,
-          currentMonth,
-        );
+        return response.data;
       }
 
       // If allowed, return cached data immediately to avoid API call (page 1 only)
@@ -255,11 +188,7 @@ export const fetchTransaction = createAsyncThunk(
         }
       }
 
-      return withGoalAllocationFallback(
-        response.data,
-        currentYear,
-        currentMonth,
-      );
+      return response.data;
     } catch (error: any) {
       // On network failure try to return cached data
       try {
@@ -327,7 +256,7 @@ export const fetchMoreTransactions = createAsyncThunk(
 
 export const createTransaction = createAsyncThunk(
   "transactions/create",
-  async (transaction: ITransaction, { rejectWithValue, getState }) => {
+  async (transaction: ITransaction, { rejectWithValue }) => {
     try {
       const response = await transactionAPI.create(transaction);
 
@@ -433,39 +362,7 @@ export const updateTransaction = createAsyncThunk(
 const transactionSlice = createSlice({
   name: "transaction",
   initialState,
-  reducers: {
-    addGoalAllocationSpent: (state, action: PayloadAction<number>) => {
-      const amount = Math.max(0, Number(action.payload || 0));
-      if (!amount) return;
-
-      const nextTotal =
-        Math.round((state.monthSummary.totalAmount + amount) * 100) / 100;
-      state.monthSummary.totalAmount = nextTotal;
-
-      const income = Number(state.monthSummary.monthlyIncome || 0);
-      state.monthSummary.netSpent = nextTotal;
-      state.monthSummary.netRemaining =
-        Math.round((income - nextTotal) * 100) / 100;
-      state.monthSummary.spentPercentageOfIncome =
-        income > 0 ? Math.round((nextTotal / income) * 10000) / 100 : 0;
-    },
-    removeGoalAllocationSpent: (state, action: PayloadAction<number>) => {
-      const amount = Math.max(0, Number(action.payload || 0));
-      if (!amount) return;
-
-      const nextTotal =
-        Math.round(Math.max(0, state.monthSummary.totalAmount - amount) * 100) /
-        100;
-      state.monthSummary.totalAmount = nextTotal;
-
-      const income = Number(state.monthSummary.monthlyIncome || 0);
-      state.monthSummary.netSpent = nextTotal;
-      state.monthSummary.netRemaining =
-        Math.round((income - nextTotal) * 100) / 100;
-      state.monthSummary.spentPercentageOfIncome =
-        income > 0 ? Math.round((nextTotal / income) * 10000) / 100 : 0;
-    },
-  },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       // Fetch Transactions (initial load - replaces transactions)
@@ -494,19 +391,6 @@ const transactionSlice = createSlice({
             totalCount: action.payload.pagination.totalCount,
             hasNextPage: action.payload.pagination.hasNextPage,
             hasPrevPage: action.payload.pagination.hasPrevPage,
-          };
-        }
-        // Update month summary (total amount for all transactions in filter)
-        if (action.payload.summary) {
-          state.monthSummary = {
-            totalAmount: action.payload.summary.totalAmount || 0,
-            monthlyIncome: action.payload.summary.monthlyIncome || 0,
-            expectedIncome: action.payload.summary.expectedIncome || 0,
-            actualIncome: action.payload.summary.actualIncome || 0,
-            netSpent: action.payload.summary.netSpent || 0,
-            netRemaining: action.payload.summary.netRemaining || 0,
-            spentPercentageOfIncome:
-              action.payload.summary.spentPercentageOfIncome || 0,
           };
         }
       })
@@ -554,18 +438,6 @@ const transactionSlice = createSlice({
         state.error = null;
         const created = action.payload.data?.transaction ?? action.payload.data;
         state.transactions.push(created);
-
-        // Optimistically update monthSummary when an EXPENSE is added
-        if (
-          created &&
-          (created.type ?? "EXPENSE").toUpperCase() === "EXPENSE"
-        ) {
-          state.monthSummary.totalAmount =
-            Math.round(
-              (state.monthSummary.totalAmount + Number(created.amount || 0)) *
-                100,
-            ) / 100;
-        }
       })
       .addCase(createTransaction.rejected, (state, action) => {
         state.isAdding = false;
@@ -582,17 +454,6 @@ const transactionSlice = createSlice({
         const payload = action.payload ?? null;
         const deletedId = payload?.data?.deletedTransactionId ?? null;
         if (deletedId) {
-          // Find the transaction before removing so we can adjust the summary
-          const deletedTx = state.transactions.find((t) => t.id === deletedId);
-          if (
-            deletedTx &&
-            (deletedTx.type ?? "EXPENSE").toUpperCase() === "EXPENSE"
-          ) {
-            const amt = parseFloat(Number(deletedTx.amount || 0).toFixed(2));
-            state.monthSummary.totalAmount = parseFloat(
-              Math.max(0, state.monthSummary.totalAmount - amt).toFixed(2),
-            );
-          }
           state.transactions = state.transactions.filter(
             (t) => t.id !== deletedId,
           );
@@ -601,9 +462,9 @@ const transactionSlice = createSlice({
       .addCase(deleteTransaction.rejected, (state, action) => {
         state.isDeleting = false;
         state.deleteError = action.payload as string;
-      });
+      })
 
-    builder
+      // Update Transaction
       .addCase(updateTransaction.pending, (state) => {
         state.isEditing = true;
         state.error = null;
@@ -613,21 +474,6 @@ const transactionSlice = createSlice({
         state.error = null;
         const updated = action.payload.data?.transaction ?? action.payload.data;
         if (updated && updated.id) {
-          // Adjust monthSummary if the amount changed on an EXPENSE transaction
-          const oldTx = state.transactions.find((t) => t.id === updated.id);
-          if (oldTx && (oldTx.type ?? "EXPENSE").toUpperCase() === "EXPENSE") {
-            const oldAmt = Number(oldTx.amount || 0);
-            const newAmt = Number(updated.amount || 0);
-            if (oldAmt !== newAmt) {
-              state.monthSummary.totalAmount =
-                Math.round(
-                  Math.max(
-                    0,
-                    state.monthSummary.totalAmount - oldAmt + newAmt,
-                  ) * 100,
-                ) / 100;
-            }
-          }
           state.transactions = state.transactions.map((t) =>
             t.id === updated.id ? updated : t,
           );
@@ -640,13 +486,6 @@ const transactionSlice = createSlice({
   },
 });
 
-// Optional action: replace transactions array directly (useful after forced re-fetch)
 export const { reducer: transactionReducer } = transactionSlice;
-export const { addGoalAllocationSpent, removeGoalAllocationSpent } =
-  transactionSlice.actions;
-export const replaceTransactions = (arr: ITransaction[]) => ({
-  type: "transaction/replace",
-  payload: arr,
-});
 
 export default transactionSlice.reducer;

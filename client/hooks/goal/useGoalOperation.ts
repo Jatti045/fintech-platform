@@ -5,12 +5,8 @@ import {useThemedAlert} from "@/utils/themedAlert";
 import {useAppDispatch, useCalendar} from "@/hooks/useRedux";
 import {IGoal} from "@/types/goal/types";
 import {hapticSuccess} from "@/utils/haptics";
-import {
-    addGoalAllocationToCache,
-    removeGoalAllocationAmountFromCache,
-    removeGoalAllocationsForGoalFromCache
-} from "@/utils/cache";
-import {addGoalAllocationSpent, fetchTransaction, removeGoalAllocationSpent} from "@/store/slices/transactionSlice";
+import {fetchTransaction} from "@/store/slices/transactionSlice";
+import {fetchFinancialSummary} from "@/store/slices/financialSummarySlice";
 import {PAGINATION_LIMIT} from "@/constants/appConfig";
 
 
@@ -120,17 +116,6 @@ export const useGoalOperation = () => {
 
                             hapticSuccess();
 
-                            const removedCurrentMonthAmount =
-                                await removeGoalAllocationsForGoalFromCache(
-                                    goal.id,
-                                    calendar.year,
-                                    calendar.month,
-                                );
-
-                            if (removedCurrentMonthAmount > 0) {
-                                dispatch(removeGoalAllocationSpent(removedCurrentMonthAmount));
-                            }
-
                             const response = await dispatch(
                                 fetchTransaction({
                                     searchQuery: "",
@@ -139,6 +124,14 @@ export const useGoalOperation = () => {
                                     page: 1,
                                     limit: PAGINATION_LIMIT,
                                     useCache: false,
+                                }),
+                            );
+                            // Deleting a goal removes its allocation history, so the
+                            // month's financial summary must be recomputed.
+                            await dispatch(
+                                fetchFinancialSummary({
+                                    currentMonth: calendar.month,
+                                    currentYear: calendar.year,
                                 }),
                             );
                         },
@@ -184,31 +177,9 @@ export const useGoalOperation = () => {
             hapticSuccess();
         }
 
-        if (allocationMode === "allocate") {
-            // Immediate local UI update.
-            dispatch(addGoalAllocationSpent(amount));
-
-            // Persist allocation amount for refresh fallback.
-            await addGoalAllocationToCache(
-                calendar.year,
-                calendar.month,
-                selectedGoalId,
-                amount,
-            );
-        } else {
-            // Immediate local UI update for current month card.
-            dispatch(removeGoalAllocationSpent(amount));
-
-            // Best-effort cache correction used by month summary fallback.
-            await removeGoalAllocationAmountFromCache(
-                calendar.year,
-                calendar.month,
-                selectedGoalId,
-                amount,
-            );
-        }
-
-        // Refresh monthly transaction summary from server (includes goal allocations).
+        // Refresh the month's transactions and financial summary from the server.
+        // The summary endpoint includes goal allocations in its total spending,
+        // so no local allocation bookkeeping is needed.
         await dispatch(
             fetchTransaction({
                 searchQuery: "",
@@ -217,6 +188,12 @@ export const useGoalOperation = () => {
                 page: 1,
                 limit: PAGINATION_LIMIT,
                 useCache: false,
+            }),
+        );
+        await dispatch(
+            fetchFinancialSummary({
+                currentMonth: calendar.month,
+                currentYear: calendar.year,
             }),
         );
 

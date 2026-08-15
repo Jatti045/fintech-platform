@@ -28,7 +28,6 @@ import com.fintechapp.fintech_api.model.Transaction;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.repository.BudgetRepository;
-import com.fintechapp.fintech_api.repository.GoalAllocationRepository;
 import com.fintechapp.fintech_api.repository.GoalRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
@@ -46,35 +45,27 @@ public class TransactionService {
 
     private final BudgetRepository budgetRepository;
     private final GoalRepository goalRepository;
-    private final GoalAllocationRepository goalAllocationRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
-    private final IncomeCalculationService incomeCalculationService;
 
     public TransactionService(
             BudgetRepository budgetRepository,
             GoalRepository goalRepository,
-            GoalAllocationRepository goalAllocationRepository,
             TransactionRepository transactionRepository,
-            UserRepository userRepository,
-            IncomeCalculationService incomeCalculationService) {
+            UserRepository userRepository) {
         this.budgetRepository = budgetRepository;
         this.goalRepository = goalRepository;
-        this.goalAllocationRepository = goalAllocationRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
-        this.incomeCalculationService = incomeCalculationService;
     }
 
     /**
      * Returns paginated transactions for the authenticated user with optional
-     * filters and computed summary metrics.
+     * filters. Financial aggregates are handled by {@link FinancialSummaryService}.
      */
     @Transactional(readOnly = true)
     public TransactionsResponse getTransactions(AuthenticatedUser authenticatedUser, TransactionQueryParams params) {
         String userId = requireUserId(authenticatedUser);
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
 
         int pageNum = normalizePage(params.page());
         int limitNum = normalizeLimit(params.limit());
@@ -113,28 +104,6 @@ public class TransactionService {
         List<Transaction> transactions = transactionRepository.findAll(spec, pageRequest).getContent();
         long totalCount = transactionRepository.count(spec);
 
-        Specification<Transaction> expenseSpec = spec.and(typeEquals(TransactionType.EXPENSE));
-        double transactionsExpenseTotal = transactionRepository.findAll(expenseSpec)
-                .stream()
-                .mapToDouble(Transaction::getAmount)
-                .sum();
-        double goalAllocationTotal = sumGoalAllocationsForMonth(
-                userId,
-                params.currentYear(),
-                params.currentMonth());
-        double totalAmount = transactionsExpenseTotal + goalAllocationTotal;
-
-        int[] summaryMonthYear = resolveMonthYear(params.currentYear(), params.currentMonth());
-        int summaryYear = summaryMonthYear[0];
-        int summaryMonth = summaryMonthYear[1];
-        double expectedIncome = incomeCalculationService.resolveExpectedForMonth(user, summaryYear, summaryMonth);
-        double actualIncome = incomeCalculationService.resolveActualForMonth(user, summaryYear, summaryMonth);
-        // Net calculations use effective income: actual inflow when present,
-        // otherwise the expected baseline the user set on their profile.
-        double monthlyIncome = actualIncome > 0 ? actualIncome : expectedIncome;
-        double netRemaining = monthlyIncome - totalAmount;
-        double spentPercentage = monthlyIncome > 0 ? (totalAmount / monthlyIncome) * 100 : 0;
-
         int totalPages = (int) Math.ceil(totalCount / (double) limitNum);
 
         TransactionsResponse.Data data = new TransactionsResponse.Data(
@@ -146,16 +115,6 @@ public class TransactionService {
                         pageNum < totalPages,
                         pageNum > 1,
                         limitNum),
-                new TransactionsResponse.Summary(
-                        totalAmount,
-                        monthlyIncome,
-                        expectedIncome,
-                        actualIncome,
-                        totalAmount,
-                        netRemaining,
-                        spentPercentage,
-                        goalAllocationTotal,
-                        true),
                 new TransactionsResponse.Filters(
                         normalizedType,
                         category,
@@ -287,16 +246,10 @@ public class TransactionService {
             goalRepository.save(linkedGoal);
         }
 
-        TransactionDataResponse.SpendingInsight spendingInsight = buildSpendingInsight(
-                user,
-                year,
-                month,
-                saved);
-
         return new TransactionDataResponse(
                 true,
                 "Transaction created successfully",
-                new TransactionDataResponse.Data(toItem(saved), spendingInsight));
+                new TransactionDataResponse.Data(toItem(saved)));
     }
 
     /**
@@ -408,6 +361,19 @@ public class TransactionService {
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.NOT_FOUND,
                             "Budget not found or doesn't belong to user"));
+
+            // The linked budget must belong to the transaction's month so budget
+            // spent totals stay scoped to the correct month (mirrors
+            // createTransaction, which validates the same invariant).
+            LocalDate txMonth = LocalDate.ofInstant(newDate, ZoneOffset.UTC);
+            Instant effectiveMonthStart = monthStart(txMonth.getYear(), txMonth.getMonthValue() - 1);
+            Instant effectiveNextMonthStart = nextMonthStart(txMonth.getYear(), txMonth.getMonthValue() - 1);
+            Instant budgetDate = newBudget.getDate();
+            if (budgetDate.isBefore(effectiveMonthStart) || !budgetDate.isBefore(effectiveNextMonthStart)) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Budget not found or doesn't belong to user");
+            }
         }
 
         String newGoalId = request.goalId() == null
@@ -442,7 +408,9 @@ public class TransactionService {
             }
         }
 
-        if (newType == TransactionType.EXPENSE && (oldBudget == null || !oldBudget.getId().equals(newBudget.getId()))) {
+        if (newType == TransactionType.EXPENSE
+                && newBudget != null
+                && (oldBudget == null || !oldBudget.getId().equals(newBudget.getId()))) {
             newBudget.setSpent(newBudget.getSpent() + newAmount);
             budgetRepository.save(newBudget);
         }
@@ -528,56 +496,10 @@ public class TransactionService {
 
         Transaction updated = transactionRepository.save(existing);
 
-        LocalDate monthDate = LocalDate.ofInstant(updated.getDate(), ZoneOffset.UTC);
-        int month = monthDate.getMonthValue() - 1;
-        int year = monthDate.getYear();
-        TransactionDataResponse.SpendingInsight spendingInsight = buildSpendingInsight(user, year, month, updated);
-
         return new TransactionDataResponse(
                 true,
                 "Transaction updated successfully",
-                new TransactionDataResponse.Data(toItem(updated), spendingInsight));
-    }
-
-    private TransactionDataResponse.SpendingInsight buildSpendingInsight(
-            User user,
-            int year,
-            int month,
-            Transaction savedOrUpdated) {
-        Instant from = monthStart(year, month);
-        Instant to = nextMonthStart(year, month);
-
-        double monthExpenseTotal = transactionRepository
-                .findByUser_IdAndDateBetweenOrderByDateDesc(user.getId(), from, to)
-                .stream()
-                .filter(t -> t.getType() == TransactionType.EXPENSE)
-                .mapToDouble(Transaction::getAmount)
-                .sum();
-        double goalAllocationTotal = goalAllocationRepository
-                .sumAllocatedByUserAndAllocatedAtBetween(user.getId(), from, to);
-        monthExpenseTotal += goalAllocationTotal;
-
-        // Fallback: if date filters ever miss the latest write for clock
-        // skew/precision,
-        // include current transaction amount when it is an expense.
-        if (savedOrUpdated != null
-                && savedOrUpdated.getType() == TransactionType.EXPENSE
-                && savedOrUpdated.getDate() != null
-                && !savedOrUpdated.getDate().isBefore(from)
-                && savedOrUpdated.getDate().isBefore(to)
-                && monthExpenseTotal == 0) {
-            monthExpenseTotal = savedOrUpdated.getAmount();
-        }
-
-        double monthlyIncome = incomeCalculationService.resolveEffectiveForMonth(user, year, month);
-        double netRemaining = monthlyIncome - monthExpenseTotal;
-        double spentPercentage = monthlyIncome > 0 ? (monthExpenseTotal / monthlyIncome) * 100 : 0;
-
-        return new TransactionDataResponse.SpendingInsight(
-                monthlyIncome,
-                monthExpenseTotal,
-                netRemaining,
-                spentPercentage);
+                new TransactionDataResponse.Data(toItem(updated)));
     }
 
     private TransactionsResponse.TransactionItem toItem(Transaction transaction) {
@@ -658,30 +580,6 @@ public class TransactionService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
         }
         return authenticatedUser.userId();
-    }
-
-    private double sumGoalAllocationsForMonth(String userId, String yearRaw, String monthRaw) {
-        Integer month = parseInteger(monthRaw);
-        Integer year = parseInteger(yearRaw);
-        if (month == null || year == null || month < 0 || month > 11 || year <= 0) {
-            return 0;
-        }
-        Instant from = monthStart(year, month);
-        Instant to = nextMonthStart(year, month);
-        return goalAllocationRepository.sumAllocatedByUserAndAllocatedAtBetween(userId, from, to);
-    }
-
-    private int[] resolveMonthYear(String yearRaw, String monthRaw) {
-        Integer month = parseInteger(monthRaw);
-        Integer year = parseInteger(yearRaw);
-
-        if (month == null || year == null || month < 0 || month > 11 || year <= 0) {
-            LocalDate utcNow = LocalDate.now(ZoneOffset.UTC);
-            month = utcNow.getMonthValue() - 1;
-            year = utcNow.getYear();
-        }
-
-        return new int[] { year, month };
     }
 
     private int normalizePage(String rawPage) {

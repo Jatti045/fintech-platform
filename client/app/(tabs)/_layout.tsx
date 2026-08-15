@@ -5,6 +5,7 @@ import { store } from "../../store";
 import { useEffect } from "react";
 import { useAppDispatch, useCalendar, useTheme } from "@/hooks/useRedux";
 import { fetchTransaction } from "@/store/slices/transactionSlice";
+import { fetchFinancialSummary } from "@/store/slices/financialSummarySlice";
 import { fetchBudgets } from "@/store/slices/budgetSlice";
 import { fetchGoals } from "@/store/slices/goalSlice";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
@@ -39,7 +40,7 @@ export default function TabsLayout() {
   const { THEME } = useTheme();
   const { month, year } = useCalendar();
 
-  // Fetch transactions for the selected month whenever calendar changes
+  // Fetch transactions + financial summary + budgets + goals for the selected month whenever calendar changes
   useEffect(() => {
     const state = store.getState();
     const month = state.calendar.month;
@@ -54,6 +55,7 @@ export default function TabsLayout() {
         useCache: false, // Disable cache to get accurate pagination
       }),
     );
+    dispatch(fetchFinancialSummary({ currentMonth: month, currentYear: year }));
     dispatch(fetchBudgets({ currentMonth: month, currentYear: year }));
     dispatch(fetchGoals({ currentMonth: month, currentYear: year }));
   }, [dispatch, month, year]);

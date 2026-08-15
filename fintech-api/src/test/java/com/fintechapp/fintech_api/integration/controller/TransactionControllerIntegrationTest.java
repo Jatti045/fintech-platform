@@ -167,39 +167,18 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.transaction[0].name").value("Lunch"));
     }
 
-    // Asserts transaction summary carries previous month's income forward into the current month.
+    // Asserts the transaction endpoint is focused on transaction data and no
+    // longer bundles financial summary/aggregate information. Aggregates are
+    // served by GET /api/financial-summary instead.
     @Test
-    void getTransactions_currentMonthFallsBackToPreviousIncome() throws Exception {
-        User user = createUser("tx-income-carry@example.com", "Password123!", "tx-income-carry");
-        LocalDate currentUtc = LocalDate.now(ZoneOffset.UTC);
-        LocalDate previousUtc = currentUtc.minusMonths(1);
-
-        createMonthlyIncome(
-                user,
-                LocalDate.of(previousUtc.getYear(), previousUtc.getMonthValue(), 1).atStartOfDay().toInstant(ZoneOffset.UTC),
-                3500.0);
-
-        mockMvc.perform(get("/api/transactions")
-                        .header(authHeaderName(), authHeader(user))
-                        .param("currentMonth", String.valueOf(currentUtc.getMonthValue() - 1))
-                        .param("currentYear", String.valueOf(currentUtc.getYear())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.summary.monthlyIncome").value(3500.0));
-    }
-
-    // Asserts effective income uses actual inflow (sum of INCOME transactions)
-    // when income transactions exist, while still reporting expected separately.
-    @Test
-    void getTransactions_effectiveIncomeUsesActualInflow() throws Exception {
-        User user = createUser("tx-income-actual@example.com", "Password123!", "tx-income-actual");
+    void getTransactions_doesNotReturnFinancialSummary() throws Exception {
+        User user = createUser("tx-no-summary@example.com", "Password123!", "tx-no-summary");
         LocalDate utc = LocalDate.now(ZoneOffset.UTC);
         int month = utc.getMonthValue() - 1;
         int year = utc.getYear();
         Instant monthStart = LocalDate.of(year, month + 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
-        Budget budget = createBudget(user, "Income", 0, monthStart);
-        createMonthlyIncome(user, monthStart, 4000.0);
-        createTransaction(user, budget, null, "Paycheck", monthStart.plusSeconds(3600), "Income", TransactionType.INCOME, 3000.0);
+        Budget budget = createBudget(user, "Food", 500, monthStart);
+        createTransaction(user, budget, null, "Lunch", monthStart.plusSeconds(3600), "Food", TransactionType.EXPENSE, 18.73);
 
         mockMvc.perform(get("/api/transactions")
                         .header(authHeaderName(), authHeader(user))
@@ -207,31 +186,9 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
                         .param("currentYear", String.valueOf(year)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.summary.monthlyIncome").value(3000.0))
-                .andExpect(jsonPath("$.data.summary.expectedIncome").value(4000.0))
-                .andExpect(jsonPath("$.data.summary.actualIncome").value(3000.0));
-    }
-
-    // Asserts effective income falls back to the expected baseline when no
-    // income transactions are logged for the month.
-    @Test
-    void getTransactions_effectiveIncomeFallsBackToExpected() throws Exception {
-        User user = createUser("tx-income-fallback@example.com", "Password123!", "tx-income-fallback");
-        LocalDate utc = LocalDate.now(ZoneOffset.UTC);
-        int month = utc.getMonthValue() - 1;
-        int year = utc.getYear();
-        Instant monthStart = LocalDate.of(year, month + 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
-        createMonthlyIncome(user, monthStart, 4200.0);
-
-        mockMvc.perform(get("/api/transactions")
-                        .header(authHeaderName(), authHeader(user))
-                        .param("currentMonth", String.valueOf(month))
-                        .param("currentYear", String.valueOf(year)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.summary.monthlyIncome").value(4200.0))
-                .andExpect(jsonPath("$.data.summary.expectedIncome").value(4200.0))
-                .andExpect(jsonPath("$.data.summary.actualIncome").value(0.0));
+                .andExpect(jsonPath("$.data.transaction", hasSize(1)))
+                .andExpect(jsonPath("$.data.summary").doesNotExist())
+                .andExpect(jsonPath("$.data.spendingInsight").doesNotExist());
     }
 
     // Asserts get transactions endpoint rejects unauthenticated access.
@@ -270,6 +227,69 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
 
         Transaction reloaded = transactionRepository.findById(transaction.getId()).orElseThrow();
         org.junit.jupiter.api.Assertions.assertEquals(40.0, reloaded.getAmount());
+    }
+
+    // Asserts updating an expense to a budget from a different month is rejected,
+    // matching createTransaction's month-window validation so budget spent totals
+    // never span months.
+    @Test
+    void updateTransaction_budgetFromDifferentMonth_returnsNotFound() throws Exception {
+        User user = createUser("tx-update-month@example.com", "Password123!", "tx-update-month");
+        Budget marchBudget = createBudget(user, "Food", 500, Instant.parse("2026-03-01T00:00:00Z"));
+        Budget aprilBudget = createBudget(user, "Transport", 400, Instant.parse("2026-04-01T00:00:00Z"));
+        Transaction transaction = createTransaction(
+                user,
+                marchBudget,
+                null,
+                "Lunch",
+                Instant.parse("2026-03-05T10:00:00Z"),
+                "Food",
+                TransactionType.EXPENSE,
+                25.5
+        );
+        marchBudget.setSpent(25.5);
+        budgetRepository.save(marchBudget);
+
+        mockMvc.perform(patch("/api/transactions/{transactionId}", transaction.getId())
+                        .header(authHeaderName(), authHeader(user))
+                        .contentType(json())
+                        .content(asJson(Map.of("budgetId", aprilBudget.getId()))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    // Asserts updating an expense to a budget within the same month succeeds and
+    // moves the spent amount between the two budgets.
+    @Test
+    void updateTransaction_budgetWithinSameMonth_movesSpentAmount() throws Exception {
+        User user = createUser("tx-update-samemonth@example.com", "Password123!", "tx-update-samemonth");
+        Budget foodBudget = createBudget(user, "Food", 500, Instant.parse("2026-03-01T00:00:00Z"));
+        Budget diningBudget = createBudget(user, "Dining", 300, Instant.parse("2026-03-01T00:00:00Z"));
+        Transaction transaction = createTransaction(
+                user,
+                foodBudget,
+                null,
+                "Lunch",
+                Instant.parse("2026-03-05T10:00:00Z"),
+                "Food",
+                TransactionType.EXPENSE,
+                25.5
+        );
+        foodBudget.setSpent(25.5);
+        budgetRepository.save(foodBudget);
+
+        mockMvc.perform(patch("/api/transactions/{transactionId}", transaction.getId())
+                        .header(authHeaderName(), authHeader(user))
+                        .contentType(json())
+                        .content(asJson(Map.of("budgetId", diningBudget.getId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.transaction.budget.id").value(diningBudget.getId()));
+
+        Budget reloadedFood = budgetRepository.findById(foodBudget.getId()).orElseThrow();
+        Budget reloadedDining = budgetRepository.findById(diningBudget.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(0.0, reloadedFood.getSpent());
+        org.junit.jupiter.api.Assertions.assertEquals(25.5, reloadedDining.getSpent());
     }
 
     // Asserts update transaction with unknown id returns 404.
