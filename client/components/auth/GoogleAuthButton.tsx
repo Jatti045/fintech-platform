@@ -52,6 +52,8 @@ export default function GoogleAuthButton() {
         <View style={{ flex: 1, height: 1, backgroundColor: THEME.border }} />
       </View>
       <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Continue with Google"
         style={{
           borderWidth: 2,
           borderColor: THEME.border,

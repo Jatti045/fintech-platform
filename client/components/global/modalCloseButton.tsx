@@ -1,3 +1,4 @@
+import React from "react";
 import { useTheme } from "@/hooks/useRedux";
 import { Feather } from "@expo/vector-icons";
 import { TouchableOpacity } from "react-native";
@@ -11,6 +12,8 @@ function ModalCloseButton({
   return (
     <TouchableOpacity
       onPress={() => setOpenSheet(false)}
+      accessibilityRole="button"
+      accessibilityLabel="Close"
       className="rounded-full p-2 items-center justify-center"
       style={{
         position: "absolute",

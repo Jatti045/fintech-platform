@@ -1,94 +1,69 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
-  View,
   Text,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  TouchableWithoutFeedback,
   TouchableOpacity,
-  Keyboard,
-  ActivityIndicator,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
-import ModalCloseButton from "../global/modalCloseButton";
-import { useTheme, useAppDispatch, useAppSelector } from "@/hooks/useRedux";
-import { useThemedAlert } from "@/utils/themedAlert";
-import { resetPassword, selectIsLoading } from "@/store/slices/userSlice";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTheme } from "@/hooks/useRedux";
+import { useThemedAlert } from "@/utils/themedAlert";
+import { validateEmail } from "@/utils/validation";
+import ModalCloseButton from "../../global/modalCloseButton";
 
-function OTPModal({
-  visible,
-  setVisible,
-  email,
-  onVerified,
-}: {
+export interface ForgotPasswordModalProps {
   visible: boolean;
-  setVisible: (v: boolean) => void;
-  email: string;
-  onVerified: (otp: string) => void;
-}) {
+  onClose: () => void;
+  /** Invoked with the trimmed email; the parent decides the next step. */
+  onSubmit: (email: string) => Promise<boolean> | boolean;
+}
+
+/**
+ * Presentational "forgot password" modal. Collects the account email, runs
+ * field-level validation, and forwards the submission to the parent — it does
+ * not dispatch API calls or manage the recovery workflow.
+ */
+function ForgotPasswordModal({
+  visible,
+  onClose,
+  onSubmit,
+}: ForgotPasswordModalProps) {
   const { THEME } = useTheme();
   const { showAlert } = useThemedAlert();
-  const [otp, setOtp] = useState("");
-  const prev = useRef(visible);
-  const dispatch = useAppDispatch();
-  const isLoading = useAppSelector(selectIsLoading);
+  const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const prevOpen = useRef(visible);
   const modalHeight = getModalHeight();
 
   useEffect(() => {
-    if (!visible && prev.current) {
-      setOtp("");
+    if (!visible && prevOpen.current) {
+      setEmail("");
     }
-    prev.current = visible;
+    prevOpen.current = visible;
   }, [visible]);
 
-  const confirmClose = () => {
-    showAlert({
-      title: "Discard code?",
-      message:
-        "If you leave now the current code will be invalid and you'll need to request a new one.",
-      buttons: [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Leave",
-          style: "destructive",
-          onPress: () => setVisible(false),
-        },
-      ],
-    });
-  };
-
   const handleSubmit = async () => {
-    if (!otp.trim()) {
-      showAlert({ title: "Please enter the code" });
+    const check = validateEmail(email);
+    if (!check.valid) {
+      showAlert({ title: check.message! });
       return;
     }
 
     try {
       setIsSubmitting(true);
-      // Use the resetPassword thunk with verifyOnly flag to validate the OTP
-      const action = await dispatch(
-        resetPassword({ email, otp, verifyOnly: true }) as any,
-      ).unwrap();
-
-      // action should be the API response object { success, message, data }
-      if (action?.success) {
-        onVerified(otp);
-      } else {
-        showAlert({
-          title: "Invalid code",
-          message: action?.message || "Please try again",
-        });
-      }
-    } catch (err: any) {
+      await onSubmit(email.trim());
+      // The parent moves the workflow forward; this modal unmounts.
+    } catch (err: unknown) {
       showAlert({
-        title: "Invalid code",
-        message:
-          err?.message || err?.response?.data?.message || "Please try again",
+        title: "Error",
+        message: err instanceof Error ? err.message : "Failed to submit",
       });
     } finally {
       setIsSubmitting(false);
@@ -96,11 +71,7 @@ function OTPModal({
   };
 
   return (
-    <Modal
-      transparent={true}
-      animationType="slide"
-      visible={visible}
-    >
+    <Modal animationType="slide" visible={visible} transparent={true}>
       <View
         style={{
           flex: 1,
@@ -122,33 +93,33 @@ function OTPModal({
           }}
         >
           <View className="relative mb-4">
-            <ModalCloseButton setOpenSheet={confirmClose as any} />
+            <ModalCloseButton setOpenSheet={() => onClose()} />
           </View>
           <KeyboardAvoidingView
             behavior="padding"
             style={{ flex: 1, backgroundColor: THEME.background }}
           >
             <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-              <View className="flex-1 px-4">
+              <View className="flex-1 px-4 ">
                 <Text
                   style={{ color: THEME.textPrimary }}
-                  className="text-xl font-bold text-center mb-6"
+                  className="text-xl  font-bold text-center mb-6"
                 >
-                  Enter Code
+                  Forgot Password
                 </Text>
 
-                <Text
-                  style={{ color: THEME.textSecondary }}
-                  className="mb-2 text-center"
-                >
-                  Enter the 6-digit code sent to {email}
+                <Text style={{ color: THEME.textSecondary }} className="mb-2">
+                  Enter the email associated with your account
                 </Text>
 
                 <TextInput
-                  value={otp}
-                  onChangeText={setOtp}
-                  placeholder="123456"
-                  keyboardType="number-pad"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor={THEME.placeholderText}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  accessibilityLabel="Email address"
                   style={{
                     backgroundColor: THEME.inputBackground,
                     color: THEME.textPrimary,
@@ -156,12 +127,8 @@ function OTPModal({
                     borderRadius: 8,
                     borderWidth: 1,
                     borderColor: THEME.border,
-                    marginVertical: 12,
-                    fontSize: 18,
-                    textAlign: "center",
+                    marginBottom: 8,
                   }}
-                  placeholderTextColor={THEME.placeholderText}
-                  maxLength={6}
                 />
 
                 <View className="mt-6">
@@ -169,6 +136,9 @@ function OTPModal({
                     onPress={isSubmitting ? undefined : handleSubmit}
                     activeOpacity={0.85}
                     disabled={isSubmitting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send OTP"
+                    accessibilityState={{ disabled: isSubmitting }}
                     style={{ opacity: isSubmitting ? 0.6 : 1 }}
                   >
                     <LinearGradient
@@ -208,4 +178,4 @@ function OTPModal({
   );
 }
 
-export default OTPModal;
+export default ForgotPasswordModal;

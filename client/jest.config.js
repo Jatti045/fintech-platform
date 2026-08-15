@@ -17,6 +17,9 @@ module.exports = {
     // Stub out native/Expo modules that ship un-transpiled ESM
     "^expo-haptics$": "<rootDir>/__mocks__/expo-haptics.ts",
     "^react-native$": "<rootDir>/__mocks__/react-native.ts",
+    "^react-native-safe-area-context$":
+      "<rootDir>/__mocks__/react-native-safe-area-context.ts",
+    "^react-native-svg$": "<rootDir>/__mocks__/react-native-svg.ts",
     "^expo-linear-gradient$": "<rootDir>/__mocks__/expo-linear-gradient.ts",
     "^@expo/vector-icons$": "<rootDir>/__mocks__/vector-icons.ts",
     "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.ts",

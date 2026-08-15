@@ -1,76 +1,82 @@
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Text,
-  View,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback,
-  Keyboard,
-  ActivityIndicator,
+  View,
 } from "react-native";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
+import ModalCloseButton from "../../global/modalCloseButton";
 import { useTheme } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
-import { validateEmail } from "@/utils/validation";
-import { useState, useRef, useEffect } from "react";
-import ModalCloseButton from "../global/modalCloseButton";
-import Loader from "@/utils/loader";
+import { LinearGradient } from "expo-linear-gradient";
 
-function ForgotPasswordModal({
-  isModalVisible,
-  setModalVisible,
-  onSubmit,
-}: {
-  isModalVisible: boolean;
-  setModalVisible: (val: boolean) => void;
-  onSubmit?: (email: string) => Promise<void> | void;
-}) {
+export interface OTPModalProps {
+  visible: boolean;
+  onClose: () => void;
+  email: string;
+  /** Invoked with the entered code; resolves `true` when it was verified. */
+  onVerify: (otp: string) => Promise<boolean>;
+}
+
+/**
+ * Presentational OTP entry modal. Validates that a code was entered and
+ * forwards verification to the parent — the parent owns the API call and
+ * the step transition.
+ */
+function OTPModal({ visible, onClose, email, onVerify }: OTPModalProps) {
   const { THEME } = useTheme();
   const { showAlert } = useThemedAlert();
-  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const prev = useRef(visible);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const prevOpen = useRef(isModalVisible);
   const modalHeight = getModalHeight();
 
   useEffect(() => {
-    if (!isModalVisible && prevOpen.current) {
-      setEmail("");
+    if (!visible && prev.current) {
+      setOtp("");
     }
-    prevOpen.current = isModalVisible;
-  }, [isModalVisible]);
+    prev.current = visible;
+  }, [visible]);
+
+  const confirmClose = () => {
+    showAlert({
+      title: "Discard code?",
+      message:
+        "If you leave now the current code will be invalid and you'll need to request a new one.",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        { text: "Leave", style: "destructive", onPress: onClose },
+      ],
+    });
+  };
 
   const handleSubmit = async () => {
-    const trimmed = email.trim();
-    const check = validateEmail(trimmed);
-    if (!check.valid) {
-      showAlert({ title: check.message! });
+    if (!otp.trim()) {
+      showAlert({ title: "Please enter the code" });
       return;
     }
 
     try {
       setIsSubmitting(true);
-      if (onSubmit) await onSubmit(trimmed);
-      // Close modal and let parent show the generic, non-enumerating message
-    } catch (err: any) {
-      showAlert({
-        title: "Error",
-        message: err?.message || "Failed to submit",
-      });
+      await onVerify(otp.trim());
+    } catch {
+      // Verification failures are normally handled by the parent and reported
+      // through the return value; this guard keeps the handler intentional.
+      showAlert({ title: "Invalid code", message: "Please try again" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Modal
-      animationType="slide"
-      visible={isModalVisible}
-      transparent={true}
-    >
+    <Modal transparent={true} animationType="slide" visible={visible}>
       <View
         style={{
           flex: 1,
@@ -92,32 +98,34 @@ function ForgotPasswordModal({
           }}
         >
           <View className="relative mb-4">
-            <ModalCloseButton setOpenSheet={setModalVisible} />
+            <ModalCloseButton setOpenSheet={() => confirmClose()} />
           </View>
           <KeyboardAvoidingView
             behavior="padding"
             style={{ flex: 1, backgroundColor: THEME.background }}
           >
             <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-              <View className="flex-1 px-4 ">
+              <View className="flex-1 px-4">
                 <Text
                   style={{ color: THEME.textPrimary }}
-                  className="text-xl  font-bold text-center mb-6"
+                  className="text-xl font-bold text-center mb-6"
                 >
-                  Forgot Password
+                  Enter Code
                 </Text>
 
-                <Text style={{ color: THEME.textSecondary }} className="mb-2">
-                  Enter the email associated with your account
+                <Text
+                  style={{ color: THEME.textSecondary }}
+                  className="mb-2 text-center"
+                >
+                  Enter the 6-digit code sent to {email}
                 </Text>
 
                 <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="you@example.com"
-                  placeholderTextColor={THEME.placeholderText}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
+                  value={otp}
+                  onChangeText={setOtp}
+                  placeholder="123456"
+                  keyboardType="number-pad"
+                  accessibilityLabel="One-time code"
                   style={{
                     backgroundColor: THEME.inputBackground,
                     color: THEME.textPrimary,
@@ -125,8 +133,12 @@ function ForgotPasswordModal({
                     borderRadius: 8,
                     borderWidth: 1,
                     borderColor: THEME.border,
-                    marginBottom: 8,
+                    marginVertical: 12,
+                    fontSize: 18,
+                    textAlign: "center",
                   }}
+                  placeholderTextColor={THEME.placeholderText}
+                  maxLength={6}
                 />
 
                 <View className="mt-6">
@@ -134,6 +146,9 @@ function ForgotPasswordModal({
                     onPress={isSubmitting ? undefined : handleSubmit}
                     activeOpacity={0.85}
                     disabled={isSubmitting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send OTP"
+                    accessibilityState={{ disabled: isSubmitting }}
                     style={{ opacity: isSubmitting ? 0.6 : 1 }}
                   >
                     <LinearGradient
@@ -173,4 +188,5 @@ function ForgotPasswordModal({
   );
 }
 
-export default ForgotPasswordModal;
+export default OTPModal;
+

@@ -1,92 +1,49 @@
+import React from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  TextInput,
   KeyboardAvoidingView,
   ScrollView,
-  Platform,
-  Dimensions,
+  Text,
+  View,
+  useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import React, { useState } from "react";
-import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
-import { validateSignupForm } from "@/utils/validation";
-import {
-  clearSignupError,
-  signupUser,
-  useAppDispatch,
-  useAuthStatus,
-} from "@/store";
+import { useSignUp } from "@/hooks/auth/useSignUp";
+import SignUpForm from "@/components/auth/SignUpForm";
+import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 import Loader from "@/utils/loader";
-import { logger } from "@/utils/logger";
-import GoogleAuthButton from "../../components/auth/GoogleAuthButton";
+import type { ISignupData } from "@/types/user/types";
 
-const { width, height } = Dimensions.get("window");
-const isSmallScreen = width < 380;
-const isTablet = width > 768;
-
+/**
+ * SignUpScreen is a composition/orchestration layer only:
+ *
+ *  - `useSignUp` owns signup behavior (validation, Redux dispatch, errors)
+ *  - `SignUpForm` owns the form fields + local password-visibility state
+ *  - `GoogleAuthButton` owns its own Google authentication
+ *
+ * The screen handles layout, responsive sizing, the success alert, and
+ * navigation after a successful signup.
+ */
 const SignUpScreen = () => {
   const { THEME } = useTheme();
   const { showAlert } = useThemedAlert();
   const insets = useSafeAreaInsets();
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const { isLoading } = useAuthStatus();
-  const dispatch = useAppDispatch();
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 380;
+  const isTablet = width > 768;
 
-  const handleSignUp = async () => {
-    dispatch(clearSignupError());
+  const signUp = useSignUp();
 
-    try {
-      // Shared validation
-      const check = validateSignupForm(
-        username,
-        email,
-        password,
-        confirmPassword,
-      );
-      if (!check.valid) {
-        showAlert({ title: "Validation Error", message: check.message });
-        return;
-      }
-
-      // Dispatch signup action
-      const normalizedEmail = email.trim().toLowerCase();
-      await dispatch(
-        signupUser({
-          username,
-          email: normalizedEmail,
-          password,
-          confirmPassword,
-        }),
-      ).unwrap();
-
+  const handleSignUp = async (credentials: ISignupData) => {
+    const success = await signUp.handleSubmit(credentials);
+    if (success) {
       showAlert({
         title: "Signup Successful",
         message: "Your account has been created. Please log in.",
       });
-
-      // Navigate to login on successful signup
       router.replace("/(auth)/login");
-    } catch (error) {
-      logger.warn("SignUpScreen", "Signup failed", error);
-      // Error is already handled by Redux state, no need to set local error
-      showAlert({
-        title: "Signup Failed",
-        message:
-          (error as string) ||
-          "Network error. Please check your connection and try again.",
-      });
     }
   };
 
@@ -129,254 +86,10 @@ const SignUpScreen = () => {
               </View>
 
               {/* Sign Up Form */}
-              <View className="space-y-4 mb-6">
-                {/* Username Input */}
-                <View>
-                  <Text
-                    style={{ color: THEME.textPrimary }}
-                    className="text-sm font-medium mb-2"
-                  >
-                    Username
-                  </Text>
-                  <View className="relative">
-                    <TextInput
-                      style={{
-                        backgroundColor: THEME.inputBackground,
-                        borderColor: username ? THEME.primary : THEME.border,
-                        color: THEME.textPrimary,
-                        shadowColor: THEME.primary,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: username ? 0.1 : 0,
-                        shadowRadius: 8,
-                      }}
-                      className={`border-2 py-4 px-4 rounded-xl text-base ${
-                        username ? "border-opacity-50" : ""
-                      }`}
-                      placeholder="Choose a username"
-                      placeholderTextColor={THEME.placeholderText}
-                      value={username}
-                      onChangeText={setUsername}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      autoComplete="username"
-                    />
-                    {username && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={THEME.success}
-                        style={{
-                          position: "absolute",
-                          right: 16,
-                          top: "50%",
-                          marginTop: -10,
-                        }}
-                      />
-                    )}
-                  </View>
-                </View>
-
-                {/* Email Input */}
-                <View>
-                  <Text
-                    style={{ color: THEME.textPrimary }}
-                    className="text-sm font-medium mb-2 mt-2"
-                  >
-                    Email
-                  </Text>
-                  <View className="relative">
-                    <TextInput
-                      style={{
-                        backgroundColor: THEME.inputBackground,
-                        borderColor: email ? THEME.primary : THEME.border,
-                        color: THEME.textPrimary,
-                        shadowColor: THEME.primary,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: email ? 0.1 : 0,
-                        shadowRadius: 8,
-                      }}
-                      className={`border-2 py-4 px-4 rounded-xl text-base ${
-                        email ? "border-opacity-50" : ""
-                      }`}
-                      placeholder="Enter your email"
-                      placeholderTextColor={THEME.placeholderText}
-                      value={email}
-                      onChangeText={setEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      autoComplete="email"
-                    />
-                    {email && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={THEME.success}
-                        style={{
-                          position: "absolute",
-                          right: 16,
-                          top: "50%",
-                          marginTop: -10,
-                        }}
-                      />
-                    )}
-                  </View>
-                </View>
-
-                {/* Password Input */}
-                <View>
-                  <Text
-                    style={{ color: THEME.textPrimary }}
-                    className="text-sm font-medium mb-2 mt-2"
-                  >
-                    Password
-                  </Text>
-                  <View className="relative">
-                    <TextInput
-                      style={{
-                        backgroundColor: THEME.inputBackground,
-                        borderColor: password ? THEME.primary : THEME.border,
-                        color: THEME.textPrimary,
-                        shadowColor: THEME.primary,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: password ? 0.1 : 0,
-                        shadowRadius: 8,
-                      }}
-                      className={`border-2 py-4 px-4 pr-12 rounded-xl text-base ${
-                        password ? "border-opacity-50" : ""
-                      }`}
-                      placeholder="Create a password"
-                      placeholderTextColor={THEME.placeholderText}
-                      value={password}
-                      onChangeText={setPassword}
-                      secureTextEntry={!showPassword}
-                      autoComplete="new-password"
-                    />
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        showPassword ? "Hide password" : "Show password"
-                      }
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={{
-                        position: "absolute",
-                        right: 16,
-                        top: "50%",
-                        marginTop: -12,
-                      }}
-                      className="p-1"
-                    >
-                      <Ionicons
-                        name={showPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color={THEME.placeholderText}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Confirm Password Input */}
-                <View>
-                  <Text
-                    style={{ color: THEME.textPrimary }}
-                    className="text-sm font-medium mb-2 mt-2"
-                  >
-                    Confirm Password
-                  </Text>
-                  <View className="relative">
-                    <TextInput
-                      style={{
-                        backgroundColor: THEME.inputBackground,
-                        borderColor: confirmPassword
-                          ? THEME.primary
-                          : THEME.border,
-                        color: THEME.textPrimary,
-                        shadowColor: THEME.primary,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: confirmPassword ? 0.1 : 0,
-                        shadowRadius: 8,
-                      }}
-                      className={`border-2 py-4 px-4 pr-12 rounded-xl text-base ${
-                        confirmPassword ? "border-opacity-50" : ""
-                      }`}
-                      placeholder="Confirm your password"
-                      placeholderTextColor={THEME.placeholderText}
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      secureTextEntry={!showConfirmPassword}
-                      autoComplete="new-password"
-                    />
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        showConfirmPassword
-                          ? "Hide confirm password"
-                          : "Show confirm password"
-                      }
-                      onPress={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      style={{
-                        position: "absolute",
-                        right: 16,
-                        top: "50%",
-                        marginTop: -12,
-                      }}
-                      className="p-1"
-                    >
-                      <Ionicons
-                        name={showConfirmPassword ? "eye-off" : "eye"}
-                        size={20}
-                        color={THEME.placeholderText}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-
-              {/* Sign Up Button */}
-              <TouchableOpacity
-                onPress={handleSignUp}
-                disabled={
-                  isLoading ||
-                  !username ||
-                  !email ||
-                  !password ||
-                  !confirmPassword
-                }
-                style={{
-                  opacity:
-                    isLoading ||
-                    !username ||
-                    !email ||
-                    !password ||
-                    !confirmPassword
-                      ? 0.6
-                      : 1,
-                }}
-                className="mb-8"
-              >
-                <LinearGradient
-                  colors={[THEME.primary, THEME.secondary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{
-                    paddingVertical: 16,
-                    borderRadius: 12,
-                    shadowColor: THEME.primary,
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 8,
-                  }}
-                >
-                  <Text
-                    style={{ color: THEME.textPrimary }}
-                    className="text-center text-lg font-semibold"
-                  >
-                    {isLoading ? "Creating Account..." : "Create Account"}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              <SignUpForm
+                isLoading={signUp.isLoading}
+                onSubmit={handleSignUp}
+              />
 
               {/* Login Link */}
               <View className="items-center">
@@ -397,12 +110,12 @@ const SignUpScreen = () => {
                   </Link>
                 </Text>
               </View>
-                <GoogleAuthButton />
+              <GoogleAuthButton />
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      {isLoading && <Loader msg="Creating Account..." />}
+      {signUp.isLoading && <Loader msg="Creating Account..." />}
     </SafeAreaView>
   );
 };

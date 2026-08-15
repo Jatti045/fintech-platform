@@ -1,42 +1,50 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
-  View,
   Text,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback,
-  Keyboard,
-  ActivityIndicator,
+  View,
 } from "react-native";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
-import ModalCloseButton from "../global/modalCloseButton";
-import { useTheme, useAppDispatch, useAppSelector } from "@/hooks/useRedux";
+import ModalCloseButton from "../../global/modalCloseButton";
+import { useTheme } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { validateResetPasswordForm } from "@/utils/validation";
-import { resetPassword, selectIsLoading } from "@/store/slices/userSlice";
-import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 
-function ResetPasswordModal({
-  visible,
-  setVisible,
-  email,
-  otp,
-}: {
+export interface ResetPasswordModalProps {
   visible: boolean;
-  setVisible: (v: boolean) => void;
+  onClose: () => void;
   email: string;
   otp: string;
-}) {
+  /** Invoked with the new password pair; resolves `true` on success. */
+  onSubmit: (
+    newPassword: string,
+    confirmPassword: string,
+  ) => Promise<boolean>;
+}
+
+/**
+ * Presentational "set new password" modal. Runs field-level validation and
+ * forwards the submission to the parent — the parent owns the API call,
+ * success/error alerts, and closing the recovery flow.
+ */
+function ResetPasswordModal({
+  visible,
+  onClose,
+  email,
+  otp,
+  onSubmit,
+}: ResetPasswordModalProps) {
   const { THEME } = useTheme();
   const { showAlert } = useThemedAlert();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const dispatch = useAppDispatch();
-  const isLoading = useAppSelector(selectIsLoading);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const prev = useRef(visible);
   const modalHeight = getModalHeight();
@@ -56,11 +64,7 @@ function ResetPasswordModal({
         "If you leave now the reset will be cancelled and you'll need to request a new code to reset your password.",
       buttons: [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Leave",
-          style: "destructive",
-          onPress: () => setVisible(false),
-        },
+        { text: "Leave", style: "destructive", onPress: onClose },
       ],
     });
   };
@@ -74,40 +78,18 @@ function ResetPasswordModal({
 
     try {
       setIsSubmitting(true);
-      const action = await dispatch(
-        resetPassword({ email, otp, newPassword, confirmPassword }) as any,
-      ).unwrap();
-
-      if (action?.success) {
-        showAlert({
-          title: "Success",
-          message: "Password reset successful",
-          buttons: [
-            { text: "OK", onPress: () => router.replace("/(auth)/login") },
-          ],
-        });
-      } else {
-        showAlert({
-          title: "Error",
-          message: action?.message || "Failed to reset password",
-        });
-      }
-    } catch (err: any) {
-      showAlert({
-        title: "Error",
-        message: err?.message || "Failed to reset password",
-      });
+      await onSubmit(newPassword, confirmPassword);
+    } catch {
+      // Failures are normally handled by the parent and reported through the
+      // return value; this guard keeps the handler intentional.
+      showAlert({ title: "Error", message: "Failed to reset password" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-    >
+    <Modal visible={visible} animationType="slide" transparent={true}>
       <View
         style={{
           flex: 1,
@@ -129,7 +111,7 @@ function ResetPasswordModal({
           }}
         >
           <View className="relative mb-4">
-            <ModalCloseButton setOpenSheet={confirmClose as any} />
+            <ModalCloseButton setOpenSheet={() => confirmClose()} />
           </View>
           <KeyboardAvoidingView
             behavior="padding"
@@ -156,6 +138,7 @@ function ResetPasswordModal({
                   onChangeText={setNewPassword}
                   placeholder="New password"
                   secureTextEntry
+                  accessibilityLabel="New password"
                   placeholderTextColor={THEME.placeholderText}
                   style={{
                     backgroundColor: THEME.inputBackground,
@@ -173,6 +156,7 @@ function ResetPasswordModal({
                   onChangeText={setConfirmPassword}
                   placeholder="Confirm password"
                   secureTextEntry
+                  accessibilityLabel="Confirm password"
                   placeholderTextColor={THEME.placeholderText}
                   style={{
                     backgroundColor: THEME.inputBackground,
@@ -188,6 +172,9 @@ function ResetPasswordModal({
                 <View className="mt-4">
                   <TouchableWithoutFeedback
                     onPress={isSubmitting ? undefined : handleSubmit}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save New Password"
+                    accessibilityState={{ disabled: isSubmitting }}
                   >
                     <View>
                       <LinearGradient
@@ -229,3 +216,4 @@ function ResetPasswordModal({
 }
 
 export default ResetPasswordModal;
+

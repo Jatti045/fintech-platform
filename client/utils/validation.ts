@@ -39,6 +39,14 @@ export const validatePassword = (password: string): ValidationResult => {
   return { valid: true };
 };
 
+/**
+ * Normalizes a user-supplied email for transmission/storage: trims surrounding
+ * whitespace and lowercases the address. Shared by every auth flow that sends
+ * an email (login, forgot password, OTP, reset password).
+ */
+export const normalizeEmail = (email: string): string =>
+  email.trim().toLowerCase();
+
 // ── Composite form validators ────────────────────────────────────────────────
 
 export const validateLoginForm = (
