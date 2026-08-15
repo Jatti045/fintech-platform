@@ -13,21 +13,6 @@ A cross-platform mobile application for tracking budgets and expenses. Built wit
 - **Planned Bank Integration**: Future support for automated bank transaction imports.
 - **Cross-Platform**: Runs on both Android and iOS devices.
 
-## Screenshots
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/5af65918-931e-4af5-b212-9c865ea3541a" width="200"/>
-  <img src="https://github.com/user-attachments/assets/103b6899-a821-4b35-92c3-ed9dcd8047f3" width="200"/>
-  <img src="https://github.com/user-attachments/assets/9bb148be-4edd-489d-b9f0-29ecb752584a" width="200"/>
-  <img src="https://github.com/user-attachments/assets/d79674da-e71a-49c4-b102-7d33bc8a126b" width="200"/>
-</p>
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/d19881c8-6ab9-4aec-b6f6-4b09f8fc3cc2" width="200"/>
-  <img src="https://github.com/user-attachments/assets/35fa5f10-346c-45f9-b013-1dcd88eedbac" width="200"/>
-  <img src="https://github.com/user-attachments/assets/7275a11c-35ec-44b5-b6f3-9ca8e0996429" width="200"/>
-  <img src="https://github.com/user-attachments/assets/8c1b632e-5ecb-4bab-9211-789287422e72" width="200"/>
-</p>
-
 ## Tech Stack
 
 - **Frontend**: React Native, Expo
