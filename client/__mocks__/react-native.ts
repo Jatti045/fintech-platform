@@ -40,6 +40,38 @@ export const TouchableWithoutFeedback = hostComponent(
 export const ActivityIndicator = hostComponent("ActivityIndicator");
 export const RefreshControl = hostComponent("RefreshControl");
 
+// SectionList mirrors the real behaviour closely enough for tests: it invokes
+// renderSectionHeader + renderItem for each section/item and mounts them as
+// children so component tests can inspect the rendered rows. It also renders
+// ListEmptyComponent when there are no items.
+export const SectionList = jest.fn(
+  (props: Record<string, any>): React.ReactElement => {
+    const sections = props.sections ?? [];
+    const children: React.ReactNode[] = [];
+    for (const section of sections) {
+      const header = props.renderSectionHeader?.({ section });
+      if (header) children.push(header);
+      const data = section.data ?? [];
+      for (let i = 0; i < data.length; i++) {
+        const item = props.renderItem?.({
+          item: data[i],
+          index: i,
+          section,
+          separators: {},
+        });
+        if (item) children.push(item);
+      }
+    }
+    if (children.length === 0 && props.ListEmptyComponent) {
+      children.push(props.ListEmptyComponent);
+    }
+    if (props.ListFooterComponent) {
+      children.push(props.ListFooterComponent);
+    }
+    return React.createElement("SectionList", props, children);
+  },
+);
+
 // Modal mirrors the native behaviour of only mounting its children while
 // visible, so component tests can assert on modal content per visibility.
 export const Modal = jest.fn((props: Record<string, unknown>) => {

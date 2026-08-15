@@ -1,3 +1,4 @@
+import React from "react";
 import { useTheme } from "@/hooks/useRedux";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,7 +12,11 @@ function AddNewTransactionButton({
   const { THEME } = useTheme();
   return (
     <View className="absolute bottom-0 right-0 p-4">
-      <TouchableOpacity onPress={() => setOpenSheet(true)}>
+      <TouchableOpacity
+        onPress={() => setOpenSheet(true)}
+        accessibilityRole="button"
+        accessibilityLabel="New Transaction"
+      >
         <LinearGradient
           colors={[THEME.primary, THEME.secondary]}
           start={[0, 0]}
