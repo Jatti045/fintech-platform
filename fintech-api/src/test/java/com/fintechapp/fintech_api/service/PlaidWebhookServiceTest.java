@@ -1,13 +1,16 @@
 package com.fintechapp.fintech_api.service;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,17 +21,23 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fintechapp.fintech_api.model.PlaidItem;
+import com.fintechapp.fintech_api.repository.PlaidItemRepository;
+
 @ExtendWith(MockitoExtension.class)
 class PlaidWebhookServiceTest {
 
     @Mock
     private PlaidTransactionSyncService syncService;
 
+    @Mock
+    private PlaidItemRepository plaidItemRepository;
+
     private PlaidWebhookService service;
 
     @BeforeEach
     void setUp() {
-        service = new PlaidWebhookService(syncService);
+        service = new PlaidWebhookService(syncService, plaidItemRepository);
     }
 
     private Map<String, Object> payload(String type, String code, String itemId) {
@@ -88,7 +97,7 @@ class PlaidWebhookServiceTest {
     // ── Sync trigger codes dispatch async sync ───────────────────────────────
 
     @ParameterizedTest
-    @ValueSource(strings = {"SYNC_UPDATES_AVAILABLE", "INITIAL_UPDATE", "DEFAULT_UPDATE", "TRANSACTIONS_REMOVED"})
+    @ValueSource(strings = {"SYNC_UPDATES_AVAILABLE", "INITIAL_UPDATE", "HISTORICAL_UPDATE", "DEFAULT_UPDATE", "TRANSACTIONS_REMOVED"})
     void handleWebhook_syncTriggerCodes_dispatchAsyncSync(String code) {
         service.handleWebhook(payload("TRANSACTIONS", code, "item-42"));
         verify(syncService).syncItemAsync("item-42");
@@ -122,5 +131,35 @@ class PlaidWebhookServiceTest {
         assertThrows(ResponseStatusException.class,
                 () -> service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", null)));
         verify(syncService, never()).syncItemAsync(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    // ── ITEM lifecycle webhooks ─────────────────────────────────────────────
+
+    @Test
+    void handleWebhook_itemUserPermissionRevoked_deletesLocalItem() {
+        PlaidItem item = new PlaidItem();
+        item.setItemId("item-1");
+        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
+
+        service.handleWebhook(payload("ITEM", "USER_PERMISSION_REVOKED", "item-1"));
+
+        verify(plaidItemRepository).delete(item);
+        verifyNoInteractions(syncService);
+    }
+
+    @Test
+    void handleWebhook_itemUserPermissionRevoked_unknownItem_isNoOp() {
+        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.empty());
+
+        service.handleWebhook(payload("ITEM", "USER_PERMISSION_REVOKED", "item-1"));
+
+        verify(plaidItemRepository, never()).delete(any());
+        verifyNoInteractions(syncService);
+    }
+
+    @Test
+    void handleWebhook_itemError_doesNotTriggerSync() {
+        service.handleWebhook(payload("ITEM", "ERROR", "item-1"));
+        verifyNoInteractions(syncService);
     }
 }

@@ -94,6 +94,9 @@ public class PlaidService {
         body.put("transactions", Map.of("days_requested", 365));
         if (StringUtils.hasText(settings.webhookUrl())) {
             body.put("webhook", settings.webhookUrl());
+        } else {
+            logger.warn("PLAID_WEBHOOK_URL is not configured; link tokens are created WITHOUT a webhook URL "
+                    + "and Plaid will not send webhooks for new items.");
         }
 
         JsonNode response = post("/link/token/create", body);

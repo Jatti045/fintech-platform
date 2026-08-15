@@ -203,6 +203,24 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void handleWebhook_trailingSlash_noAuth_returns200() throws Exception {
+        mockMvc.perform(post("/api/plaid/webhook/")
+                        .contentType(json())
+                        .content("{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"item-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void handleWebhook_invalidVerificationHeader_returnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/plaid/webhook")
+                        .contentType(json())
+                        .header("Plaid-Verification", "not-a-jwt")
+                        .content("{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"item-1\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void handleWebhook_invalidJsonBody_returnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/plaid/webhook")
                         .contentType(json())

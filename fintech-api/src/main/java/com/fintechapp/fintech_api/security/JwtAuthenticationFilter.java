@@ -58,7 +58,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		// empty in embedded/test contexts and would cause API paths to be
 		// misclassified as non-API (and therefore skipped).
 		String requestPath = request.getRequestURI();
-		return !requestPath.startsWith("/api/") || PUBLIC_PATHS.contains(requestPath);
+		return !requestPath.startsWith("/api/") || PUBLIC_PATHS.contains(stripTrailingSlash(requestPath));
+	}
+
+	/**
+	 * Normalizes a request path so a trailing slash does not turn a public
+	 * endpoint (e.g. /api/plaid/webhook/) into a protected one.
+	 */
+	private static String stripTrailingSlash(String path) {
+		if (path == null || path.isEmpty()) {
+			return "";
+		}
+		int end = path.length();
+		while (end > 1 && path.charAt(end - 1) == '/') {
+			end--;
+		}
+		return path.substring(0, end);
 	}
 
 	@Override

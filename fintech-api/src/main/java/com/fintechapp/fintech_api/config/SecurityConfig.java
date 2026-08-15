@@ -81,7 +81,8 @@ public class SecurityConfig {
 								"/api/auth/google",
 								"/api/auth/forgot-password",
 								"/api/auth/reset-password",
-								"/api/plaid/webhook")
+								"/api/plaid/webhook",
+								"/api/plaid/webhook/")
 						.permitAll()
 						.requestMatchers("/api/**").authenticated()
 						.anyRequest().permitAll())
