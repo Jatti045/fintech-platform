@@ -42,6 +42,8 @@ export default function HomeHeader({ onInfoPress }: Props) {
 
       <TouchableOpacity
         onPress={onInfoPress}
+        accessibilityRole="button"
+        accessibilityLabel="Help and usage"
         style={{
           width: 34,
           height: 34,

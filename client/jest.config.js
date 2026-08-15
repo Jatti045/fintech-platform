@@ -33,6 +33,8 @@ module.exports = {
     "^expo-secure-store$": "<rootDir>/__mocks__/expo-secure-store.ts",
     "^@react-native-async-storage/async-storage$":
       "<rootDir>/node_modules/@react-native-async-storage/async-storage/jest/async-storage-mock",
+    "^@react-native-community/datetimepicker$":
+      "<rootDir>/__mocks__/react-native-datetimepicker.ts",
   },
   // Silence console noise from slices
   silent: true,

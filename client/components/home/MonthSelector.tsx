@@ -34,6 +34,8 @@ export default function MonthSelector({
       <TouchableOpacity
         onPress={onPrev}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Previous month"
         style={{
           padding: 8,
           marginRight: 12,
@@ -54,6 +56,9 @@ export default function MonthSelector({
         onPress={onNext}
         activeOpacity={isCurrentMonth ? 1 : 0.7}
         disabled={isCurrentMonth}
+        accessibilityRole="button"
+        accessibilityLabel="Next month"
+        accessibilityState={{ disabled: isCurrentMonth }}
         style={{
           padding: 8,
           marginLeft: 12,

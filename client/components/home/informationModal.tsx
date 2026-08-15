@@ -1,19 +1,16 @@
 import { useTheme } from "@/hooks/useRedux";
-import { Feather } from "@expo/vector-icons";
+import React, { useState, useRef } from "react";
 import {
   Modal,
   ScrollView,
   Text,
-  TouchableOpacity,
   View,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  LayoutChangeEvent,
 } from "react-native";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ModalCloseButton from "../global/modalCloseButton";
-import { useState, useRef } from "react";
 
 function InformationModal({
   helpOpen,
@@ -102,7 +99,7 @@ function InformationModal({
                 Quick Start — Add a Transaction
               </Text>
               <Text style={{ color: THEME.textSecondary, marginBottom: 12 }}>
-                Tap "New Transaction". Fill in a short name and the amount,
+                Tap &quot;New Transaction&quot;. Fill in a short name and the amount,
                 choose a category or attach it to a budget, pick the correct
                 date (the calendar will show the current month/year) and save.
                 The app prevents future-dated transactions — the date is clamped
@@ -119,7 +116,7 @@ function InformationModal({
                 Create or Edit a Budget
               </Text>
               <Text style={{ color: THEME.textSecondary, marginBottom: 12 }}>
-                Tap "New Budget" to create a budget for the selected month. To
+                Tap &quot;New Budget&quot; to create a budget for the selected month. To
                 edit a budget, tap its card from the Budgets list — the same
                 form will open pre-filled. You can change the category or limit.
                 The app will prevent reducing a limit below the already spent
@@ -140,9 +137,9 @@ function InformationModal({
                 delete button — this is the quickest way to remove items. You
                 can also long-press a transaction or budget card to delete it.
                 Budgets that have transactions attached cannot be deleted —
-                you'll be prompted to remove or reassign those transactions
+                you&apos;ll be prompted to remove or reassign those transactions
                 first. When you delete a transaction, the app updates the
-                associated budget's spent amount automatically.
+                associated budget&apos;s spent amount automatically.
               </Text>
 
               <Text
@@ -156,9 +153,9 @@ function InformationModal({
               </Text>
               <Text style={{ color: THEME.textSecondary, marginBottom: 12 }}>
                 Uploading a new profile picture will automatically remove your
-                previous picture from storage. If you'd like to remove your
+                previous picture from storage. If you&apos;d like to remove your
                 profile picture without uploading a new one, long-press your
-                profile picture on the Profile screen and choose "Delete".
+                profile picture on the Profile screen and choose &quot;Delete&quot;.
               </Text>
 
               <Text
@@ -172,8 +169,8 @@ function InformationModal({
               </Text>
               <Text style={{ color: THEME.textSecondary, marginBottom: 12 }}>
                 Use the quick action buttons on the home screen for common
-                tasks: "New Transaction" and "New Budget". The home overview
-                shows the selected month's spending, top categories, and a small
+                tasks: &quot;New Transaction&quot; and &quot;New Budget&quot;. The home overview
+                shows the selected month&apos;s spending, top categories, and a small
                 budget summary.
               </Text>
 
@@ -204,7 +201,7 @@ function InformationModal({
               </Text>
               <Text style={{ color: THEME.textSecondary, marginBottom: 12 }}>
                 The home screen features analytics cards such as Budget Health
-                Score — a quick gauge of how well you're staying within your
+                Score — a quick gauge of how well you&apos;re staying within your
                 budgets for the selected month — and Top Categories, which shows
                 where most of your spending is going.
               </Text>

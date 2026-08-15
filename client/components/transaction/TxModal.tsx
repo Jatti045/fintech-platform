@@ -21,7 +21,7 @@ import {
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import ModalCloseButton from "../global/modalCloseButton";
 import { capitalizeFirst } from "@/utils/helper";
 import { useTransactionOperations } from "@/hooks/transaction/useTransactionOperation";
@@ -91,7 +91,7 @@ function TransactionModal({
         setConversionPreview(null);
         setIsCalculatingConversion(false);
         setConvertedAmountForPreview(0);
-      } catch (e) {
+      } catch {
         // ignore
       }
       if (onClose) onClose();
@@ -127,7 +127,7 @@ function TransactionModal({
             ? TransactionType.INCOME
             : TransactionType.EXPENSE,
         );
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -189,7 +189,7 @@ function TransactionModal({
         day: "numeric",
         year: "numeric",
       });
-    } catch (e) {
+    } catch {
       return d.toDateString();
     }
   };
