@@ -63,8 +63,6 @@ public class GoalService {
         Instant monthStart = monthStart(year, month);
         Instant nextMonthStart = nextMonthStart(year, month);
 
-        System.out.println("Month start : " + monthStart + "Next month start : " + nextMonthStart);
-
         List<GoalItemResponse> goals = goalRepository.findByUser_IdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByUpdatedAtDesc(userId, monthStart, nextMonthStart)
                 .stream()
                 .map(this::toGoalItem)

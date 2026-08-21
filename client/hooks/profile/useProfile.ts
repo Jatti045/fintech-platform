@@ -4,6 +4,7 @@
 // receive slices of this hook's return value as props.
 
 import { useState, useEffect, useCallback } from "react";
+import { Linking } from "react-native";
 import { router } from "expo-router";
 
 import {
@@ -27,6 +28,7 @@ import { setTheme } from "@/store/slices/themeSlice";
 import {
   persistNotificationPreferences,
   setPurchaseRemindersEnabled,
+  setNotificationPermissionStatus,
   selectNotificationTimezone,
   selectPurchaseRemindersEnabled,
   selectNotificationPermissionStatus,
@@ -35,6 +37,7 @@ import { userAPI } from "@/api/user";
 import { plaidAPI } from "@/api/plaid";
 import { fetchTransaction } from "@/store/slices/transactionSlice";
 import { fetchFinancialSummary } from "@/store/slices/financialSummarySlice";
+import { requestPermission } from "@/utils/notifications/permissions";
 import type { LinkSuccess } from "react-native-plaid-link-sdk";
 
 import { useThemedAlert } from "@/utils/themedAlert";
@@ -116,6 +119,8 @@ export interface UseProfileReturn {
   /** True when notifications are not permitted on this device */
   notificationPermissionDenied: boolean;
   handleTogglePurchaseReminders: (enabled: boolean) => void;
+  /** Opens the device settings where notification permission can be changed. */
+  openNotificationSettings: () => void;
 }
 
 // ─── Hook Implementation ────────────────────────────────────────────────────
@@ -171,16 +176,60 @@ export function useProfile(): UseProfileReturn {
   const notificationPermissionDenied = permissionStatus === "denied";
 
   const handleTogglePurchaseReminders = useCallback(
-    (value: boolean) => {
-      dispatch(setPurchaseRemindersEnabled(value));
-      // Persist alongside the current timezone to keep stored prefs consistent.
-      void persistNotificationPreferences({
-        purchaseRemindersEnabled: value,
+    async (value: boolean) => {
+      if (value) {
+        // Enabling: ask for OS permission first (only when we still can), then
+        // persist whatever the OS actually allows. Never claim notifications
+        // are enabled when permission is denied.
+        let permission = permissionStatus;
+        if (permission === "undetermined") {
+          permission = await requestPermission();
+          dispatch(setNotificationPermissionStatus(permission));
+        }
+        if (permission === "granted") {
+          dispatch(setPurchaseRemindersEnabled(true));
+          await persistNotificationPreferences({
+            purchaseRemindersEnabled: true,
+            timezone: notificationTimezone,
+          });
+          return;
+        }
+        // Permission is denied or still undetermined (user cancelled): keep the
+        // preference off and route to system settings when that's required.
+        dispatch(setPurchaseRemindersEnabled(false));
+        await persistNotificationPreferences({
+          purchaseRemindersEnabled: false,
+          timezone: notificationTimezone,
+        });
+        if (permission === "denied") {
+          showAlert({
+            title: "Notifications are off",
+            message:
+              "Budgee doesn't have notification permission. Enable it in your device settings to receive reminders.",
+            buttons: [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() },
+            ],
+          });
+        }
+        return;
+      }
+
+      // Disabling: turn the preference off; the notification lifecycle hook
+      // cancels any scheduled reminders.
+      dispatch(setPurchaseRemindersEnabled(false));
+      await persistNotificationPreferences({
+        purchaseRemindersEnabled: false,
         timezone: notificationTimezone,
       });
     },
-    [dispatch, notificationTimezone],
+    [dispatch, permissionStatus, notificationTimezone, showAlert],
   );
+
+  /** Opens the OS settings screen where notification permission lives. */
+  const openNotificationSettings = useCallback(() => {
+    Linking.openSettings();
+  }, []);
 
   const loadMonthlyIncomeForSelectedMonth = useCallback(async () => {
     if (!user?.id) {
@@ -642,7 +691,7 @@ export function useProfile(): UseProfileReturn {
           onPress: () => {
             setTimeout(() => {
               showAlert({
-                title: "Delete Account — Irreversible",
+                title: "Delete Account",
                 message:
                   "This action is permanent. Once you delete your account, all your data will be lost and cannot be recovered. Are you absolutely sure you want to continue?",
                 buttons: [
@@ -727,6 +776,7 @@ export function useProfile(): UseProfileReturn {
     purchaseRemindersEnabled,
     notificationPermissionDenied,
     handleTogglePurchaseReminders,
+    openNotificationSettings,
     linking,
     handleLinkBank,
     plaidItems,

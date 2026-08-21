@@ -102,6 +102,7 @@ const TransactionRow = React.memo(function TransactionRow({
                 ellipsizeMode="tail"
               >
                 {capitalizeFirst(displayCategory)}
+                {tx.isTransfer ? "  ·  Transfer" : ""}
               </Text>
               <Text
                 style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 1 }}

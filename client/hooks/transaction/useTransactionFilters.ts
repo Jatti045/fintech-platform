@@ -100,6 +100,7 @@ export function useTransactionFilters(transactions: any[], budgets: any[]) {
                 data
                   .filter(
                     (tx) =>
+                      !tx.isTransfer &&
                       (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE",
                   )
                   .reduce(

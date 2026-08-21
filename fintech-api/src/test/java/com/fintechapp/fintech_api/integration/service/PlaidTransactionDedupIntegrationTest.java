@@ -29,6 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
 import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.model.Transaction;
+import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.service.PlaidTransactionIngestService;
@@ -71,7 +72,7 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
     }
 
     private PlaidTransaction tx(String id, String name, double amount, Instant date) {
-        return new PlaidTransaction(id, name, date, "Food", amount, "USD", null);
+        return new PlaidTransaction(id, name, date, "Food", amount, false, "USD", null);
     }
 
     private List<Transaction> userTransactions(User user) {
@@ -266,6 +267,42 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
             pool.shutdownNow();
             cleanup(user);
         }
+    }
+
+    // ── Transfers (movement between the user's own accounts) ─────────────────
+    // A transfer is ingested into history but never linked to a budget and
+    // never counted toward income or expense aggregates. Runs without the outer
+    // test transaction because the ingest path performs a native INSERT.
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void transferTransaction_ingestedWithoutBudgetAndExcludedFromSums() {
+        User user = createUser();
+        item("item-transfer", user);
+        Instant date = Instant.parse("2026-01-10T00:00:00Z");
+
+        PlaidTransaction transferOut =
+                new PlaidTransaction("tr-out-1", "Transfer to Savings", date, "Transfer", 2000.0, true, "USD", null);
+        PlaidTransaction transferIn =
+                new PlaidTransaction("tr-in-1", "Transfer from Checking", date, "Transfer", -2000.0, true, "USD", null);
+
+        ingestService.upsertTransaction(user, transferOut);
+        ingestService.upsertTransaction(user, transferIn);
+
+        List<Transaction> stored = userTransactions(user);
+        assertEquals(2, stored.size());
+        assertTrue(stored.stream().allMatch(Transaction::isTransfer));
+
+        // Transfers are not budgeted, so no budget was auto-created.
+        assertEquals(0, budgetRepository.findByUser_IdOrderByDateDesc(user.getId()).size());
+
+        // Transfers must not count as income or expenses in aggregates.
+        assertEquals(0.0, transactionRepository.sumAmountByUserAndTypeAndDateBetween(
+                user.getId(), TransactionType.EXPENSE, Instant.EPOCH, date.plusSeconds(1)));
+        assertEquals(0.0, transactionRepository.sumAmountByUserAndTypeAndDateBetween(
+                user.getId(), TransactionType.INCOME, Instant.EPOCH, date.plusSeconds(1)));
+
+        cleanup(user);
     }
 
     private void cleanup(User user) {

@@ -68,6 +68,14 @@ public class Transaction {
     @Column(name = "plaid_transaction_id", length = 128)
     private String plaidTransactionId;
 
+    /**
+     * True when this transaction is a transfer of money between the user's own
+     * accounts (movement of existing money). Such transactions stay in the
+     * history but must never contribute to income or expense analytics.
+     */
+    @Column(name = "is_transfer", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean transfer;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

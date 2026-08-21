@@ -344,6 +344,7 @@ public class PlaidService {
         String category = readCategory(node);
         double amount = node.path("amount").asDouble(0.0);
         Instant date = parseDate(node);
+        boolean transfer = PlaidTransferDetector.isTransfer(node);
 
         return new PlaidTransaction(
                 node.path("transaction_id").asText(null),
@@ -351,6 +352,7 @@ public class PlaidService {
                 date,
                 category,
                 amount,
+                transfer,
                 node.path("iso_currency_code").asText(null),
                 node.path("unofficial_currency_code").asText(null));
     }

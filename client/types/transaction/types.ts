@@ -20,6 +20,10 @@ export interface ITransaction {
   displayCurrency?: string;
   date: string;
   type: TransactionType;
+  /** True when the transaction moves money between the user's own accounts.
+   *  Such transactions are shown in history but excluded from income/expense
+   *  analytics. */
+  isTransfer?: boolean;
   createdAt?: string;
   updatedAt?: string;
   budgetId?: string | null;
@@ -92,6 +96,7 @@ export interface TransactionItem {
   category: string;
   budgetId?: string;
   type?: string;
+  isTransfer?: boolean;
 }
 
 /** A single day-group for the SectionList. */

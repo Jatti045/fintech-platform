@@ -89,4 +89,12 @@ describe("inferExpenseSourceCurrency", () => {
     ];
     expect(inferExpenseSourceCurrency(transactions)).toBe("GBP");
   });
+
+  it("ignores transfers even when expense-typed", () => {
+    const transactions = [
+      makeTx({ baseCurrency: "CAD", isTransfer: true }),
+      makeTx({ baseCurrency: "EUR" }),
+    ];
+    expect(inferExpenseSourceCurrency(transactions)).toBe("EUR");
+  });
 });

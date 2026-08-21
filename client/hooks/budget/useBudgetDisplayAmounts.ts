@@ -59,7 +59,11 @@ export function useBudgetDisplayAmounts(
 
   const globalSourceCurrency = useMemo(() => {
     const txCurrencies = transactions
-      .filter((t) => String(t.type ?? "EXPENSE").toUpperCase() === "EXPENSE")
+      .filter(
+        (t) =>
+          !t.isTransfer &&
+          String(t.type ?? "EXPENSE").toUpperCase() === "EXPENSE",
+      )
       .map((t) => normalizeCurrency(t.baseCurrency || t.originalCurrency));
 
     return pickMostFrequentCurrency(txCurrencies) || normalizedActiveCurrency;
@@ -74,6 +78,8 @@ export function useBudgetDisplayAmounts(
 
       for (const tx of transactions) {
         if (String(tx.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
+        // Transfers between the user's own accounts are not spending.
+        if (tx.isTransfer) continue;
         const txCurrency = normalizeCurrency(
           tx.baseCurrency || tx.originalCurrency,
         );

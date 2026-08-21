@@ -40,6 +40,10 @@ import {
   schedulePurchaseReminders,
 } from "@/utils/notifications/scheduler";
 import { registerNotificationResponseHandler } from "@/utils/notifications/navigation";
+import {
+  isNotificationOnboardingPending,
+  clearNotificationOnboardingFlag,
+} from "@/utils/notifications/onboardingFlag";
 
 const SCOPE = "useNotifications";
 
@@ -55,6 +59,10 @@ export function useNotifications() {
    * Ensures the reminders are scheduled under the current conditions:
    * requests permission (only when undetermined), then schedules. The
    * scheduler is idempotent, so repeated calls never duplicate.
+   *
+   * While the account-creation onboarding prompt is pending, the permission
+   * request is deferred: the onboarding flow is the user's first and only
+   * in-app ask.
    */
   const syncReminders = useCallback(async () => {
     await ensureAndroidChannel();
@@ -62,7 +70,10 @@ export function useNotifications() {
     let permission = await getPermissionStatus();
     // Ask only when we haven't already (undetermined). A prior denial is
     // respected and we don't nag.
-    if (permission === "undetermined") {
+    if (
+      permission === "undetermined" &&
+      !(await isNotificationOnboardingPending())
+    ) {
       permission = await requestPermission();
     }
 
@@ -112,6 +123,11 @@ export function useNotifications() {
       // this device starts from a clean slate.
       if (wasAuthenticated) {
         dispatch(resetNotificationPreferences());
+        // The onboarding flag is account-scoped: clear it so another user on
+        // this device is not offered a stale prompt.
+        void clearNotificationOnboardingFlag().catch((error) =>
+          logger.warn(SCOPE, "Failed to clear onboarding flag on logout", error),
+        );
       }
       void cancelPurchaseReminders().catch((error) =>
         logger.warn(SCOPE, "Failed to cancel reminders on logout", error),

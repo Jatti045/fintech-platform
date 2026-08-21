@@ -80,6 +80,21 @@ class AuthControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.success").value(false));
     }
 
+    // Asserts login with an unknown email returns the SAME generic message as a
+    // wrong password, so the endpoint cannot be used to enumerate accounts.
+    @Test
+    void login_unknownEmail_returnsGenericMessageIdenticalToWrongPassword() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(json())
+                        .content(asJson(Map.of(
+                                "email", "nobody@example.com",
+                                "password", "Whatever123"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Invalid email or password."));
+    }
+
     // Asserts forgot-password succeeds when user exists.
     @Test
     void forgotPassword_existingEmail_returnsSuccess() throws Exception {

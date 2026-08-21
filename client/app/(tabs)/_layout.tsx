@@ -11,6 +11,8 @@ import { fetchGoals } from "@/store/slices/goalSlice";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import { View } from "react-native";
 import { hexToRgba, tintHex } from "@/utils/helper";
+import { useNotificationOnboarding } from "@/hooks/useNotificationOnboarding";
+import NotificationOnboardingModal from "@/components/onboarding/NotificationOnboardingModal";
 
 interface TabIndicatorProps {
   focused: boolean;
@@ -39,6 +41,7 @@ export default function TabsLayout() {
   const dispatch = useAppDispatch();
   const { THEME } = useTheme();
   const { month, year } = useCalendar();
+  const notificationOnboarding = useNotificationOnboarding();
 
   // Fetch transactions + financial summary + budgets + goals for the selected month whenever calendar changes
   useEffect(() => {
@@ -171,6 +174,17 @@ export default function TabsLayout() {
               <TabIndicator focused={focused} />
             </View>
           ),
+        }}
+      />
+
+      {/* One-time, optional notification prompt after account creation. */}
+      <NotificationOnboardingModal
+        visible={notificationOnboarding.visible}
+        onEnable={() => {
+          void notificationOnboarding.handleEnable();
+        }}
+        onDecline={() => {
+          void notificationOnboarding.handleDecline();
         }}
       />
     </Tabs>

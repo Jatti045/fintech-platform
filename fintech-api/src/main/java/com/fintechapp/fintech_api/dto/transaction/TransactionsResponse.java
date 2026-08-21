@@ -22,6 +22,7 @@ public record TransactionsResponse(
                         Instant date,
                         String category,
                         TransactionType type,
+                        boolean isTransfer,
                         double amount,
                         String baseCurrency,
                         Double originalAmount,

@@ -1,6 +1,7 @@
 package com.fintechapp.fintech_api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -44,7 +45,9 @@ class PlaidTransactionIngestServiceTest {
     private static final int IDX_AMOUNT = 5;
     private static final int IDX_BASE_CURRENCY = 6;
     private static final int IDX_PLAID_TX_ID = 9;
-    private static final int IDX_USER_ID = 10;
+    private static final int IDX_IS_TRANSFER = 10;
+    private static final int IDX_USER_ID = 11;
+    private static final int IDX_BUDGET_ID = 12;
 
     @Mock
     private TransactionRepository transactionRepository;
@@ -77,7 +80,12 @@ class PlaidTransactionIngestServiceTest {
     private PlaidTransaction plaidTx(
             String id, String name, String category, double amount, Instant date,
             String iso, String unofficial) {
-        return new PlaidTransaction(id, name, date, category, amount, iso, unofficial);
+        return new PlaidTransaction(id, name, date, category, amount, false, iso, unofficial);
+    }
+
+    /** A transfer between the user's own accounts (e.g. Checking → Savings). */
+    private PlaidTransaction plaidTransfer(String id, double amount, Instant date, String iso) {
+        return new PlaidTransaction(id, "Transfer", date, "Transfer", amount, true, iso, null);
     }
 
     private void upsert(PlaidTransaction plaidTx) {
@@ -338,6 +346,79 @@ class PlaidTransactionIngestServiceTest {
         upsert(plaidTx("dup-3", "Refund", "Food", -80.0, Instant.now(), "USD", null));
 
         assertEquals(0.0, budget.getSpent());
+    }
+
+
+    // ── Transfers between the user's own accounts ────────────────────────────
+
+    @Test
+    void upsertTransaction_transferExpense_insertedWithoutBudgetOrSpent() {
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        // Checking → Savings: money leaves the account (positive Plaid amount
+        // => expense-typed transfer).
+        upsert(plaidTransfer("tr-1", 2000.0, Instant.parse("2026-08-05T10:00:00Z"), "USD"));
+
+        List<Object> args = capturedInsertArgs();
+        assertEquals(TransactionType.EXPENSE.name(), args.get(IDX_TYPE));
+        assertEquals(Boolean.TRUE, args.get(IDX_IS_TRANSFER));
+        assertNull(args.get(IDX_BUDGET_ID)); // never linked to a budget
+
+        // No budget was auto-created and nothing incremented spent.
+        verify(budgetRepository, never()).saveAndFlush(any(Budget.class));
+        verify(budgetRepository, never()).save(any(Budget.class));
+    }
+
+    @Test
+    void upsertTransaction_transferIncome_insertedWithoutBudgetOrSpent() {
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+        // Savings ← Checking: money enters the account (negative Plaid amount
+        // => income-typed transfer).
+        upsert(plaidTransfer("tr-2", -2000.0, Instant.parse("2026-08-05T10:00:00Z"), "USD"));
+
+        List<Object> args = capturedInsertArgs();
+        assertEquals(TransactionType.INCOME.name(), args.get(IDX_TYPE));
+        assertEquals(Boolean.TRUE, args.get(IDX_IS_TRANSFER));
+        assertNull(args.get(IDX_BUDGET_ID));
+        verify(budgetRepository, never()).saveAndFlush(any(Budget.class));
+        verify(budgetRepository, never()).save(any(Budget.class));
+    }
+
+    @Test
+    void upsertTransaction_transferModified_keepsOutOfBudget() {
+        Transaction stored = transaction("tr-mod", 2000.0, TransactionType.EXPENSE, null);
+        stored.setTransfer(true);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0); // conflict
+        when(transactionRepository.findByPlaidTransactionIdAndUser_Id("tr-mod", "user-1"))
+                .thenReturn(Optional.of(stored));
+
+        // A transfer re-served in the modified array stays un-budgeted.
+        upsert(plaidTransfer("tr-mod", 2000.0, Instant.parse("2026-08-05T10:00:00Z"), "USD"));
+
+        verify(transactionRepository).save(stored);
+        assertTrue(stored.isTransfer());
+        assertNull(stored.getBudget());
+        verify(budgetRepository, never()).save(any(Budget.class));
+    }
+
+    @Test
+    void upsertTransaction_expenseBecomesTransfer_restoresBudgetSpent() {
+        Budget budget = budget("bt2", 500.0, 2000.0);
+        Transaction stored = transaction("tr-conv", 2000.0, TransactionType.EXPENSE, budget);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0); // conflict
+        when(transactionRepository.findByPlaidTransactionIdAndUser_Id("tr-conv", "user-1"))
+                .thenReturn(Optional.of(stored));
+
+        // Plaid re-categorized the row as a transfer — its old budget
+        // contribution must be restored.
+        upsert(plaidTransfer("tr-conv", 2000.0, Instant.parse("2026-08-05T10:00:00Z"), "USD"));
+
+        verify(transactionRepository).save(stored);
+        assertTrue(stored.isTransfer());
+        assertNull(stored.getBudget());
+        assertEquals(0.0, budget.getSpent()); // contribution removed
+        verify(budgetRepository).save(budget);
     }
 
 

@@ -16,6 +16,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -128,8 +129,15 @@ public class AuthService {
         user.setAuthProvider(AuthProvider.EMAIL);
         user.setPassword(passwordEncoder.encode(request.password()));
 
-        User savedUser = userRepository.save(user);
-        return new UserDataResponse(true, "User created successfully.", toUserSummary(savedUser));
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException ex) {
+            // Two signups for the same email can race past the existsByEmail
+            // check; the unique index catches the loser. Surface it as the same
+            // business error instead of a 500.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User already exists.");
+        }
+        return new UserDataResponse(true, "User created successfully.", toUserSummary(user));
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -142,13 +150,11 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email and password are required.");
         }
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "User with email " + email + " does not exist. Please sign up first."));
-
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid credentials.");
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
+            // Deliberately identical to the wrong-password case so the endpoint
+            // cannot be used to enumerate which emails have accounts.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid email or password.");
         }
 
         String token = jwtService.generateToken(user.getId(), user.getEmail());

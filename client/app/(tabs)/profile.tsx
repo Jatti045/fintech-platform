@@ -43,6 +43,7 @@ export default function ProfileScreen() {
     purchaseRemindersEnabled,
     notificationPermissionDenied,
     handleTogglePurchaseReminders,
+    openNotificationSettings,
     linking,
     handleLinkBank,
     plaidItems,
@@ -143,9 +144,10 @@ export default function ProfileScreen() {
 
         <NotificationPreference
           THEME={THEME}
-          enabled={purchaseRemindersEnabled}
+          enabled={purchaseRemindersEnabled && !notificationPermissionDenied}
           permissionDenied={notificationPermissionDenied}
           onToggle={handleTogglePurchaseReminders}
+          onOpenSettings={openNotificationSettings}
         />
 
         {/* Income */}

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
 import com.fintechapp.fintech_api.model.Budget;
 import com.fintechapp.fintech_api.model.Goal;
+import com.fintechapp.fintech_api.model.Transaction;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
 
@@ -170,5 +171,88 @@ class FinancialSummaryControllerIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(get("/api/financial-summary"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    // ── Transfers between the user's own accounts ────────────────────────────
+    // Checking → Savings ($2,000 out) + Savings ← Checking ($2,000 in) must not
+    // count as spending or income. Only real activity moves the aggregates.
+
+    @Test
+    void getFinancialSummary_transfersAreExcludedFromIncomeAndExpenses() throws Exception {
+        User user = createUser("summary-transfer@example.com", "Password123!", "summary-transfer");
+        LocalDate utc = LocalDate.now(ZoneOffset.UTC);
+        int month = utc.getMonthValue() - 1;
+        int year = utc.getYear();
+        Instant monthStart = LocalDate.of(year, month + 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        createMonthlyIncome(user, monthStart, 2500.0);
+
+        // Real activity.
+        Budget food = createBudget(user, "Food", 500, monthStart);
+        createTransaction(user, food, null, "Groceries", monthStart.plusSeconds(3600), "Food", TransactionType.EXPENSE, 100.0);
+        createTransaction(user, food, null, "Paycheck", monthStart.plusSeconds(7200), "Income", TransactionType.INCOME, 2500.0);
+
+        // Internal transfer pair (Checking → Savings), marked is_transfer.
+        Transaction transferOut = new Transaction();
+        transferOut.setUser(user);
+        transferOut.setName("Transfer to Savings");
+        transferOut.setDate(monthStart.plusSeconds(10_000));
+        transferOut.setCategory("Transfer");
+        transferOut.setType(TransactionType.EXPENSE);
+        transferOut.setAmount(2000.0);
+        transferOut.setTransfer(true);
+        transactionRepository.save(transferOut);
+
+        Transaction transferIn = new Transaction();
+        transferIn.setUser(user);
+        transferIn.setName("Transfer from Checking");
+        transferIn.setDate(monthStart.plusSeconds(10_000));
+        transferIn.setCategory("Transfer");
+        transferIn.setType(TransactionType.INCOME);
+        transferIn.setAmount(2000.0);
+        transferIn.setTransfer(true);
+        transactionRepository.save(transferIn);
+
+        mockMvc.perform(get("/api/financial-summary")
+                        .header(authHeaderName(), authHeader(user))
+                        .param("month", String.valueOf(month))
+                        .param("year", String.valueOf(year)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.totalAmount").value(100.0))
+                .andExpect(jsonPath("$.data.monthlyIncome").value(2500.0))
+                .andExpect(jsonPath("$.data.actualIncome").value(2500.0))
+                .andExpect(jsonPath("$.data.netRemaining").value(2400.0));
+    }
+
+    // ── Transfers stay visible in transaction history ────────────────────────
+
+    @Test
+    void getTransactions_transfersRemainInHistory() throws Exception {
+        User user = createUser("summary-transfer-history@example.com", "Password123!", "summary-transfer-history");
+        LocalDate utc = LocalDate.now(ZoneOffset.UTC);
+        int month = utc.getMonthValue() - 1;
+        int year = utc.getYear();
+        Instant monthStart = LocalDate.of(year, month + 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        Transaction transferOut = new Transaction();
+        transferOut.setUser(user);
+        transferOut.setName("Transfer to Savings");
+        transferOut.setDate(monthStart.plusSeconds(10_000));
+        transferOut.setCategory("Transfer");
+        transferOut.setType(TransactionType.EXPENSE);
+        transferOut.setAmount(2000.0);
+        transferOut.setTransfer(true);
+        transactionRepository.save(transferOut);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/transaction")
+                        .header(authHeaderName(), authHeader(user))
+                        .param("currentMonth", String.valueOf(month))
+                        .param("currentYear", String.valueOf(year)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.transaction[0].name").value("Transfer to Savings"))
+                .andExpect(jsonPath("$.data.transaction[0].isTransfer").value(true));
     }
 }

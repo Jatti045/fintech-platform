@@ -38,10 +38,12 @@ export default function TransactionOverviewHeader() {
     }
 
     const expenses = displayTransactions.filter(
-      (t: any) => (t.type ?? "EXPENSE").toUpperCase() === "EXPENSE",
+      (t: any) =>
+        !t.isTransfer && (t.type ?? "EXPENSE").toUpperCase() === "EXPENSE",
     );
     const income = displayTransactions.filter(
-      (t: any) => (t.type ?? "EXPENSE").toUpperCase() === "INCOME",
+      (t: any) =>
+        !t.isTransfer && (t.type ?? "EXPENSE").toUpperCase() === "INCOME",
     );
 
     const totalSpent = expenses.reduce(

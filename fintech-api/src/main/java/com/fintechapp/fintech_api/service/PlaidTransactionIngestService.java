@@ -52,6 +52,7 @@ public class PlaidTransactionIngestService {
             Instant date,
             String category,
             double amount,
+            boolean transfer,
             String isoCurrencyCode,
             String unofficialCurrencyCode) {
     }
@@ -125,6 +126,11 @@ public class PlaidTransactionIngestService {
 
     /**
      * Updates an existing local transaction with the incoming Plaid payload.
+     *
+     * <p>Transfers never contribute to budget spent aggregates: when a row
+     * becomes a transfer its previous budget contribution is restored, and when
+     * a row stops being a transfer the full amount is added to the resolved
+     * budget (the old transfer row had no contribution).</p>
      */
     private void applyUpdate(Transaction tx, User user, PlaidTransaction plaidTx) {
         String category = categoryFormatter.toReadableCategory(plaidTx.category());
@@ -132,8 +138,9 @@ public class PlaidTransactionIngestService {
         double absoluteAmount = Math.abs(plaidTx.amount());
         TransactionType type = plaidTx.amount() >= 0 ? TransactionType.EXPENSE : TransactionType.INCOME;
         String baseCurrency = resolveCurrency(plaidTx.isoCurrencyCode(), plaidTx.unofficialCurrencyCode(), user);
-        Budget budget = resolveOrCreateBudget(user, category, txDate);
 
+        boolean incomingTransfer = plaidTx.transfer();
+        boolean wasTransfer = tx.isTransfer();
         Budget oldBudget = tx.getBudget();
         double oldAmount = tx.getAmount();
         TransactionType oldType = tx.getType();
@@ -147,9 +154,34 @@ public class PlaidTransactionIngestService {
         tx.setOriginalCurrency(baseCurrency);
         tx.setOriginalAmount(absoluteAmount);
         tx.setPlaidTransactionId(plaidTx.transactionId());
+        tx.setTransfer(incomingTransfer);
+
+        if (incomingTransfer) {
+            // A transfer is movement of existing money — it must not count
+            // toward any budget. Restore the contribution if the row previously
+            // was a budgeted expense.
+            if (!wasTransfer && oldBudget != null && oldType == TransactionType.EXPENSE) {
+                oldBudget.setSpent(Math.max(0, oldBudget.getSpent() - oldAmount));
+                budgetRepository.save(oldBudget);
+            }
+            tx.setBudget(null);
+            transactionRepository.save(tx);
+            return;
+        }
+
+        Budget budget = resolveOrCreateBudget(user, category, txDate);
         tx.setBudget(budget);
         transactionRepository.save(tx);
 
+        if (wasTransfer) {
+            // Previously a transfer with no budget contribution; the full
+            // amount is now real activity.
+            if (type == TransactionType.EXPENSE) {
+                budget.setSpent(budget.getSpent() + absoluteAmount);
+                budgetRepository.save(budget);
+            }
+            return;
+        }
         reconcileBudgetOnUpdate(oldBudget, oldAmount, oldType, budget, absoluteAmount, type);
     }
 
@@ -159,6 +191,9 @@ public class PlaidTransactionIngestService {
      * the arbiter between insert and update. A conflict means the row already
      * exists (e.g. a transaction re-served in Plaid's {@code modified} array or
      * a concurrent sync) — it is loaded and reconciled as an update instead.
+     *
+     * <p>Transfer transactions are stored without a budget link and never
+     * increment budget spent.</p>
      */
     private void insert(User user, PlaidTransaction plaidTx) {
         String category = categoryFormatter.toReadableCategory(plaidTx.category());
@@ -166,15 +201,16 @@ public class PlaidTransactionIngestService {
         double absoluteAmount = Math.abs(plaidTx.amount());
         TransactionType type = plaidTx.amount() >= 0 ? TransactionType.EXPENSE : TransactionType.INCOME;
         String baseCurrency = resolveCurrency(plaidTx.isoCurrencyCode(), plaidTx.unofficialCurrencyCode(), user);
-        Budget budget = resolveOrCreateBudget(user, category, txDate);
+        boolean transfer = plaidTx.transfer();
+        Budget budget = transfer ? null : resolveOrCreateBudget(user, category, txDate);
 
         int inserted = jdbcTemplate.update("""
                 INSERT INTO transactions (
                     id, name, transaction_date, category, type, amount,
                     base_currency, original_amount, original_currency,
-                    plaid_transaction_id,
+                    plaid_transaction_id, is_transfer,
                     description, user_id, budget_id, goal_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NOW(), NOW())
                 ON CONFLICT DO NOTHING
                 """,
                 UUID.randomUUID().toString(),
@@ -187,8 +223,9 @@ public class PlaidTransactionIngestService {
                 absoluteAmount,
                 baseCurrency,
                 plaidTx.transactionId(),
+                transfer,
                 user.getId(),
-                budget.getId());
+                budget != null ? budget.getId() : null);
 
         if (inserted == 0) {
             // The row already exists — reconcile it as an update (modified).
@@ -198,7 +235,7 @@ public class PlaidTransactionIngestService {
             return;
         }
 
-        if (type == TransactionType.EXPENSE) {
+        if (!transfer && type == TransactionType.EXPENSE) {
             budget.setSpent(budget.getSpent() + absoluteAmount);
             budgetRepository.save(budget);
         }

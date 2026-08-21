@@ -1,10 +1,10 @@
 /**
- * NotificationPreference (Purchase Reminders button) – component tests.
+ * NotificationPreference (Purchase Reminders) – component tests.
  *
- * Verifies the toggle stays interactive regardless of permission state, and
- * that the row reflects whether notifications are permitted by showing the
- * appropriate guidance copy. The switch must never be disabled, so the user
- * is never blocked from managing their preference.
+ * Verifies the toggle reflects the *effective* state: when the OS has denied
+ * permission the switch is shown off and disabled (never a fake "on" toggle),
+ * and an "Open Settings" action is offered. When permitted, the switch is
+ * interactive.
  *
  * Uses the react-native mock (provides View/Text/Switch) with react-test-renderer.
  */
@@ -39,6 +39,7 @@ function renderPreference(
           enabled
           permissionDenied={false}
           onToggle={jest.fn()}
+          onOpenSettings={jest.fn()}
           {...overrides}
         />
       </Provider>,
@@ -52,6 +53,7 @@ function lastSwitchProps() {
   const allCalls = (Switch as jest.Mock).mock.calls;
   return allCalls[allCalls.length - 1]?.[0] as {
     disabled?: boolean;
+    value?: boolean;
     onValueChange?: unknown;
   };
 }
@@ -66,7 +68,8 @@ function renderedText(matches: string) {
 const UI_TEXT =
   "A gentle nudge at 12 PM and 6 PM to log your purchases.";
 const DENIED_TEXT =
-  "Notifications are off for Budgee in device settings, so reminders won’t be delivered.";
+  "Notifications are off for Budgee in device settings. Turn them on there to receive reminders.";
+const OPEN_SETTINGS_TEXT = "Open Settings";
 
 describe("NotificationPreference (Purchase Reminders)", () => {
   beforeEach(() => {
@@ -74,26 +77,29 @@ describe("NotificationPreference (Purchase Reminders)", () => {
     (Text as jest.Mock).mockClear();
   });
 
-  it("stays enabled and shows normal copy when notifications are permitted", () => {
+  it("shows an enabled, interactive switch when notifications are permitted", () => {
     renderPreference({ permissionDenied: false });
 
-    // The switch is never disabled — the user can always toggle reminders.
-    // (No `disabled` prop is passed, so it's undefined/false.)
     expect(lastSwitchProps().disabled).toBeFalsy();
+    expect(lastSwitchProps().value).toBe(true);
     expect(typeof lastSwitchProps().onValueChange).toBe("function");
     // Standard helper copy is shown (not the "notifications off" hint).
     expect(renderedText(UI_TEXT)).toBe(true);
     expect(renderedText(DENIED_TEXT)).toBe(false);
+    expect(renderedText(OPEN_SETTINGS_TEXT)).toBe(false);
   });
 
-  it("stays interactive but explains the situation when notifications are not permitted", () => {
+  it("shows a disabled off switch and an Open Settings action when permission is denied", () => {
     renderPreference({ permissionDenied: true });
 
-    // Still usable — the user is never blocked from managing their preference.
-    expect(lastSwitchProps().disabled).toBeFalsy();
-    expect(typeof lastSwitchProps().onValueChange).toBe("function");
-    // Guidance explains why notifications aren't being delivered.
+    // Never a fake "on" toggle: the switch is off and cannot be flipped here
+    // because the OS must grant permission from device settings.
+    expect(lastSwitchProps().disabled).toBe(true);
+    expect(lastSwitchProps().value).toBe(false);
+    // Guidance explains why notifications aren't being delivered, with an
+    // obvious path to fix it at the system level.
     expect(renderedText(DENIED_TEXT)).toBe(true);
     expect(renderedText(UI_TEXT)).toBe(false);
+    expect(renderedText(OPEN_SETTINGS_TEXT)).toBe(true);
   });
 });

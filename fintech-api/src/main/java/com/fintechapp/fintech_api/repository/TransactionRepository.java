@@ -39,9 +39,13 @@ public interface TransactionRepository
 
     long deleteByUser_Id(String userId);
 
-    /** Sum of transaction amounts of the given type within a date window (used for actual income). */
+    /** Sum of non-transfer transaction amounts of the given type within a date
+     *  window (used for actual income and month spending). Transfers between the
+     *  user's own accounts are excluded — they are movement of existing money,
+     *  not income or an expense. */
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t "
-            + "WHERE t.user.id = :userId AND t.type = :type AND t.date >= :from AND t.date < :to")
+            + "WHERE t.user.id = :userId AND t.type = :type AND t.date >= :from AND t.date < :to "
+            + "AND t.transfer = false")
     double sumAmountByUserAndTypeAndDateBetween(
             @Param("userId") String userId,
             @Param("type") TransactionType type,

@@ -49,6 +49,7 @@ export function buildDailySpendTotals(
     date?: string;
     amount?: number | string;
     type?: string;
+    isTransfer?: boolean;
   }[],
   month: number,
   year: number,
@@ -59,6 +60,8 @@ export function buildDailySpendTotals(
   for (const tx of transactions) {
     if (!tx.date) continue;
     if ((tx.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
+    // Transfers between the user's own accounts are not spending.
+    if (tx.isTransfer) continue;
 
     const d = new Date(tx.date);
     if (d.getMonth() !== month || d.getFullYear() !== year) continue;

@@ -26,6 +26,8 @@ export function inferExpenseSourceCurrency(
 
   for (const tx of transactions) {
     if (String(tx.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
+    // Transfers between the user's own accounts are not spending.
+    if (tx.isTransfer) continue;
     const currency = normalizeCurrency(tx.baseCurrency || tx.originalCurrency);
     if (!currency) continue;
     counts.set(currency, (counts.get(currency) || 0) + 1);

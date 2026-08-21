@@ -8,12 +8,15 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { useSignUp } from "@/hooks/auth/useSignUp";
 import SignUpForm from "@/components/auth/SignUpForm";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
 import Loader from "@/utils/loader";
+import { NOTIFICATION_ONBOARDING_STORAGE_KEY } from "@/constants/notifications";
+import { logger } from "@/utils/logger";
 import type { ISignupData } from "@/types/user/types";
 
 /**
@@ -39,6 +42,14 @@ const SignUpScreen = () => {
   const handleSignUp = async (credentials: ISignupData) => {
     const success = await signUp.handleSubmit(credentials);
     if (success) {
+      // Mark the one-time notification onboarding prompt as pending so it can
+      // be shown after the user logs in for the first time. Not mandatory —
+      // the user can decline and enable later from Profile settings.
+      try {
+        await AsyncStorage.setItem(NOTIFICATION_ONBOARDING_STORAGE_KEY, "1");
+      } catch (error) {
+        logger.warn("SignUp", "Failed to mark notification onboarding", error);
+      }
       showAlert({
         title: "Signup Successful",
         message: "Your account has been created. Please log in.",

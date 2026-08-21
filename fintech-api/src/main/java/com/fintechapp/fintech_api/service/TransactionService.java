@@ -527,6 +527,7 @@ public class TransactionService {
                 transaction.getDate(),
                 transaction.getCategory(),
                 transaction.getType(),
+                transaction.isTransfer(),
                 transaction.getAmount(),
                 transaction.getBaseCurrency(),
                 transaction.getOriginalAmount(),

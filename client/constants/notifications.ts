@@ -9,6 +9,14 @@ import type { NotificationSchedule } from "@/types/notifications/types";
 /** AsyncStorage key under which notification preferences are persisted. */
 export const NOTIFICATION_PREFERENCES_STORAGE_KEY = "notificationPreferences";
 
+/**
+ * AsyncStorage flag set after account creation and cleared once the one-time
+ * onboarding notification prompt has been shown. While set, the automatic
+ * permission request is deferred so the onboarding prompt is the user's first
+ * and only in-app ask.
+ */
+export const NOTIFICATION_ONBOARDING_STORAGE_KEY = "notificationOnboardingPending";
+
 /** Android notification channel used for purchase reminders. */
 export const ANDROID_NOTIFICATION_CHANNEL_ID = "purchase-reminders";
 export const ANDROID_NOTIFICATION_CHANNEL_NAME = "Purchase reminders";

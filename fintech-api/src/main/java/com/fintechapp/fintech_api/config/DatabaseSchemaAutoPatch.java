@@ -74,6 +74,13 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
                 WHERE plaid_transaction_id IS NOT NULL
                 """);
 
+        // Internal transfers (movement between the user's own accounts) must
+        // never count toward income or expense analytics.
+        jdbcTemplate.execute("""
+                ALTER TABLE transactions
+                ADD COLUMN IF NOT EXISTS is_transfer BOOLEAN NOT NULL DEFAULT FALSE
+                """);
+
         // The reconnect/pending deduplication columns were removed — drop the
         // leftovers from databases created before the removal.
         jdbcTemplate.execute("""
