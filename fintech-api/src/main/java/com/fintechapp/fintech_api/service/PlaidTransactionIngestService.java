@@ -163,7 +163,7 @@ public class PlaidTransactionIngestService {
                 transactionRepository.findByPlaidTransactionIdAndUser_Id(plaidTx.transactionId(), user.getId());
 
         if (existing.isEmpty() && StringUtils.hasText(plaidTx.pendingTransactionId())) {
-            logger.info("Reconciling posted transaction {} with pending transaction {}",
+            logger.debug("Reconciling posted transaction {} with pending transaction {}",
                     plaidTx.transactionId(), plaidTx.pendingTransactionId());
             existing = transactionRepository
                     .findByPlaidTransactionIdAndUser_Id(plaidTx.pendingTransactionId(), user.getId());

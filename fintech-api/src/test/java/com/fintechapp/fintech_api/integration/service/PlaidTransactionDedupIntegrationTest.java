@@ -1,6 +1,8 @@
 package com.fintechapp.fintech_api.integration.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,7 +13,9 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -321,6 +325,65 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                         UUID.randomUUID().toString(), "A", Timestamp.from(date), "Food", "EXPENSE", 5.0, "uniq-1", userId));
 
         cleanup(user);
+    }
+
+    // ── Item-level pessimistic lock (PlaidService.fetchAndApplySyncPage) ──────
+    // Two concurrent /transactions/sync page processors for the same item must
+    // serialize on the plaid_items row lock, and the second must observe the
+    // cursor committed by the first. Runs without the outer test transaction:
+    // the worker threads open their own transactions.
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void pessimisticItemLock_serializesConcurrentPageProcessors() throws Exception {
+        User user = createUser();
+        item("lock-item-1", user);
+
+        CountDownLatch lockAcquired = new CountDownLatch(1);
+        CountDownLatch releaseLock = new CountDownLatch(1);
+        AtomicReference<String> firstReadCursor = new AtomicReference<>();
+        AtomicReference<String> secondReadCursor = new AtomicReference<>();
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            // Thread A: takes the row lock, signals, then holds the transaction open.
+            Future<?> first = pool.submit(() ->
+                    new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                        PlaidItem locked = plaidItemRepository.findByItemIdForUpdate("lock-item-1").orElseThrow();
+                        firstReadCursor.set(locked.getCursor());
+                        lockAcquired.countDown();
+                        try {
+                            releaseLock.await(5, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        locked.setCursor("cursor-after-a");
+                        plaidItemRepository.save(locked);
+                    }));
+            assertTrue(lockAcquired.await(5, TimeUnit.SECONDS), "first processor did not take the row lock");
+
+            // Thread B: must block on the row lock until A commits its cursor.
+            Future<?> second = pool.submit(() ->
+                    new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                        PlaidItem locked = plaidItemRepository.findByItemIdForUpdate("lock-item-1").orElseThrow();
+                        secondReadCursor.set(locked.getCursor());
+                    }));
+
+            Thread.sleep(300);
+            assertNull(secondReadCursor.get(), "second processor must wait for the first to commit");
+
+            releaseLock.countDown();
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+
+            assertNotNull(secondReadCursor.get(), "second processor must proceed after the first commits");
+            assertEquals("cursor-after-a", secondReadCursor.get(),
+                    "second processor must read the cursor committed by the first");
+        } finally {
+            releaseLock.countDown();
+            pool.shutdownNow();
+            cleanup(user);
+        }
     }
 
     private void cleanup(User user) {

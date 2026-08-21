@@ -16,6 +16,15 @@ import com.fintechapp.fintech_api.repository.PlaidItemRepository;
  * Interprets Plaid webhook payloads and hands transaction-sync work to the
  * async sync service. The caller (controller) always returns 200 OK before
  * this does any real work.
+ *
+ * <p>This application consumes {@code /transactions/sync}, so the only
+ * transactions webhook that may trigger a sync is
+ * {@code SYNC_UPDATES_AVAILABLE}. The legacy {@code /transactions/get}
+ * webhooks ({@code INITIAL_UPDATE}, {@code HISTORICAL_UPDATE},
+ * {@code DEFAULT_UPDATE}, {@code TRANSACTIONS_REMOVED}) are deliberately
+ * ignored: Plaid delivers the same updates through
+ * {@code SYNC_UPDATES_AVAILABLE}, and reacting to both would cause duplicate
+ * sync runs against the same item.</p>
  */
 @Service
 public class PlaidWebhookService {
@@ -26,12 +35,19 @@ public class PlaidWebhookService {
     private static final String WEBHOOK_TYPE_ITEM = "ITEM";
 
     /**
-     * Plaid TRANSACTIONS webhook codes that signal new data is available to
-     * pull via {@code /transactions/sync}, or that transactions were removed
-     * and the local store must be reconciled.
+     * The only TRANSACTIONS webhook code that triggers a sync. Plaid fires it
+     * whenever anything changed on the item since the last
+     * {@code /transactions/sync} call.
      */
-    private static final Set<String> SYNC_TRIGGER_CODES = Set.of(
-            "SYNC_UPDATES_AVAILABLE",
+    private static final String WEBHOOK_CODE_SYNC_UPDATES_AVAILABLE = "SYNC_UPDATES_AVAILABLE";
+
+    /**
+     * Legacy {@code /transactions/get} webhook codes. Received for
+     * informational/debug purposes but never acted on: their payloads arrive
+     * in the {@code added}/{@code modified}/{@code removed} arrays of a
+     * {@code SYNC_UPDATES_AVAILABLE}-triggered sync instead.
+     */
+    private static final Set<String> LEGACY_TRANSACTIONS_WEBHOOK_CODES = Set.of(
             "INITIAL_UPDATE",
             "HISTORICAL_UPDATE",
             "DEFAULT_UPDATE",
@@ -63,12 +79,7 @@ public class PlaidWebhookService {
         }
 
         if (!WEBHOOK_TYPE_TRANSACTIONS.equals(webhookType)) {
-            logger.info("Ignoring non-transaction Plaid webhook type={}", webhookType);
-            return;
-        }
-
-        if (!SYNC_TRIGGER_CODES.contains(webhookCode)) {
-            logger.info("Ignoring non-sync transaction webhook code={}", webhookCode);
+            logger.debug("Ignoring non-transaction Plaid webhook type={}", webhookType);
             return;
         }
 
@@ -76,8 +87,24 @@ public class PlaidWebhookService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Webhook missing item_id");
         }
 
-        logger.info("Dispatching async transaction sync for item_id={} code={}", itemId, webhookCode);
-        syncService.syncItemAsync(itemId);
+        if (WEBHOOK_CODE_SYNC_UPDATES_AVAILABLE.equals(webhookCode)) {
+            logger.info("Received Plaid webhook type={} code={} item_id={}; dispatching transaction sync",
+                    webhookType, webhookCode, itemId);
+            syncService.syncItemAsync(itemId);
+            return;
+        }
+
+        if (LEGACY_TRANSACTIONS_WEBHOOK_CODES.contains(webhookCode)) {
+            // High-utility receipt log so operators can confirm the duplicate
+            // legacy hooks are being swallowed and not double-processing.
+            logger.info("Received legacy Plaid webhook type={} code={} item_id={}; ignored because "
+                    + "updates are delivered via /transactions/sync (SYNC_UPDATES_AVAILABLE)",
+                    webhookType, webhookCode, itemId);
+            return;
+        }
+
+        logger.debug("Ignoring unrecognized Plaid webhook type={} code={} item_id={}",
+                webhookType, webhookCode, itemId);
     }
 
     /**

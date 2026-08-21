@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -140,12 +142,24 @@ public class PlaidService {
     }
 
     /**
-     * Fetches a single /transactions/sync page, applies added/modified/removed
-     * records idempotently, and advances the stored cursor. Returns the next
-     * cursor and whether more pages remain.
+     * Fetches a single /transactions/sync page for the item, applies
+     * added/modified/removed records idempotently, and advances the stored
+     * cursor — all inside one database transaction.
+     *
+     * <p>Implements Plaid's cursor loop step by step: the item row is reloaded
+     * under a pessimistic write lock (Step B: the stored cursor is always the
+     * freshest committed value, even when another application instance synced
+     * concurrently), Plaid is called with that cursor (Step C), the payload is
+     * applied (Step D), and {@code next_cursor} is committed (Step E).</p>
      */
     @Transactional
-    public SyncPageResult fetchAndApplySyncPage(PlaidItem item, String cursor) {
+    public SyncPageResult fetchAndApplySyncPage(String itemId) {
+        // Step B — lock the plaid_items row and read the last saved cursor.
+        PlaidItem item = plaidItemRepository.findByItemIdForUpdate(itemId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
+        String cursor = item.getCursor();
+        String userId = item.getUser().getId();
+
         String accessToken;
         try {
             accessToken = encryptionService.decrypt(item.getAccessTokenEncrypted());
@@ -163,9 +177,8 @@ public class PlaidService {
 
         JsonNode response = post("/transactions/sync", body);
 
-        // `item` may be detached (loaded by the async caller); read its user id
-        // from the proxy and load a managed User inside this transaction.
-        String userId = item.getUser().getId();
+        // `item` was loaded inside this transaction; load a managed User for
+        // the ingest work.
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
         List<String> removedIds = new ArrayList<>();
@@ -176,9 +189,12 @@ public class PlaidService {
         List<PlaidTransaction> added = nodes(response, "added").stream()
                 .map(this::toPlaidTransaction)
                 .toList();
+        List<PlaidTransaction> modified = nodes(response, "modified").stream()
+                .map(this::toPlaidTransaction)
+                .toList();
         ingestService.upsertAddedBatch(user, added, item.getItemId());
-        for (JsonNode node : nodes(response, "modified")) {
-            ingestService.upsertTransaction(user, toPlaidTransaction(node), item.getItemId());
+        for (PlaidTransaction plaidTx : modified) {
+            ingestService.upsertTransaction(user, plaidTx, item.getItemId());
         }
         for (JsonNode node : nodes(response, "removed")) {
             JsonNode txId = node.get("transaction_id");
@@ -187,7 +203,7 @@ public class PlaidService {
             }
         }
         if (!removedIds.isEmpty()) {
-            ingestService.removeByPlaidIds(removedIds, user.getId());
+            ingestService.removeByPlaidIds(removedIds, userId);
         }
 
         String nextCursor = response.path("next_cursor").asString(null);
@@ -195,7 +211,30 @@ public class PlaidService {
         item.setCursor(StringUtils.hasText(nextCursor) ? nextCursor : item.getCursor());
         plaidItemRepository.save(item);
 
+        logger.info("Plaid sync payload received for item_id={}: added={}, modified={}, removed={}, new_cursor={}",
+                itemId, added.size(), modified.size(), removedIds.size(), nextCursor);
+
+        registerCursorCommitMilestone(itemId, userId, cursor, item.getCursor());
+
         return new SyncPageResult(item.getCursor(), hasMore);
+    }
+
+    /**
+     * Logs a persistence milestone only after the surrounding transaction has
+     * actually committed, so the INFO line is a reliable signal that the page's
+     * rows and the updated cursor are durable.
+     */
+    private void registerCursorCommitMilestone(String itemId, String userId, String oldCursor, String newCursor) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                logger.info("Committed Plaid sync page for item_id={} user_id={}: cursor {} -> {}",
+                        itemId, userId, oldCursor, newCursor);
+            }
+        });
     }
 
     /**
@@ -281,7 +320,7 @@ public class PlaidService {
             }
             return response;
         } catch (RestClientException ex) {
-            logger.error("Plaid request '{}' failed: {}", path, ex.getMessage());
+            logger.error("Plaid request '{}' failed: {}", path, ex.getMessage(), ex);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY, "Plaid is temporarily unavailable, please try again.");
         }

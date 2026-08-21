@@ -94,13 +94,21 @@ class PlaidWebhookServiceTest {
         verifyNoInteractions(syncService);
     }
 
-    // ── Sync trigger codes dispatch async sync ───────────────────────────────
+    // ── Sync trigger code dispatches async sync ───────────────────────────────
+
+    @Test
+    void handleWebhook_syncUpdatesAvailable_dispatchesAsyncSync() {
+        service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-42"));
+        verify(syncService).syncItemAsync("item-42");
+    }
+
+    // ── Legacy /transactions/get webhooks are ignored when using sync ─────────
 
     @ParameterizedTest
-    @ValueSource(strings = {"SYNC_UPDATES_AVAILABLE", "INITIAL_UPDATE", "HISTORICAL_UPDATE", "DEFAULT_UPDATE", "TRANSACTIONS_REMOVED"})
-    void handleWebhook_syncTriggerCodes_dispatchAsyncSync(String code) {
+    @ValueSource(strings = {"INITIAL_UPDATE", "HISTORICAL_UPDATE", "DEFAULT_UPDATE", "TRANSACTIONS_REMOVED"})
+    void handleWebhook_legacyGetWebhookCodes_areIgnored(String code) {
         service.handleWebhook(payload("TRANSACTIONS", code, "item-42"));
-        verify(syncService).syncItemAsync("item-42");
+        verifyNoInteractions(syncService);
     }
 
     // ── Non-sync codes are acknowledged but not dispatched ───────────────────
@@ -117,12 +125,21 @@ class PlaidWebhookServiceTest {
         verifyNoInteractions(syncService);
     }
 
-    // ── Multiple dispatch is allowed (each webhook = one sync run) ───────────
+    // ── Repeated SYNC_UPDATES_AVAILABLE webhooks are each dispatched ─────────
+    // (the sync service serializes them per item, so duplicates are safe)
+
+    @Test
+    void handleWebhook_syncAndLegacyDuplicateWebhooks_dispatchOnlyOnce() {
+        service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-1"));
+        service.handleWebhook(payload("TRANSACTIONS", "DEFAULT_UPDATE", "item-1"));
+        service.handleWebhook(payload("TRANSACTIONS", "TRANSACTIONS_REMOVED", "item-1"));
+        verify(syncService, times(1)).syncItemAsync("item-1");
+    }
 
     @Test
     void handleWebhook_twoSyncWebhooks_dispatchTwice() {
         service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-1"));
-        service.handleWebhook(payload("TRANSACTIONS", "DEFAULT_UPDATE", "item-1"));
+        service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-1"));
         verify(syncService, times(2)).syncItemAsync("item-1");
     }
 
