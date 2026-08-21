@@ -27,7 +27,6 @@ import jakarta.persistence.Index;
         @Index(name = "idx_transactions_budget", columnList = "budget_id"),
         @Index(name = "idx_transactions_goal", columnList = "goal_id"),
         @Index(name = "idx_transactions_type", columnList = "type"),
-        @Index(name = "idx_transactions_plaid_item", columnList = "plaid_item_id"),
         @Index(name = "uq_transactions_plaid_id", columnList = "plaid_transaction_id", unique = true)
 })
 @Getter
@@ -68,17 +67,6 @@ public class Transaction {
 
     @Column(name = "plaid_transaction_id", length = 128)
     private String plaidTransactionId;
-
-    /** The Plaid {@code item_id} of the Item that synced this transaction. */
-    @Column(name = "plaid_item_id", length = 128)
-    private String plaidItemId;
-
-    /**
-     * For a posted transaction, the {@code transaction_id} of the pending
-     * transaction it replaced (Plaid {@code pending_transaction_id}).
-     */
-    @Column(name = "plaid_pending_transaction_id", length = 128)
-    private String plaidPendingTransactionId;
 
     @Column(columnDefinition = "TEXT")
     private String description;

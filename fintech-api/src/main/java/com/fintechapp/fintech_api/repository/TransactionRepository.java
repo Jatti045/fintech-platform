@@ -33,15 +33,6 @@ public interface TransactionRepository
 
     List<Transaction> findByPlaidTransactionIdInAndUser_Id(List<String> plaidTransactionIds, String userId);
 
-    /**
-     * Reconnect-deduplication candidates: all of a user's transactions that
-     * share the (calendar day, amount, type, name) fingerprint of an incoming
-     * Plaid transaction. The caller restricts to rows synced by a different
-     * Plaid Item and disambiguates same-day candidates by timestamp.
-     */
-    List<Transaction> findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-            String userId, Instant from, Instant to, double amount, TransactionType type, String name);
-
     long countByBudget_IdAndUser_Id(String budgetId, String userId);
 
     long countByGoal_IdAndUser_Id(String goalId, String userId);

@@ -44,10 +44,7 @@ class PlaidTransactionIngestServiceTest {
     private static final int IDX_AMOUNT = 5;
     private static final int IDX_BASE_CURRENCY = 6;
     private static final int IDX_PLAID_TX_ID = 9;
-    private static final int IDX_PLAID_ITEM_ID = 10;
-    private static final int IDX_PENDING_TX_ID = 11;
-    private static final int IDX_USER_ID = 12;
-    private static final int IDX_BUDGET_ID = 13;
+    private static final int IDX_USER_ID = 10;
 
     @Mock
     private TransactionRepository transactionRepository;
@@ -80,30 +77,15 @@ class PlaidTransactionIngestServiceTest {
     private PlaidTransaction plaidTx(
             String id, String name, String category, double amount, Instant date,
             String iso, String unofficial) {
-        return plaidTx(id, null, false, name, category, amount, date, iso, unofficial);
+        return new PlaidTransaction(id, name, date, category, amount, iso, unofficial);
     }
 
-    private PlaidTransaction plaidTx(
-            String id, String pendingId, String name, String category, double amount, Instant date,
-            String iso, String unofficial) {
-        return plaidTx(id, pendingId, false, name, category, amount, date, iso, unofficial);
-    }
-
-    private PlaidTransaction plaidTx(
-            String id, String pendingId, boolean pending, String name, String category, double amount,
-            Instant date, String iso, String unofficial) {
-        return new PlaidTransaction(id, pendingId, pending, name, date, category, amount, iso, unofficial);
-    }
-
-    /** Most tests sync against a single Plaid Item. */
     private void upsert(PlaidTransaction plaidTx) {
-        service.upsertTransaction(user(), plaidTx, "item-1");
+        service.upsertTransaction(user(), plaidTx);
     }
 
-    /** Stubs the full INSERT path: no existing row, no budget, native insert succeeds. */
+    /** Stubs the full INSERT path: no budget, native insert succeeds. */
     private void stubNewTransactionInsert() {
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
                         eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
                 .thenReturn(Optional.empty());
@@ -136,32 +118,18 @@ class PlaidTransactionIngestServiceTest {
         return t;
     }
 
-    /** An already-persisted row belonging to a (different) Plaid Item. */
-    private Transaction existingRow(String id, String plaidId, String itemId, double amount, Instant date) {
-        Transaction t = new Transaction();
-        t.setId(id);
-        t.setPlaidTransactionId(plaidId);
-        t.setPlaidItemId(itemId);
-        t.setBaseCurrency("USD");
-        t.setAmount(amount);
-        t.setType(TransactionType.EXPENSE);
-        t.setDate(date);
-        t.setBudget(budget("b-row-" + id, 500.0, amount));
-        return t;
-    }
-
     // ── No-op guards ─────────────────────────────────────────────────────────
 
     @Test
     void upsertTransaction_nullPayload_isNoOp() {
-        service.upsertTransaction(user(), null, "item-1");
+        service.upsertTransaction(user(), null);
         verifyNoInteractions(transactionRepository, budgetRepository, jdbcTemplate);
     }
 
     @Test
     void upsertTransaction_blankTransactionId_isNoOp() {
         service.upsertTransaction(
-                user(), plaidTx("  ", "Coffee", "Coffee", 5.0, Instant.now(), "USD", null), "item-1");
+                user(), plaidTx("  ", "Coffee", "Coffee", 5.0, Instant.now(), "USD", null));
         verifyNoInteractions(transactionRepository, budgetRepository, jdbcTemplate);
     }
 
@@ -201,7 +169,7 @@ class PlaidTransactionIngestServiceTest {
         assertEquals(TransactionType.EXPENSE.name(), args.get(IDX_TYPE));
         assertEquals(12.5, (Double) args.get(IDX_AMOUNT));
         assertEquals("t1", args.get(IDX_PLAID_TX_ID));
-        assertEquals("item-1", args.get(IDX_PLAID_ITEM_ID));
+        assertEquals("user-1", args.get(IDX_USER_ID));
     }
 
     @Test
@@ -259,7 +227,7 @@ class PlaidTransactionIngestServiceTest {
         User u = user();
         u.setCurrency(userCurrency);
         service.upsertTransaction(
-                u, plaidTx("c-" + iso + unofficial, "X", "X", 1.0, Instant.now(), iso, unofficial), "item-1");
+                u, plaidTx("c-" + iso + unofficial, "X", "X", 1.0, Instant.now(), iso, unofficial));
 
         List<Object> args = capturedInsertArgs();
         assertEquals(expected, args.get(IDX_BASE_CURRENCY));
@@ -290,8 +258,6 @@ class PlaidTransactionIngestServiceTest {
     @Test
     void upsertTransaction_existingBudgetMatch_reusesBudget() {
         Budget existing = budget("b1", 500.0, 100.0);
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
                         eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
                 .thenReturn(Optional.of(existing));
@@ -307,8 +273,6 @@ class PlaidTransactionIngestServiceTest {
     @Test
     void upsertTransaction_caseInsensitiveBudgetMatch_reusesBudget() {
         Budget existing = budget("b2", 100.0, 10.0);
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
                         eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
                 .thenReturn(Optional.of(existing));
@@ -320,12 +284,13 @@ class PlaidTransactionIngestServiceTest {
         assertEquals(25.0, existing.getSpent());
     }
 
-    // ── Duplicate / modified transaction idempotency ─────────────────────────
+    // ── Upsert conflict (row already exists → reconcile as update) ───────────
 
     @Test
     void upsertTransaction_duplicatePlaidId_updatesExistingTransaction() {
         Budget budget = budget("b3", 500.0, 30.0);
         Transaction existingTx = transaction("dup-1", 30.0, TransactionType.EXPENSE, budget);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0); // conflict
         when(transactionRepository.findByPlaidTransactionIdAndUser_Id("dup-1", "user-1"))
                 .thenReturn(Optional.of(existingTx));
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
@@ -346,6 +311,7 @@ class PlaidTransactionIngestServiceTest {
     void upsertTransaction_modifiedAmountDecrease_adjustsSpentDown() {
         Budget budget = budget("b4", 500.0, 50.0);
         Transaction existingTx = transaction("dup-2", 40.0, TransactionType.EXPENSE, budget);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0);
         when(transactionRepository.findByPlaidTransactionIdAndUser_Id("dup-2", "user-1"))
                 .thenReturn(Optional.of(existingTx));
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
@@ -361,6 +327,7 @@ class PlaidTransactionIngestServiceTest {
     void upsertTransaction_expenseConvertedToIncome_decrementsBudgetSpent() {
         Budget budget = budget("b5", 500.0, 80.0);
         Transaction existingTx = transaction("dup-3", 80.0, TransactionType.EXPENSE, budget);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0);
         when(transactionRepository.findByPlaidTransactionIdAndUser_Id("dup-3", "user-1"))
                 .thenReturn(Optional.of(existingTx));
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
@@ -380,19 +347,19 @@ class PlaidTransactionIngestServiceTest {
     void upsertTransaction_sameTransactionTwice_persistsOnce() {
         Budget budget = budget("b11", 500.0, 0.0);
         Transaction stored = transaction("id-A", 5.0, TransactionType.EXPENSE, budget);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1, 0); // insert, then conflict
         when(transactionRepository.findByPlaidTransactionIdAndUser_Id("id-A", "user-1"))
-                .thenReturn(Optional.empty(), Optional.of(stored)); // first insert, second update
+                .thenReturn(Optional.of(stored));
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
                         eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
                 .thenReturn(Optional.of(budget));
-        when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
         upsert(plaidTx("id-A", "STARBUCKS", "Food", 5.0, Instant.parse("2026-01-10T00:00:00Z"), "USD", null));
         upsert(plaidTx("id-A", "STARBUCKS", "Food", 5.0, Instant.parse("2026-01-10T00:00:00Z"), "USD", null));
 
-        verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class)); // one insert
-        verify(transactionRepository, times(1)).save(stored);                 // one update
+        // One insert, then the conflict is reconciled as an update.
+        verify(jdbcTemplate, times(2)).update(anyString(), any(Object[].class));
+        verify(transactionRepository).save(stored);
     }
 
     @Test
@@ -401,15 +368,12 @@ class PlaidTransactionIngestServiceTest {
         Transaction storedA = transaction("A", 5.0, TransactionType.EXPENSE, budget);
         Transaction storedB = transaction("B", 18.0, TransactionType.EXPENSE, budget);
         Transaction storedC = transaction("C", 12.0, TransactionType.EXPENSE, budget);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1, 1, 1, 0, 0, 0);
         when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(
-                        Optional.empty(), Optional.empty(), Optional.empty(),
-                        Optional.of(storedA), Optional.of(storedB), Optional.of(storedC));
+                .thenReturn(Optional.of(storedA), Optional.of(storedB), Optional.of(storedC));
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
                         eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
                 .thenReturn(Optional.of(budget));
-        when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
         Instant date = Instant.parse("2026-01-10T00:00:00Z");
         upsert(plaidTx("A", "STARBUCKS", "Food", 5.0, date, "USD", null));
@@ -420,24 +384,16 @@ class PlaidTransactionIngestServiceTest {
         upsert(plaidTx("B", "UBER", "Food", 18.0, date, "USD", null));
         upsert(plaidTx("C", "CVS", "Food", 12.0, date, "USD", null));
 
-        // Exactly three inserts (one per logical transaction) and three updates.
-        verify(jdbcTemplate, times(3)).update(anyString(), any(Object[].class));
+        // Exactly three inserts and three conflict-reconciled updates.
+        verify(jdbcTemplate, times(6)).update(anyString(), any(Object[].class));
         verify(transactionRepository, times(3)).save(any(Transaction.class));
     }
-
 
     // ── Identical values, different ids ──────────────────────────────────────
 
     @Test
     void upsertTransaction_identicalValuesDifferentIds_sameItem_remainDistinct() {
         stubNewTransactionInsert();
-        Transaction sameItemDuplicate = transaction("id-1", 5.0, TransactionType.EXPENSE, budget("bx", 0, 5.0));
-        sameItemDuplicate.setPlaidItemId("item-1");
-        // The fingerprint query returns the "first" identical transaction, but it
-        // was synced by the SAME Item, so it must NOT be merged into.
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.0), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(sameItemDuplicate));
 
         Instant date = Instant.parse("2026-01-10T00:00:00Z");
         upsert(plaidTx("id-1", "STARBUCKS", "Food", 5.0, date, "USD", null));
@@ -448,320 +404,23 @@ class PlaidTransactionIngestServiceTest {
         verify(transactionRepository, never()).save(any(Transaction.class));
     }
 
-    // ── Reconnect (new Item, new transaction ids) ────────────────────────────
-
-    @Test
-    void upsertTransaction_reconnectDifferentItem_mergesByFingerprint() {
-        Budget budget = budget("b13", 500.0, 5.0);
-        Transaction oldRow = transaction("old-1", 5.0, TransactionType.EXPENSE, budget);
-        oldRow.setPlaidItemId("item-old");
-        oldRow.setBaseCurrency("USD");
-        oldRow.setUpdatedAt(Instant.parse("2026-01-20T00:00:00Z"));
-
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id("new-1", "user-1"))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.0), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(oldRow));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.of(budget));
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        // Reconnected Item "item-new" returns the same Starbucks under a new id.
-        service.upsertTransaction(user(),
-                plaidTx("new-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-01-10T00:00:00Z"), "USD", null),
-                "item-new");
-
-        // Merged into the existing row: no insert, the old row adopts the new id.
-        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
-        verify(transactionRepository).save(oldRow);
-        assertEquals("new-1", oldRow.getPlaidTransactionId());
-        assertEquals("item-new", oldRow.getPlaidItemId());
-    }
-
-
-    // ── Reconnect with multiple identical same-day transactions ──────────────
-
-    @Test
-    void reconnect_twoIdenticalSameDay_timestampDistinguishes_oneToOne() {
-        Budget budget = budget("b20", 500.0, 10.0);
-        Transaction e1 = existingRow("e1", "old-1", "item-old", 5.5, Instant.parse("2026-08-15T09:12:00Z"));
-        Transaction e2 = existingRow("e2", "old-2", "item-old", 5.5, Instant.parse("2026-08-15T18:45:00Z"));
-
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.5), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(e1, e2));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.of(budget));
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        // The reconnected Item re-serves both purchases under new ids but with
-        // the same timestamps — each must be matched to a DIFFERENT existing row.
-        service.upsertAddedBatch(user(), List.of(
-                plaidTx("new-1", "STARBUCKS", "Food", 5.5, Instant.parse("2026-08-15T09:12:00Z"), "USD", null),
-                plaidTx("new-2", "STARBUCKS", "Food", 5.5, Instant.parse("2026-08-15T18:45:00Z"), "USD", null)),
-                "item-new");
-
-        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class)); // no inserts
-        verify(transactionRepository).save(e1);
-        verify(transactionRepository).save(e2);
-        assertEquals("new-1", e1.getPlaidTransactionId());
-        assertEquals("new-2", e2.getPlaidTransactionId());
-        assertEquals("item-new", e1.getPlaidItemId());
-        assertEquals("item-new", e2.getPlaidItemId());
-    }
-
-    @Test
-    void reconnect_threeIdenticalSameDay_timestampDistinguishes_oneToOne() {
-        Budget budget = budget("b21", 500.0, 0.0);
-        Transaction e1 = existingRow("e1", "old-1", "item-old", 5.0, Instant.parse("2026-08-15T09:00:00Z"));
-        Transaction e2 = existingRow("e2", "old-2", "item-old", 5.0, Instant.parse("2026-08-15T13:00:00Z"));
-        Transaction e3 = existingRow("e3", "old-3", "item-old", 5.0, Instant.parse("2026-08-15T18:00:00Z"));
-
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.0), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(e1, e2, e3));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.of(budget));
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        service.upsertAddedBatch(user(), List.of(
-                plaidTx("new-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T09:00:00Z"), "USD", null),
-                plaidTx("new-2", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T13:00:00Z"), "USD", null),
-                plaidTx("new-3", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T18:00:00Z"), "USD", null)),
-                "item-new");
-
-        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
-        verify(transactionRepository).save(e1);
-        verify(transactionRepository).save(e2);
-        verify(transactionRepository).save(e3);
-        assertEquals("new-1", e1.getPlaidTransactionId());
-        assertEquals("new-2", e2.getPlaidTransactionId());
-        assertEquals("new-3", e3.getPlaidTransactionId());
-    }
-
-
-    @Test
-    void reconnect_twoIdenticalSameDay_noTimestamps_ambiguous_doesNotMerge() {
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.0), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(
-                        existingRow("e1", "old-1", "item-old", 5.0, Instant.parse("2026-08-15T00:00:00Z")),
-                        existingRow("e2", "old-2", "item-old", 5.0, Instant.parse("2026-08-15T00:00:00Z"))));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.empty());
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        lenient().when(budgetRepository.saveAndFlush(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        // Two identical same-day purchases with no Plaid timestamp are
-        // indistinguishable — the reconnect must NOT merge either of them.
-        service.upsertAddedBatch(user(), List.of(
-                plaidTx("new-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T00:00:00Z"), "USD", null),
-                plaidTx("new-2", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T00:00:00Z"), "USD", null)),
-                "item-new");
-
-        verify(jdbcTemplate, times(2)).update(anyString(), any(Object[].class)); // both inserted
-        verify(transactionRepository, never()).save(any(Transaction.class));
-    }
-
-    @Test
-    void reconnect_twoCandidatesSameTimestamp_ambiguous_doesNotMerge() {
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.0), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(
-                        existingRow("e1", "old-1", "item-old", 5.0, Instant.parse("2026-08-15T09:12:00Z")),
-                        existingRow("e2", "old-2", "item-old", 5.0, Instant.parse("2026-08-15T09:12:00Z"))));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.empty());
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        lenient().when(budgetRepository.saveAndFlush(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        // Two candidates at the exact same instant as the incoming transaction —
-        // the timestamp cannot decide which is the same logical transaction.
-        service.upsertTransaction(user(),
-                plaidTx("new-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T09:12:00Z"), "USD", null),
-                "item-new");
-
-        verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class)); // inserted, not merged
-        verify(transactionRepository, never()).save(any(Transaction.class));
-    }
-
-    @Test
-    void reconnect_timestampDiffersSlightly_doesNotMerge() {
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.0), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(
-                        existingRow("e1", "old-1", "item-old", 5.0, Instant.parse("2026-08-15T09:00:00Z")),
-                        existingRow("e2", "old-2", "item-old", 5.0, Instant.parse("2026-08-15T18:00:00Z"))));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.empty());
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        lenient().when(budgetRepository.saveAndFlush(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        // The reconnected timestamp drifted by 5 minutes: it no longer matches
-        // EXACTLY, so the "closest" candidate is NOT evidence — insert instead.
-        service.upsertTransaction(user(),
-                plaidTx("new-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T09:05:00Z"), "USD", null),
-                "item-new");
-
-        verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class)); // inserted, not merged
-        verify(transactionRepository, never()).save(any(Transaction.class));
-    }
-
-    @Test
-    void reconnect_twoClosePurchases_incomingBetween_doesNotMerge() {
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.5), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(
-                        existingRow("e1", "old-1", "item-old", 5.5, Instant.parse("2026-08-15T10:00:00Z")),
-                        existingRow("e2", "old-2", "item-old", 5.5, Instant.parse("2026-08-15T10:30:00Z"))));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.empty());
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        lenient().when(budgetRepository.saveAndFlush(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        // The user made a 10:00 and a 10:30 purchase. A reconnected 10:20 record
-        // matches neither timestamp exactly — 10:30 being "closest" (10 min) is
-        // NOT evidence. It must be inserted, never merged.
-        service.upsertTransaction(user(),
-                plaidTx("new-1", "STARBUCKS", "Food", 5.5, Instant.parse("2026-08-15T10:20:00Z"), "USD", null),
-                "item-new");
-
-        verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class)); // inserted
-        verify(transactionRepository, never()).save(any(Transaction.class));
-    }
-
-    @Test
-    void reconnect_twoIncomingSameTimestamp_cannotCollapseIntoOneExisting() {
-        Budget budget = budget("b23", 500.0, 5.0);
-        Transaction e1 = existingRow("e1", "old-1", "item-old", 5.0, Instant.parse("2026-08-15T10:00:00Z"));
-        e1.setBudget(budget);
-
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id(anyString(), eq("user-1")))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByUser_IdAndDateGreaterThanEqualAndDateLessThanAndAmountAndTypeAndName(
-                        eq("user-1"), any(Instant.class), any(Instant.class), eq(5.0), eq(TransactionType.EXPENSE), eq("STARBUCKS")))
-                .thenReturn(List.of(e1));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.of(budget));
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        // Two incoming transactions with the SAME timestamp as the single
-        // existing row: the first merges, the second must NOT collapse into it.
-        service.upsertAddedBatch(user(), List.of(
-                plaidTx("new-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T10:00:00Z"), "USD", null),
-                plaidTx("new-2", "STARBUCKS", "Food", 5.0, Instant.parse("2026-08-15T10:00:00Z"), "USD", null)),
-                "item-new");
-
-        verify(transactionRepository, times(1)).save(e1);            // exactly one merge
-        verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class)); // second one inserted
-    }
-
-
-    // ── Pending → posted ─────────────────────────────────────────────────────
-
-    @Test
-    void upsertTransaction_postedReconcilesWithPending() {
-        Budget budget = budget("b14", 500.0, 5.0);
-        Transaction pendingRow = transaction("pend-1", 5.0, TransactionType.EXPENSE, budget);
-        pendingRow.setPlaidItemId("item-1");
-        pendingRow.setUpdatedAt(Instant.parse("2026-01-20T00:00:00Z"));
-
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id("post-1", "user-1"))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id("pend-1", "user-1"))
-                .thenReturn(Optional.of(pendingRow));
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.of(budget));
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        // The posted transaction links to the pending transaction we stored.
-        service.upsertTransaction(user(),
-                plaidTx("post-1", "pend-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-01-10T00:00:00Z"), "USD", null),
-                "item-1");
-
-        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class)); // no new row
-        verify(transactionRepository).save(pendingRow);
-        assertEquals("post-1", pendingRow.getPlaidTransactionId());  // adopts the posted id
-        assertEquals("pend-1", pendingRow.getPlaidPendingTransactionId());
-    }
-
-    @Test
-    void upsertTransaction_pendingAndPosted_sameBatch_persistsOnce() {
-        Budget budget = budget("b15", 500.0, 0.0);
-        Transaction pendingRow = transaction("pend-2", 5.0, TransactionType.EXPENSE, budget);
-        pendingRow.setPlaidItemId("item-1");
-        pendingRow.setUpdatedAt(Instant.parse("2026-01-20T00:00:00Z"));
-
-        // Pending first (insert), then the posted transaction references it.
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id("pend-2", "user-1"))
-                .thenReturn(Optional.empty(), Optional.of(pendingRow));
-        when(transactionRepository.findByPlaidTransactionIdAndUser_Id("post-2", "user-1"))
-                .thenReturn(Optional.empty());
-        when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
-                        eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
-                .thenReturn(Optional.of(budget));
-        when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-        service.upsertTransaction(user(),
-                plaidTx("pend-2", null, "STARBUCKS", "Food", 5.0, Instant.parse("2026-01-10T00:00:00Z"), "USD", null),
-                "item-1");
-        service.upsertTransaction(user(),
-                plaidTx("post-2", "pend-2", "STARBUCKS", "Food", 5.0, Instant.parse("2026-01-10T00:00:00Z"), "USD", null),
-                "item-1");
-
-        // One insert (pending), one update (posted reconciles into the pending row).
-        verify(jdbcTemplate, times(1)).update(anyString(), any(Object[].class));
-        verify(transactionRepository, times(1)).save(pendingRow);
-        assertEquals("post-2", pendingRow.getPlaidTransactionId());
-    }
-
-    // ── Insert conflict (concurrent sync won the race) ───────────────────────
+    // ── Insert conflict (existing row reconciles instead of duplicating) ─────
 
     @Test
     void upsertTransaction_insertConflict_reconcilesExistingRow() {
         Budget budget = budget("b16", 500.0, 5.0);
         Transaction stored = transaction("conf-1", 5.0, TransactionType.EXPENSE, budget);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0);
         when(transactionRepository.findByPlaidTransactionIdAndUser_Id("conf-1", "user-1"))
-                .thenReturn(Optional.empty(), Optional.of(stored));
+                .thenReturn(Optional.of(stored));
         when(budgetRepository.findByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
                         eq("user-1"), anyString(), any(Instant.class), any(Instant.class)))
                 .thenReturn(Optional.of(budget));
-        lenient().when(budgetRepository.save(any(Budget.class))).thenAnswer(inv -> inv.getArgument(0));
-        // Native insert is skipped (ON CONFLICT DO NOTHING) — another sync won.
-        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(0);
 
         upsert(plaidTx("conf-1", "STARBUCKS", "Food", 5.0, Instant.parse("2026-01-10T00:00:00Z"), "USD", null));
 
         verify(transactionRepository).save(stored); // reconciled as an update instead
-        assertEquals(5.0, budget.getSpent());       // no double increment
+        assertEquals(5.0, budget.getSpent());       // same amount -> no double increment
     }
 
 
@@ -822,6 +481,7 @@ class PlaidTransactionIngestServiceTest {
         service.removeByPlaidIds(List.of("rem-3"), "user-1");
 
         assertEquals(0.0, budget.getSpent()); // floored at zero
+        verify(transactionRepository).delete(tx);
     }
 }
 

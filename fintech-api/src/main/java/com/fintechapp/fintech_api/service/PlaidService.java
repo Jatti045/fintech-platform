@@ -192,9 +192,9 @@ public class PlaidService {
         List<PlaidTransaction> modified = nodes(response, "modified").stream()
                 .map(this::toPlaidTransaction)
                 .toList();
-        ingestService.upsertAddedBatch(user, added, item.getItemId());
+        ingestService.upsertAddedBatch(user, added);
         for (PlaidTransaction plaidTx : modified) {
-            ingestService.upsertTransaction(user, plaidTx, item.getItemId());
+            ingestService.upsertTransaction(user, plaidTx);
         }
         for (JsonNode node : nodes(response, "removed")) {
             JsonNode txId = node.get("transaction_id");
@@ -347,8 +347,6 @@ public class PlaidService {
 
         return new PlaidTransaction(
                 node.path("transaction_id").asText(null),
-                node.path("pending_transaction_id").asText(null),
-                node.path("pending").asBoolean(false),
                 name,
                 date,
                 category,

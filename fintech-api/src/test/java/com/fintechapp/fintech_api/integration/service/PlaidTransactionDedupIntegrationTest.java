@@ -38,8 +38,10 @@ import com.fintechapp.fintech_api.service.PlaidTransactionIngestService.PlaidTra
  * End-to-end tests proving the Plaid transaction persistence layer is
  * idempotent against the real database, including the unique index on
  * {@code plaid_transaction_id}. These exercise the actual
- * {@link PlaidTransactionIngestService} (no mocks), so duplicate protection is
- * verified end to end.
+ * {@link PlaidTransactionIngestService} (no mocks), so the SQL upsert (a new
+ * id inserts a row, a known id updates the existing row in place) is verified
+ * end to end. After a disconnect + reconnect Plaid re-serves transactions
+ * under new ids, which are inserted as-is.
  */
 class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
 
@@ -69,15 +71,7 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
     }
 
     private PlaidTransaction tx(String id, String name, double amount, Instant date) {
-        return tx(id, null, false, name, amount, date);
-    }
-
-    private PlaidTransaction tx(String id, String pendingId, String name, double amount, Instant date) {
-        return tx(id, pendingId, false, name, amount, date);
-    }
-
-    private PlaidTransaction tx(String id, String pendingId, boolean pending, String name, double amount, Instant date) {
-        return new PlaidTransaction(id, pendingId, pending, name, date, "Food", amount, "USD", null);
+        return new PlaidTransaction(id, name, date, "Food", amount, "USD", null);
     }
 
     private List<Transaction> userTransactions(User user) {
@@ -92,9 +86,9 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         PlaidItem item = item("item-1", user);
         Instant date = Instant.parse("2026-01-10T00:00:00Z");
 
-        ingestService.upsertTransaction(user, tx("t-1", "STARBUCKS", 5.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("t-1", "STARBUCKS", 5.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("t-1", "STARBUCKS", 5.0, date), item.getItemId());
+        ingestService.upsertTransaction(user, tx("t-1", "STARBUCKS", 5.0, date));
+        ingestService.upsertTransaction(user, tx("t-1", "STARBUCKS", 5.0, date));
+        ingestService.upsertTransaction(user, tx("t-1", "STARBUCKS", 5.0, date));
 
         List<Transaction> stored = userTransactions(user);
         assertEquals(1, stored.size());
@@ -107,12 +101,12 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         PlaidItem item = item("item-2", user);
         Instant date = Instant.parse("2026-01-10T00:00:00Z");
 
-        ingestService.upsertTransaction(user, tx("A", "STARBUCKS", 5.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("B", "UBER", 18.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("C", "CVS", 12.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("A", "STARBUCKS", 5.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("B", "UBER", 18.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("C", "CVS", 12.0, date), item.getItemId());
+        ingestService.upsertTransaction(user, tx("A", "STARBUCKS", 5.0, date));
+        ingestService.upsertTransaction(user, tx("B", "UBER", 18.0, date));
+        ingestService.upsertTransaction(user, tx("C", "CVS", 12.0, date));
+        ingestService.upsertTransaction(user, tx("A", "STARBUCKS", 5.0, date));
+        ingestService.upsertTransaction(user, tx("B", "UBER", 18.0, date));
+        ingestService.upsertTransaction(user, tx("C", "CVS", 12.0, date));
 
         assertEquals(3, userTransactions(user).size());
     }
@@ -126,101 +120,10 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         Instant date = Instant.parse("2026-01-10T00:00:00Z");
 
         // Two legitimate $5 Starbucks purchases on the same day.
-        ingestService.upsertTransaction(user, tx("id-1", "STARBUCKS", 5.0, date), item.getItemId());
-        ingestService.upsertTransaction(user, tx("id-2", "STARBUCKS", 5.0, date), item.getItemId());
+        ingestService.upsertTransaction(user, tx("id-1", "STARBUCKS", 5.0, date));
+        ingestService.upsertTransaction(user, tx("id-2", "STARBUCKS", 5.0, date));
 
         assertEquals(2, userTransactions(user).size());
-    }
-
-    // ── Reconnect (disconnect + reconnect = new Item, new transaction ids) ───
-
-    @Test
-    void reconnectNewItem_sameHistoricalTransactions_noDuplicates() {
-        User user = createUser();
-        PlaidItem oldItem = item("item-old", user);
-        Instant date = Instant.parse("2026-01-10T00:00:00Z");
-
-        ingestService.upsertTransaction(user, tx("old-1", "STARBUCKS", 5.0, date), oldItem.getItemId());
-        ingestService.upsertTransaction(user, tx("old-2", "UBER", 18.0, date), oldItem.getItemId());
-
-        // Disconnect: the Plaid Item is removed, but historical transactions stay.
-        plaidItemRepository.delete(oldItem);
-
-        // Reconnect: a brand-new Item re-serves the same transactions under new ids.
-        PlaidItem newItem = item("item-new", user);
-        ingestService.upsertTransaction(user, tx("new-1", "STARBUCKS", 5.0, date), newItem.getItemId());
-        ingestService.upsertTransaction(user, tx("new-2", "UBER", 18.0, date), newItem.getItemId());
-
-        List<Transaction> stored = userTransactions(user);
-        assertEquals(2, stored.size());
-        // The old rows adopted the reconnected ids (fingerprint merge).
-        assertEquals(2, stored.stream().filter(t -> "item-new".equals(t.getPlaidItemId())).count());
-        assertTrue(stored.stream().anyMatch(t -> "new-1".equals(t.getPlaidTransactionId())));
-        assertTrue(stored.stream().anyMatch(t -> "new-2".equals(t.getPlaidTransactionId())));
-    }
-    @Test
-    void reconnectTwoIdenticalSameDay_transactions_timestampDistinguishes_oneToEach() {
-        User user = createUser();
-        PlaidItem oldItem = item("item-old", user);
-        Instant morning = Instant.parse("2026-08-15T09:12:00Z");
-        Instant evening = Instant.parse("2026-08-15T18:45:00Z");
-
-        ingestService.upsertTransaction(user, tx("old-1", "STARBUCKS", 5.5, morning), oldItem.getItemId());
-        ingestService.upsertTransaction(user, tx("old-2", "STARBUCKS", 5.5, evening), oldItem.getItemId());
-        plaidItemRepository.delete(oldItem);
-
-        // Reconnect: the same two purchases come back with new ids but the same
-        // timestamps — each must merge into a DIFFERENT existing row.
-        PlaidItem newItem = item("item-new", user);
-        ingestService.upsertTransaction(user, tx("new-1", "STARBUCKS", 5.5, morning), newItem.getItemId());
-        ingestService.upsertTransaction(user, tx("new-2", "STARBUCKS", 5.5, evening), newItem.getItemId());
-
-        List<Transaction> stored = userTransactions(user);
-        assertEquals(2, stored.size());
-        assertTrue(stored.stream().anyMatch(t -> "new-1".equals(t.getPlaidTransactionId())));
-        assertTrue(stored.stream().anyMatch(t -> "new-2".equals(t.getPlaidTransactionId())));
-        assertEquals(2, stored.stream().filter(t -> "item-new".equals(t.getPlaidItemId())).count());
-    }
-
-    @Test
-    void reconnectClosestTimestampIsNotEvidence_ambiguous_doesNotMerge() {
-        User user = createUser();
-        PlaidItem oldItem = item("item-old", user);
-
-        ingestService.upsertTransaction(
-                user, tx("old-1", "STARBUCKS", 5.5, Instant.parse("2026-08-15T10:00:00Z")), oldItem.getItemId());
-        ingestService.upsertTransaction(
-                user, tx("old-2", "STARBUCKS", 5.5, Instant.parse("2026-08-15T10:30:00Z")), oldItem.getItemId());
-        plaidItemRepository.delete(oldItem);
-
-        // A reconnected 10:20 record is "closest" to the 10:30 purchase (10 min)
-        // but matches neither timestamp exactly. Proximity is NOT evidence, so
-        // the transaction must be inserted rather than merged.
-        PlaidItem newItem = item("item-new", user);
-        ingestService.upsertTransaction(
-                user, tx("new-1", "STARBUCKS", 5.5, Instant.parse("2026-08-15T10:20:00Z")), newItem.getItemId());
-
-        assertEquals(3, userTransactions(user).size()); // 2 old + 1 new; nothing merged
-    }
-
-    @Test
-    void reconnectTwoIdenticalSameDay_noTimestamps_ambiguous_doesNotMerge() {
-        User user = createUser();
-        PlaidItem oldItem = item("item-old", user);
-        Instant midnight = Instant.parse("2026-08-15T00:00:00Z");
-
-        ingestService.upsertTransaction(user, tx("old-1", "STARBUCKS", 5.5, midnight), oldItem.getItemId());
-        ingestService.upsertTransaction(user, tx("old-2", "STARBUCKS", 5.5, midnight), oldItem.getItemId());
-        plaidItemRepository.delete(oldItem);
-
-        // Without a Plaid timestamp the two purchases are indistinguishable, so
-        // the reconnect must NOT merge either of them (no silent corruption).
-        PlaidItem newItem = item("item-new", user);
-        ingestService.upsertTransaction(user, tx("new-1", "STARBUCKS", 5.5, midnight), newItem.getItemId());
-        ingestService.upsertTransaction(user, tx("new-2", "STARBUCKS", 5.5, midnight), newItem.getItemId());
-
-        // 2 old rows + 2 newly inserted rows; nothing was falsely merged.
-        assertEquals(4, userTransactions(user).size());
     }
 
     @Test
@@ -229,34 +132,13 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         PlaidItem item = item("item-3x", user);
 
         ingestService.upsertTransaction(
-                user, tx("a-1", "STARBUCKS", 5.5, Instant.parse("2026-08-15T09:00:00Z")), item.getItemId());
+                user, tx("a-1", "STARBUCKS", 5.5, Instant.parse("2026-08-15T09:00:00Z")));
         ingestService.upsertTransaction(
-                user, tx("a-2", "STARBUCKS", 5.5, Instant.parse("2026-08-15T13:00:00Z")), item.getItemId());
+                user, tx("a-2", "STARBUCKS", 5.5, Instant.parse("2026-08-15T13:00:00Z")));
         ingestService.upsertTransaction(
-                user, tx("a-3", "STARBUCKS", 5.5, Instant.parse("2026-08-15T18:00:00Z")), item.getItemId());
+                user, tx("a-3", "STARBUCKS", 5.5, Instant.parse("2026-08-15T18:00:00Z")));
 
         assertEquals(3, userTransactions(user).size());
-    }
-
-
-
-    // ── Pending → posted ─────────────────────────────────────────────────────
-
-    @Test
-    void pendingThenPosted_reconcilesToOne() {
-        User user = createUser();
-        PlaidItem item = item("item-4", user);
-        Instant date = Instant.parse("2026-01-10T00:00:00Z");
-
-        ingestService.upsertTransaction(user, tx("pend-1", "STARBUCKS", 5.0, date), item.getItemId());
-        // The posted transaction references the pending transaction via pending_transaction_id.
-        ingestService.upsertTransaction(
-                user, tx("post-1", "pend-1", "STARBUCKS", 5.0, date), item.getItemId());
-
-        List<Transaction> stored = userTransactions(user);
-        assertEquals(1, stored.size());
-        assertEquals("post-1", stored.get(0).getPlaidTransactionId());
-        assertEquals("pend-1", stored.get(0).getPlaidPendingTransactionId());
     }
 
     // ── Concurrent insertion ─────────────────────────────────────────────────
@@ -284,7 +166,7 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                     Thread.currentThread().interrupt();
                 }
                 try {
-                    ingestService.upsertTransaction(user, plaidTx, item.getItemId());
+                    ingestService.upsertTransaction(user, plaidTx);
                 } finally {
                     done.countDown();
                 }
@@ -398,4 +280,3 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         });
     }
 }
-
