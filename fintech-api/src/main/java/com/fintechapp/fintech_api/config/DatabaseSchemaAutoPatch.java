@@ -82,15 +82,39 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
                 """);
 
         // The reconnect/pending deduplication columns were removed — drop the
-        // leftovers from databases created before the removal.
-        jdbcTemplate.execute("""
-                ALTER TABLE transactions DROP COLUMN IF EXISTS plaid_item_id
-                """);
+        // leftovers from databases created before the removal. plaid_item_id
+        // was dropped once for the old reconnect scheme but is now re-introduced
+        // below as the account/institution ownership key.
         jdbcTemplate.execute("""
                 ALTER TABLE transactions DROP COLUMN IF EXISTS plaid_pending_transaction_id
                 """);
         jdbcTemplate.execute("""
                 DROP INDEX IF EXISTS idx_transactions_plaid_item
+                """);
+
+        // Persist the Plaid account and Plaid item (financial institution
+        // connection) each transaction was synchronized from. Nullable:
+        // historical transactions predate these columns and are not backfilled.
+        jdbcTemplate.execute("""
+                ALTER TABLE transactions
+                ADD COLUMN IF NOT EXISTS plaid_account_id VARCHAR(128)
+                """);
+                jdbcTemplate.execute("""
+                ALTER TABLE transactions
+                ADD COLUMN IF NOT EXISTS plaid_item_id VARCHAR(128)
+                """);
+        // Plaid's personal_finance_category.detailed code (e.g.
+        // TRANSFER_*_ACCOUNT_TRANSFER vs TRANSFER_*_THIRD_PARTY_P2P). Nullable:
+        // persisted for new transactions only; used to gate transfer pairing.
+        jdbcTemplate.execute("""
+                ALTER TABLE transactions
+                ADD COLUMN IF NOT EXISTS plaid_pfc_detailed VARCHAR(128)
+                """);
+
+        // Ownership-scoped lookup for proof-based internal-transfer pairing.
+        jdbcTemplate.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transactions_user_plaid_item
+                ON transactions(user_id, plaid_item_id)
                 """);
 
         // Icons were removed from budgets and transactions — drop the leftover

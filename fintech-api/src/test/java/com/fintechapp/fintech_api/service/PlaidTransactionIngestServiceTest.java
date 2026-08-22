@@ -45,9 +45,12 @@ class PlaidTransactionIngestServiceTest {
     private static final int IDX_AMOUNT = 5;
     private static final int IDX_BASE_CURRENCY = 6;
     private static final int IDX_PLAID_TX_ID = 9;
-    private static final int IDX_IS_TRANSFER = 10;
-    private static final int IDX_USER_ID = 11;
-    private static final int IDX_BUDGET_ID = 12;
+    private static final int IDX_PLAID_ACCOUNT_ID = 10;
+    private static final int IDX_PLAID_ITEM_ID = 11;
+        private static final int IDX_IS_TRANSFER = 12;
+    private static final int IDX_PLAID_PFC_DETAILED = 13;
+    private static final int IDX_USER_ID = 14;
+    private static final int IDX_BUDGET_ID = 15;
 
     @Mock
     private TransactionRepository transactionRepository;
@@ -77,15 +80,15 @@ class PlaidTransactionIngestServiceTest {
         return u;
     }
 
-    private PlaidTransaction plaidTx(
+        private PlaidTransaction plaidTx(
             String id, String name, String category, double amount, Instant date,
             String iso, String unofficial) {
-        return new PlaidTransaction(id, name, date, category, amount, false, iso, unofficial);
+        return new PlaidTransaction(id, name, date, category, amount, false, iso, unofficial, null, null, null);
     }
 
     /** A transfer between the user's own accounts (e.g. Checking → Savings). */
     private PlaidTransaction plaidTransfer(String id, double amount, Instant date, String iso) {
-        return new PlaidTransaction(id, "Transfer", date, "Transfer", amount, true, iso, null);
+        return new PlaidTransaction(id, "Transfer", date, "Transfer", amount, true, iso, null, null, null, "TRANSFER_TRANSFER_ACCOUNT_TRANSFER");
     }
 
     private void upsert(PlaidTransaction plaidTx) {
@@ -178,6 +181,22 @@ class PlaidTransactionIngestServiceTest {
         assertEquals(12.5, (Double) args.get(IDX_AMOUNT));
         assertEquals("t1", args.get(IDX_PLAID_TX_ID));
         assertEquals("user-1", args.get(IDX_USER_ID));
+    }
+
+    @Test
+    void upsertTransaction_persistsPlaidAccountIdAndPlaidItemId() {
+        stubNewTransactionInsert();
+
+                PlaidTransaction plaidTx = new PlaidTransaction(
+                "t-id", "Starbucks", Instant.parse("2026-08-05T10:00:00Z"), "FOOD_AND_DRINK",
+                12.5, false, "USD", null, "account-123", "item-123", "FOOD_AND_DRINK_COFFEE");
+        service.upsertTransaction(user(), plaidTx);
+
+        List<Object> args = capturedInsertArgs();
+        assertEquals("t-id", args.get(IDX_PLAID_TX_ID));
+        assertEquals("account-123", args.get(IDX_PLAID_ACCOUNT_ID));
+        assertEquals("item-123", args.get(IDX_PLAID_ITEM_ID));
+        assertEquals("FOOD_AND_DRINK_COFFEE", args.get(IDX_PLAID_PFC_DETAILED));
     }
 
     @Test

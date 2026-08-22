@@ -19,9 +19,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.fintechapp.fintech_api.config.PlaidConfig;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.plaid.PlaidItemResponse;
@@ -57,6 +60,9 @@ public class PlaidService {
     private static final DateTimeFormatter PLAID_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private static final Logger logger = LoggerFactory.getLogger(PlaidService.class);
+
+    /** Used only to parse Plaid's error payloads so they can be surfaced. */
+    private static final ObjectMapper ERROR_BODY_MAPPER = new ObjectMapper();
 
     private final RestClient plaidRestClient;
     private final PlaidConfig.PlaidSettings settings;
@@ -187,10 +193,10 @@ public class PlaidService {
         // transaction references its pending counterpart) and performs the
         // reconnect fingerprint matching one-to-one within the batch.
         List<PlaidTransaction> added = nodes(response, "added").stream()
-                .map(this::toPlaidTransaction)
+                .map(node -> toPlaidTransaction(node, item.getItemId()))
                 .toList();
         List<PlaidTransaction> modified = nodes(response, "modified").stream()
-                .map(this::toPlaidTransaction)
+                .map(node -> toPlaidTransaction(node, item.getItemId()))
                 .toList();
         ingestService.upsertAddedBatch(user, added);
         for (PlaidTransaction plaidTx : modified) {
@@ -312,18 +318,47 @@ public class PlaidService {
             if (response == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Empty response from Plaid.");
             }
-            JsonNode errorType = response.get("error_type");
-            if (errorType != null) {
-                String code = response.path("error_code").asString("unknown");
-                String message = response.path("error_message").asString("Plaid reported an error.");
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid error " + code + ": " + message);
+            if (response.has("error_type")) {
+                throw plaidError(HttpStatus.BAD_GATEWAY, response);
             }
             return response;
+        } catch (RestClientResponseException ex) {
+            // Plaid returned a non-2xx status (e.g. INVALID_API_KEYS, INVALID_INPUT,
+            // ITEM_LOGIN_REQUIRED). The Plaid error payload is carried on the
+            // exception; log the full body and surface the actual error code and
+            // message instead of a generic "unavailable" 502 that hides the cause.
+            String errorBody = ex.getResponseBodyAsString();
+            logger.error("Plaid request '{}' failed with HTTP {}: {}",
+                    path, ex.getStatusCode().value(),
+                    StringUtils.hasText(errorBody) ? errorBody : ex.getMessage());
+            throw plaidError(HttpStatus.BAD_GATEWAY, errorBody);
         } catch (RestClientException ex) {
+            // Network-level failure (connect timeout, DNS, connection refused) —
+            // not a Plaid error response.
             logger.error("Plaid request '{}' failed: {}", path, ex.getMessage(), ex);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY, "Plaid is temporarily unavailable, please try again.");
         }
+    }
+
+    /** 502 that surfaces the error payload from a parsed Plaid error body. */
+    private static ResponseStatusException plaidError(HttpStatus status, JsonNode body) {
+        String code = body.path("error_code").asString("unknown");
+        String message = body.path("error_message").asString("Plaid reported an error.");
+        return new ResponseStatusException(status, "Plaid error " + code + ": " + message);
+    }
+
+    /** 502 that surfaces Plaid's raw error body (parsed when possible). */
+    private static ResponseStatusException plaidError(HttpStatus status, String errorBody) {
+        if (StringUtils.hasText(errorBody)) {
+            try {
+                return plaidError(status, ERROR_BODY_MAPPER.readTree(errorBody));
+            } catch (JacksonException ignored) {
+                // Body was not JSON (e.g. an intermediary HTML error page) — show it raw.
+                return new ResponseStatusException(status, "Plaid request failed: " + errorBody);
+            }
+        }
+        return new ResponseStatusException(status, "Plaid request failed.");
     }
 
     private static List<JsonNode> nodes(JsonNode root, String field) {
@@ -335,7 +370,7 @@ public class PlaidService {
         return out;
     }
 
-    private PlaidTransaction toPlaidTransaction(JsonNode node) {
+    private PlaidTransaction toPlaidTransaction(JsonNode node, String plaidItemId) {
         String name = node.path("merchant_name").asText(null);
         if (!StringUtils.hasText(name)) {
             name = node.path("name").asText(null);
@@ -345,6 +380,12 @@ public class PlaidService {
         double amount = node.path("amount").asDouble(0.0);
         Instant date = parseDate(node);
         boolean transfer = PlaidTransferDetector.isTransfer(node);
+        // Plaid's structured account_id identifies which of the user's accounts
+        // this transaction belongs to; the item id identifies the connected
+        // financial institution. Both are persisted for ownership-based
+        // transfer classification.
+                String plaidAccountId = node.path("account_id").asText(null);
+        String pfcDetailed = readPfcDetailed(node);
 
         return new PlaidTransaction(
                 node.path("transaction_id").asText(null),
@@ -354,7 +395,22 @@ public class PlaidService {
                 amount,
                 transfer,
                 node.path("iso_currency_code").asText(null),
-                node.path("unofficial_currency_code").asText(null));
+                node.path("unofficial_currency_code").asText(null),
+                plaidAccountId,
+                plaidItemId,
+                pfcDetailed);
+    }
+
+    /** @return personal_finance_category.detailed if present, otherwise null. */
+    private static String readPfcDetailed(JsonNode node) {
+        JsonNode personalFinance = node.get("personal_finance_category");
+        if (personalFinance != null) {
+            String value = personalFinance.path("detailed").asText(null);
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static String readCategory(JsonNode node) {

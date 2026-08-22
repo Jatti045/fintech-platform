@@ -69,6 +69,33 @@ public class Transaction {
     private String plaidTransactionId;
 
     /**
+     * Plaid's structured {@code account_id} for the account this transaction
+     * belongs to. Persisted so the application can later establish which
+     * accounts belong to the same user at the same institution.
+     */
+    @Column(name = "plaid_account_id", length = 128)
+    private String plaidAccountId;
+
+    /**
+     * The Plaid item (financial institution connection) this transaction was
+     * synchronized from. Persisted so account ownership can be proven against
+     * the user's own Plaid items.
+     */
+    @Column(name = "plaid_item_id", length = 128)
+    private String plaidItemId;
+
+    /**
+     * Plaid's {@code personal_finance_category.detailed} code (falling back to
+     * {@code subcategory}). Persisted because {@code category} keeps only the
+     * coarse {@code primary} code (e.g. {@code TRANSFER_OUT}), which is shared
+     * by genuine internal transfers and P2P apps (Cash App/Venmo). Only the
+     * detailed code distinguishes {@code TRANSFER_OUT_ACCOUNT_TRANSFER} from
+     * {@code TRANSFER_OUT_THIRD_PARTY_P2P}.
+     */
+    @Column(name = "plaid_pfc_detailed", length = 128)
+    private String plaidPfcDetailed;
+
+    /**
      * True when this transaction is a transfer of money between the user's own
      * accounts (movement of existing money). Such transactions stay in the
      * history but must never contribute to income or expense analytics.

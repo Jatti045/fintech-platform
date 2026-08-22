@@ -33,6 +33,19 @@ public interface TransactionRepository
 
     List<Transaction> findByPlaidTransactionIdInAndUser_Id(List<String> plaidTransactionIds, String userId);
 
+    /**
+     * All transactions for a user + Plaid item that carry account ownership
+     * data (non-null {@code plaid_account_id}). Only these can be paired into
+     * proof-based internal transfers — same user, same item (institution),
+     * different accounts.
+     */
+    @Query("SELECT t FROM Transaction t "
+            + "WHERE t.user.id = :userId AND t.plaidItemId = :plaidItemId "
+            + "AND t.plaidAccountId IS NOT NULL")
+    List<Transaction> findTransferCandidates(
+            @Param("userId") String userId,
+            @Param("plaidItemId") String plaidItemId);
+
     long countByBudget_IdAndUser_Id(String budgetId, String userId);
 
     long countByGoal_IdAndUser_Id(String goalId, String userId);
