@@ -42,3 +42,16 @@ export type {
   FinancialSummaryState,
   IFinancialSummary,
 } from "./slices/financialSummarySlice";
+import {
+  fetchPlaidItems,
+  completeReauth,
+  triggerManualSync,
+  patchPlaidItem,
+} from "./slices/plaidSlice";
+export {
+  fetchPlaidItems,
+  completeReauth,
+  triggerManualSync,
+  patchPlaidItem,
+};
+export type { PlaidState } from "./slices/plaidSlice";

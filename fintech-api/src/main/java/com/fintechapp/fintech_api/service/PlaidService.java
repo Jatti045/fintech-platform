@@ -29,6 +29,7 @@ import com.fintechapp.fintech_api.config.PlaidConfig;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.plaid.PlaidItemResponse;
 import com.fintechapp.fintech_api.model.PlaidItem;
+import com.fintechapp.fintech_api.model.PlaidItemStatus;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
@@ -214,7 +215,12 @@ public class PlaidService {
 
         String nextCursor = response.path("next_cursor").asString(null);
         boolean hasMore = response.path("has_more").asBoolean(false);
+        // A committed page proves the sync pipeline works end-to-end: stamp the
+        // item as healthy so the clients can display "Last synced …" and
+        // suppress the sync-error warning (spec: clear syncError on success).
         item.setCursor(StringUtils.hasText(nextCursor) ? nextCursor : item.getCursor());
+        item.setLastSyncedAt(Instant.now());
+        item.setSyncError(false);
         plaidItemRepository.save(item);
 
         logger.info("Plaid sync payload received for item_id={}: added={}, modified={}, removed={}, new_cursor={}",
@@ -251,8 +257,74 @@ public class PlaidService {
         String userId = requireUserId(authenticatedUser);
         return plaidItemRepository.findByUser_IdOrderByCreatedAtDesc(userId).stream()
                 .map(item -> new PlaidItemResponse(
-                        item.getId(), item.getItemId(), item.getInstitutionName(), item.getCreatedAt()))
+                        item.getId(), item.getItemId(), item.getInstitutionName(), item.getCreatedAt(),
+                        item.getStatus() == null ? PlaidItemStatus.ACTIVE.name() : item.getStatus().name(),
+                        item.isSyncError(), item.getLastSyncedAt(), item.getReauthRequestedAt()))
                 .toList();
+    }
+
+    /**
+     * Creates an <em>update-mode</em> Plaid Link token so the user can repair a
+     * connection that needs re-authentication.
+     *
+     * <p>Update mode re-uses the item's durable {@code access_token} and the
+     * request body deliberately omits a {@code products} array. The access
+     * token does NOT change, so the client must NOT call
+     * {@code /item/public_token/exchange} after update mode completes.</p>
+     */
+    public String createUpdateLinkToken(AuthenticatedUser authenticatedUser, String itemId) {
+        String userId = requireUserId(authenticatedUser);
+        PlaidItem item = findOwnedItem(authenticatedUser, itemId);
+
+        String accessToken;
+        try {
+            accessToken = encryptionService.decrypt(item.getAccessTokenEncrypted());
+        } catch (IllegalStateException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not decrypt Plaid access token.",
+                    ex);
+        }
+
+        Map<String, Object> body = baseBody();
+        body.put("access_token", accessToken);
+        body.put("client_name", "Budgee");
+        body.put("country_codes", settings.countryCodes());
+        body.put("language", settings.language());
+        body.put("user", Map.of("client_user_id", userId));
+        if (StringUtils.hasText(settings.webhookUrl())) {
+            body.put("webhook", settings.webhookUrl());
+        } else {
+            logger.warn("PLAID_WEBHOOK_URL is not configured; update-mode link tokens are created WITHOUT a webhook URL "
+                    + "and Plaid will not send LOGIN_REPAIRED webhooks for the repaired item.");
+        }
+
+        JsonNode response = post("/link/token/create", body);
+        JsonNode linkToken = response.get("link_token");
+        if (linkToken == null || !StringUtils.hasText(linkToken.asString())) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid did not return a link token.");
+        }
+        return linkToken.asString();
+    }
+
+    /**
+     * Marks an owned item back to {@code ACTIVE} after the user completes
+     * update mode. The access token is unchanged; no exchange is performed.
+     */
+    @Transactional
+    public PlaidItem completeReauth(AuthenticatedUser authenticatedUser, String itemId) {
+        PlaidItem item = findOwnedItem(authenticatedUser, itemId);
+        item.setStatus(PlaidItemStatus.ACTIVE);
+        item.setReauthRequestedAt(null);
+        return plaidItemRepository.save(item);
+    }
+
+    /**
+     * Resolves a Plaid item owned by the authenticated user by its internal
+     * {@code PlaidItem.id}, or throws 404 when missing / not owned.
+     */
+    public PlaidItem findOwnedItem(AuthenticatedUser authenticatedUser, String itemId) {
+        String userId = requireUserId(authenticatedUser);
+        return plaidItemRepository.findByIdAndUser_Id(itemId, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
     }
 
     /**

@@ -7,6 +7,7 @@ import budgetReducer from "./slices/budgetSlice";
 import calendarReducer from "./slices/calendarSlice";
 import goalReducer from "./slices/goalSlice";
 import notificationReducer from "./slices/notificationSlice";
+import plaidReducer from "./slices/plaidSlice";
 
 // Configure the store
 export const store = configureStore({
@@ -19,6 +20,7 @@ export const store = configureStore({
     calendar: calendarReducer,
     theme: themeReducer,
     notifications: notificationReducer,
+    plaid: plaidReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

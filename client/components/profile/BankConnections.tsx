@@ -4,7 +4,10 @@ import { Ionicons } from "@expo/vector-icons";
 
 import GlassPanel from "@/components/global/GlassPanel";
 import { formatDate, hexToRgba } from "@/utils/helper";
+import { formatRelativeTime } from "@/utils/plaidTime";
+import { usePlaidHealth } from "@/hooks/plaid/usePlaidHealth";
 import type { BankConnectionsProps } from "@/types/profile/types";
+import type { IPlaidItem } from "@/types/plaid/types";
 
 /**
  * Bank Connections — glass panel that starts the native Plaid Link flow and
@@ -24,6 +27,98 @@ export default function BankConnections({
   onDisconnect,
 }: BankConnectionsProps) {
   const displayName = (name: string | null) => name || "Bank account";
+  const { reauthingItemId, syncingItemIds, openReauth, retrySync } =
+    usePlaidHealth();
+
+  const reconnectRow = (item: IPlaidItem, name: string) => {
+    const isReauthing = reauthingItemId === item.id;
+    return (
+      <TouchableOpacity
+        key={`reauth-${item.id}`}
+        onPress={() => openReauth(item)}
+        disabled={isReauthing}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`Reconnect ${name}`}
+        style={{
+          backgroundColor: hexToRgba(THEME.danger, 0.12),
+          borderColor: hexToRgba(THEME.danger, 0.4),
+          borderWidth: 1,
+          borderRadius: 10,
+          paddingHorizontal: 10,
+          paddingVertical: 8,
+          marginTop: 6,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Ionicons name="alert-circle" size={15} color={THEME.danger} />
+        <Text
+          style={{
+            color: THEME.danger,
+            fontSize: 12,
+            fontWeight: "700",
+            marginLeft: 6,
+            flex: 1,
+          }}
+        >
+          {name} needs re-authentication — tap to reconnect
+        </Text>
+        {isReauthing ? (
+          <ActivityIndicator size="small" color={THEME.danger} />
+        ) : (
+          <Text style={{ color: THEME.danger, fontSize: 12, fontWeight: "800" }}>
+            Reconnect
+          </Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const syncErrorRow = (item: IPlaidItem, name: string) => {
+    const isSyncing = syncingItemIds.includes(item.id);
+    return (
+      <TouchableOpacity
+        key={`syncerror-${item.id}`}
+        onPress={() => retrySync(item)}
+        disabled={isSyncing}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`Refresh sync for ${name}`}
+        style={{
+          backgroundColor: hexToRgba(THEME.primary, 0.1),
+          borderColor: hexToRgba(THEME.primary, 0.32),
+          borderWidth: 1,
+          borderRadius: 10,
+          paddingHorizontal: 10,
+          paddingVertical: 8,
+          marginTop: 6,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Ionicons name="refresh" size={15} color={THEME.primary} />
+        <Text
+          style={{
+            color: THEME.primary,
+            fontSize: 12,
+            fontWeight: "700",
+            marginLeft: 6,
+            flex: 1,
+          }}
+        >
+          Trouble syncing {name} transactions — tap to refresh
+        </Text>
+        {isSyncing ? (
+          <ActivityIndicator size="small" color={THEME.primary} />
+        ) : (
+          <Text style={{ color: THEME.primary, fontSize: 12, fontWeight: "800" }}>
+            Refresh
+          </Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <GlassPanel padding={14} radius={18} style={{ marginBottom: 12 }}>
@@ -92,14 +187,14 @@ export default function BankConnections({
             const name = displayName(item.institutionName);
             const isDisconnecting = disconnectingId === item.id;
             return (
-              <View
-                key={item.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 8,
-                }}
-              >
+              <View key={item.id}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 8,
+                  }}
+                >
                 <View
                   style={{
                     width: 34,
@@ -133,6 +228,9 @@ export default function BankConnections({
                     }}
                   >
                     Connected {formatDate(item.createdAt)}
+                    {item.lastSyncedAt
+                      ? ` · Last synced ${formatRelativeTime(item.lastSyncedAt)}`
+                      : ""}
                   </Text>
                 </View>
 
@@ -163,6 +261,10 @@ export default function BankConnections({
                     </Text>
                   )}
                 </TouchableOpacity>
+                </View>
+
+                {item.status === "REQUIRES_REAUTH" && reconnectRow(item, name)}
+                {item.syncError && syncErrorRow(item, name)}
               </View>
             );
           })}

@@ -63,6 +63,44 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
                 ON plaid_items(user_id)
                 """);
 
+        // Plaid item health fields used for hardened user feedback:
+        // status (ACTIVE / REQUIRES_REAUTH), syncError, lastSyncedAt and the
+        // timestamp an ITEM_LOGIN_REQUIRED error was received.
+        jdbcTemplate.execute("""
+                ALTER TABLE plaid_items
+                ADD COLUMN IF NOT EXISTS status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE'
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE plaid_items
+                ADD COLUMN IF NOT EXISTS sync_error BOOLEAN NOT NULL DEFAULT FALSE
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE plaid_items
+                ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP WITH TIME ZONE
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE plaid_items
+                ADD COLUMN IF NOT EXISTS reauth_requested_at TIMESTAMP WITH TIME ZONE
+                """);
+
+        // Dead-letter queue for Plaid webhook payloads that could not be
+        // processed. The webhook endpoint always acknowledges Plaid with 200,
+        // so unprocessable payloads land here for manual inspection/replay.
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS failed_webhooks (
+                    id VARCHAR(36) PRIMARY KEY,
+                    item_id VARCHAR(128),
+                    payload TEXT,
+                    error_type VARCHAR(255),
+                    error_message VARCHAR(2000),
+                    stack_trace TEXT,
+                    received_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                )
+                """);
+        jdbcTemplate.execute("""
+                CREATE INDEX IF NOT EXISTS idx_failed_webhooks_received_at
+                ON failed_webhooks(received_at)
+                """);
         // Idempotency key for Plaid-synced transactions (column on existing table).
         jdbcTemplate.execute("""
                 ALTER TABLE transactions

@@ -24,8 +24,12 @@ import com.fintechapp.fintech_api.dto.plaid.DisconnectItemResponse;
 import com.fintechapp.fintech_api.dto.plaid.ExchangePublicTokenRequest;
 import com.fintechapp.fintech_api.dto.plaid.ExchangeTokenResponse;
 import com.fintechapp.fintech_api.dto.plaid.LinkTokenResponse;
+import com.fintechapp.fintech_api.dto.plaid.ManualSyncResponse;
 import com.fintechapp.fintech_api.dto.plaid.PlaidItemResponse;
 import com.fintechapp.fintech_api.dto.plaid.PlaidItemsResponse;
+import com.fintechapp.fintech_api.dto.plaid.ReauthCompleteRequest;
+import com.fintechapp.fintech_api.dto.plaid.ReauthCompleteResponse;
+import com.fintechapp.fintech_api.dto.plaid.UpdateLinkTokenRequest;
 import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.service.PlaidService;
 import com.fintechapp.fintech_api.service.PlaidTransactionSyncService;
@@ -88,7 +92,9 @@ public class PlaidController {
         syncService.syncItemAsync(item.getItemId());
 
         PlaidItemResponse response = new PlaidItemResponse(
-                item.getId(), item.getItemId(), item.getInstitutionName(), item.getCreatedAt());
+                item.getId(), item.getItemId(), item.getInstitutionName(), item.getCreatedAt(),
+                item.getStatus() == null ? "ACTIVE" : item.getStatus().name(),
+                item.isSyncError(), item.getLastSyncedAt(), item.getReauthRequestedAt());
         return new ExchangeTokenResponse(true, "Bank connected", new ExchangeTokenResponse.Data(response));
     }
 
@@ -107,6 +113,50 @@ public class PlaidController {
             @PathVariable String itemId) {
         String deletedItemId = plaidService.disconnectItem(authenticatedUser, itemId);
         return new DisconnectItemResponse(true, "Bank disconnected", new DisconnectItemResponse.Data(deletedItemId));
+    }
+
+    /**
+     * Creates an update-mode Plaid Link token so the user can repair a
+     * connection that needs re-authentication. Re-uses the existing
+     * access_token and does NOT exchange a new public token after completion.
+     */
+    @PostMapping("/link-token/update")
+    public LinkTokenResponse createUpdateLinkToken(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @Valid @RequestBody UpdateLinkTokenRequest request) {
+        String linkToken = plaidService.createUpdateLinkToken(authenticatedUser, request.itemId());
+        return new LinkTokenResponse(true, "Update link token created", new LinkTokenResponse.Data(linkToken));
+    }
+
+    /**
+     * Marks the item {@code ACTIVE} again after the user completes update mode
+     * and kicks off a transaction sync so the repaired connection's data is
+     * refreshed immediately.
+     */
+    @PostMapping("/items/reauth-complete")
+    public ReauthCompleteResponse completeReauth(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @Valid @RequestBody ReauthCompleteRequest request) {
+        PlaidItem item = plaidService.completeReauth(authenticatedUser, request.itemId());
+        syncService.syncItemAsync(item.getItemId());
+        return new ReauthCompleteResponse(true, "Bank connection repaired",
+                new ReauthCompleteResponse.Data(item.getItemId(),
+                        item.getStatus() == null ? "ACTIVE" : item.getStatus().name()));
+    }
+
+    /**
+     * Manually triggers a transaction sync for the given item. The sync runs
+     * on a background thread; its outcome is reflected by the item's
+     * {@code lastSyncedAt} / {@code syncError} health fields.
+     */
+    @PostMapping("/sync/{itemId}")
+    public ManualSyncResponse manualSync(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @PathVariable String itemId) {
+        PlaidItem item = plaidService.findOwnedItem(authenticatedUser, itemId);
+        syncService.syncItemAsync(item.getItemId());
+        return new ManualSyncResponse(true, "Transaction sync started",
+                new ManualSyncResponse.Data(item.getItemId()));
     }
 
     /**
@@ -135,11 +185,22 @@ public class PlaidController {
         try {
             payload = objectMapper.readValue(rawBody, new TypeReference<Map<String, Object>>() { });
         } catch (JacksonException ex) {
-            logger.warn("Received malformed Plaid webhook payload: {}", ex.getMessage());
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Plaid webhook payload", ex);
+            // Malformed payload — dead-letter and ack 200 so Plaid does not retry.
+            logger.error("Received malformed Plaid webhook payload; dead-lettering: {}", ex.getMessage());
+            webhookService.deadLetterWebhook(rawBody, ex);
+            return ResponseEntity.ok(Map.of("success", true));
         }
 
-        webhookService.handleWebhook(payload);
+        try {
+            webhookService.handleWebhook(payload);
+        } catch (Exception ex) {
+            // Spec: log the full stack + dead-letter, but always ack 200. Plaid
+            // retries non-200 responses; we do not want retry storms for a
+            // payload that is already recorded for manual inspection.
+            logger.error("Plaid webhook processing failed; payload dead-lettered. item_id={}",
+                    payload.get("item_id"), ex);
+            webhookService.deadLetterWebhook(rawBody, ex);
+        }
         return ResponseEntity.ok(Map.of("success", true));
     }
 }

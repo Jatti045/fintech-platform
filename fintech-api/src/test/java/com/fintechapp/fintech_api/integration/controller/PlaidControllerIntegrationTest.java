@@ -60,7 +60,11 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
                         "item-db-1",
                         "plaid-item-1",
                         "Chase",
-                        Instant.ofEpochSecond(1_700_000_000L))));
+                        Instant.ofEpochSecond(1_700_000_000L),
+                        "ACTIVE",
+                        false,
+                        Instant.ofEpochSecond(1_700_000_100L),
+                        null)));
 
         mockMvc.perform(get("/api/plaid/items")
                         .header(authHeaderName(), authHeader(user)))
@@ -69,7 +73,10 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.items").isArray())
                 .andExpect(jsonPath("$.data.items[0].id").value("item-db-1"))
                 .andExpect(jsonPath("$.data.items[0].itemId").value("plaid-item-1"))
-                .andExpect(jsonPath("$.data.items[0].institutionName").value("Chase"));
+                .andExpect(jsonPath("$.data.items[0].institutionName").value("Chase"))
+                .andExpect(jsonPath("$.data.items[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.items[0].syncError").value(false))
+                .andExpect(jsonPath("$.data.items[0].lastSyncedAt").exists());
 
         verify(plaidService).listItems(any());
     }

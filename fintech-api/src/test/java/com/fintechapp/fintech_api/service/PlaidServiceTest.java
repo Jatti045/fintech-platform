@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.fintechapp.fintech_api.config.PlaidConfig.PlaidSettings;
+import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
@@ -457,6 +459,45 @@ class PlaidServiceTest {
 
         assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
         assertTrue(ex.getReason().contains("<html>502 Bad Gateway</html>"));
+    }
+
+    @Test
+    void createUpdateLinkToken_buildsUpdateModeBodyWithoutProducts() throws Exception {
+        // owned item with an encrypted access token, resolved by internal id
+        PlaidItem owned = new PlaidItem();
+        owned.setItemId("plaid-item-1");
+        owned.setAccessTokenEncrypted("encrypted");
+        owned.setUser(user);
+        when(plaidItemRepository.findByIdAndUser_Id("internal-id", "user-1")).thenReturn(Optional.of(owned));
+        when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
+
+        RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
+        RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);
+        RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
+        when(plaidRestClient.post()).thenReturn(postSpec);
+        when(postSpec.uri(anyString())).thenReturn(bodySpec);
+        when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
+        when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
+        when(bodySpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.body(JsonNode.class)).thenReturn(json("{\"link_token\":\"link-update-123\"}"));
+
+        String linkToken = service.createUpdateLinkToken(
+                new AuthenticatedUser("user-1", "user@example.com", 1L), "internal-id");
+
+        assertEquals("link-update-123", linkToken);
+
+        // The update-mode body MUST reuse the access_token and MUST NOT include
+        // a products array (which would create a new authorization/connection).
+        ArgumentCaptor<Object> bodyCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(bodySpec).body(bodyCaptor.capture());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) bodyCaptor.getValue();
+        assertEquals(ACCESS_TOKEN, body.get("access_token"));
+        assertFalse(body.containsKey("products"));
+        assertEquals("Budgee", body.get("client_name"));
+        assertEquals(List.of("US"), body.get("country_codes"));
+        assertEquals("en", body.get("language"));
+        assertEquals("https://example.com/webhook", body.get("webhook"));
     }
 
     private PlaidTransaction txById(List<PlaidTransaction> transactions, String id) {

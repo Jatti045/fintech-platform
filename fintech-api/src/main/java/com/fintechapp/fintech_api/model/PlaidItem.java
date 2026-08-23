@@ -11,6 +11,8 @@ import lombok.Setter;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -42,6 +44,35 @@ public class PlaidItem {
 
     @Column(name = "cursor", columnDefinition = "TEXT")
     private String cursor;
+
+    /**
+     * Whether the connection currently needs the user to re-authenticate.
+     * Defaults to {@link PlaidItemStatus#ACTIVE}; flipped to
+     * {@link PlaidItemStatus#REQUIRES_REAUTH} when Plaid reports
+     * {@code ITEM_LOGIN_REQUIRED}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 32)
+    private PlaidItemStatus status = PlaidItemStatus.ACTIVE;
+
+    /**
+     * When {@code ITEM_LOGIN_REQUIRED / ERROR} was last received, so the team
+     * can gauge how long a connection has been waiting for re-auth.
+     */
+    @Column(name = "reauth_requested_at")
+    private Instant reauthRequestedAt;
+
+    /**
+     * Set when a transaction sync run threw an exception, cleared on the next
+     * successful sync. Drives the non-dismissible "trouble syncing" warning in
+     * the clients.
+     */
+    @Column(name = "sync_error", nullable = false)
+    private boolean syncError;
+
+    /** Last time a {@code /transactions/sync} page committed successfully. */
+    @Column(name = "last_synced_at")
+    private Instant lastSyncedAt;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

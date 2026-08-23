@@ -91,12 +91,53 @@ public class PlaidTransactionSyncService {
                 page++;
             }
             logger.debug("Plaid sync finished for item_id={} pages={} hasMore={}", itemId, page, hasMore);
+            // The full run completed without an exception — surface health for
+            // the clients (per-page commits already stamped lastSyncedAt).
+            clearSyncError(itemId);
         } catch (Exception ex) {
             logger.error("Plaid transaction sync failed for item_id={} user_id={}",
                     itemId, userId, ex);
+            // Persisted item health — NOT an in-memory flag. The clients show a
+            // non-dismissible warning and offer a manual retry.
+            markSyncError(itemId);
         } finally {
             // Step F — release the lock.
             releaseItemLock(itemId);
+        }
+    }
+
+    /**
+     * Persists {@code syncError = true} on the item so every connected client
+     * can display the "trouble syncing" warning. Never throws: the flag is
+     * best-effort operator feedback on an already-failed sync.
+     */
+    private void markSyncError(String itemId) {
+        try {
+            plaidItemRepository.findByItemId(itemId).ifPresent(item -> {
+                item.setSyncError(true);
+                plaidItemRepository.save(item);
+                logger.warn("Marked item_id={} with syncError after a failed sync", itemId);
+            });
+        } catch (Exception persistEx) {
+            logger.error("Failed to persist syncError flag for item_id={}", itemId, persistEx);
+        }
+    }
+
+    /**
+     * Clears {@code syncError} after a completed sync run. Best-effort and
+     * guarded exactly like {@link #markSyncError(String)}.
+     */
+    private void clearSyncError(String itemId) {
+        try {
+            plaidItemRepository.findByItemId(itemId).ifPresent(item -> {
+                if (item.isSyncError()) {
+                    item.setSyncError(false);
+                    plaidItemRepository.save(item);
+                    logger.info("Cleared syncError for item_id={} after a successful sync", itemId);
+                }
+            });
+        } catch (Exception persistEx) {
+            logger.error("Failed to clear syncError flag for item_id={}", itemId, persistEx);
         }
     }
 
