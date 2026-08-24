@@ -66,8 +66,5 @@ public class User {
     private Set<PasswordResetToken> passwordResets = new HashSet<>();
 
     @OneToMany(mappedBy = "user")
-    private Set<Goal> goals = new HashSet<>();
-
-    @OneToMany(mappedBy = "user")
     private Set<UserMonthlyIncome> monthlyIncomes = new HashSet<>();
 }

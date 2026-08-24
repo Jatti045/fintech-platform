@@ -15,13 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 import com.fintechapp.fintech_api.model.Budget;
 import com.fintechapp.fintech_api.model.AuthProvider;
-import com.fintechapp.fintech_api.model.Goal;
 import com.fintechapp.fintech_api.model.Transaction;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.model.UserMonthlyIncome;
 import com.fintechapp.fintech_api.repository.BudgetRepository;
-import com.fintechapp.fintech_api.repository.GoalRepository;
 import com.fintechapp.fintech_api.repository.PasswordResetTokenRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserMonthlyIncomeRepository;
@@ -47,9 +45,6 @@ public abstract class BaseIntegrationTest {
 
     @Autowired
     protected BudgetRepository budgetRepository;
-
-    @Autowired
-    protected GoalRepository goalRepository;
 
     @Autowired
     protected TransactionRepository transactionRepository;
@@ -82,19 +77,9 @@ public abstract class BaseIntegrationTest {
         return budgetRepository.save(budget);
     }
 
-    protected Goal createGoal(User user, double target, double progress, String icon) {
-        Goal goal = new Goal();
-        goal.setUser(user);
-        goal.setTarget(target);
-        goal.setProgress(progress);
-        goal.setIcon(icon);
-        return goalRepository.save(goal);
-    }
-
     protected Transaction createTransaction(
             User user,
             Budget budget,
-            Goal goal,
             String name,
             Instant date,
             String category,
@@ -104,7 +89,6 @@ public abstract class BaseIntegrationTest {
         Transaction transaction = new Transaction();
         transaction.setUser(user);
         transaction.setBudget(budget);
-        transaction.setGoal(goal);
         transaction.setName(name);
         transaction.setDate(date);
         transaction.setCategory(category);

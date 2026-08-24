@@ -18,7 +18,7 @@ export interface SpringFillProps {
 
 /**
  * A liquid fill bar whose width springs to `ratio` on every change — the
- * shared motion used by budget reservoir rows and goal altitude fills.
+ * shared motion used by budget reservoir rows.
  */
 export default function SpringFill({
   ratio,

@@ -28,7 +28,6 @@ import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
 import financialSummaryReducerDefault, {
   fetchFinancialSummary,
 } from "@/store/slices/financialSummarySlice";
-import goalReducerDefault from "@/store/slices/goalSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import { Text } from "react-native";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
@@ -104,7 +103,6 @@ const makeSummary = (
   netSpent: 0,
   netRemaining: 0,
   spentPercentageOfIncome: 0,
-  goalAllocationAmount: 0,
   ...overrides,
 });
 
@@ -116,7 +114,6 @@ function makeStore() {
       user: userReducer,
       calendar: calendarReducer,
       financialSummary: financialSummaryReducerDefault,
-      goal: goalReducerDefault,
       theme: themeReducer,
     },
   });

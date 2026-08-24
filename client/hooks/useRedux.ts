@@ -1,21 +1,40 @@
-import { useDispatch, useSelector, TypedUseSelectorHook } from "react-redux";
+import {
+  useDispatch,
+  useSelector,
+  TypedUseSelectorHook,
+  shallowEqual,
+} from "react-redux";
 import type { RootState, AppDispatch } from "../store";
 
 // Used instead of plain `useDispatch` and `useSelector`
 export const useAppDispatch = () => useDispatch<AppDispatch>();
 export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
 
+/**
+ * Selector hooks.
+ *
+ * Hooks that compose multiple fields into an object literal MUST pass
+ * `shallowEqual` as the equality function — otherwise the fresh object
+ * returned on every store change is never reference-equal and the component
+ * re-renders on every dispatch, even for unrelated slices. Hooks that return
+ * state references directly (arrays/slices/primitives) keep the default
+ * strict equality, which is already stable between relevant changes.
+ */
+
 // Custom hooks for common user state selections
 export const useAuth = () => {
-  return useAppSelector((state) => ({
-    user: state.user.user,
-    token: state.user.token,
-    isAuthenticated: state.user.isAuthenticated,
-    isLoading: state.user.isLoading,
-    error: state.user.error,
-    loginError: state.user.loginError,
-    signupError: state.user.signupError,
-  }));
+  return useAppSelector(
+    (state) => ({
+      user: state.user.user,
+      token: state.user.token,
+      isAuthenticated: state.user.isAuthenticated,
+      isLoading: state.user.isLoading,
+      error: state.user.error,
+      loginError: state.user.loginError,
+      signupError: state.user.signupError,
+    }),
+    shallowEqual,
+  );
 };
 
 export const useUser = () => {
@@ -23,10 +42,13 @@ export const useUser = () => {
 };
 
 export const useAuthStatus = () => {
-  return useAppSelector((state) => ({
-    isAuthenticated: state.user.isAuthenticated,
-    isLoading: state.user.isLoading,
-  }));
+  return useAppSelector(
+    (state) => ({
+      isAuthenticated: state.user.isAuthenticated,
+      isLoading: state.user.isLoading,
+    }),
+    shallowEqual,
+  );
 };
 
 // Custom hooks for transaction state selections
@@ -35,14 +57,17 @@ export const useTransactions = () => {
 };
 
 export const useTransactionStatus = () => {
-  return useAppSelector((state) => ({
-    isAdding: state.transaction.isAdding,
-    isEditing: state.transaction.isEditing,
-    isDeleting: state.transaction.isDeleting,
-    isLoading: state.transaction.isLoading,
-    isLoadingMore: state.transaction.isLoadingMore,
-    error: state.transaction.error,
-  }));
+  return useAppSelector(
+    (state) => ({
+      isAdding: state.transaction.isAdding,
+      isEditing: state.transaction.isEditing,
+      isDeleting: state.transaction.isDeleting,
+      isLoading: state.transaction.isLoading,
+      isLoadingMore: state.transaction.isLoadingMore,
+      error: state.transaction.error,
+    }),
+    shallowEqual,
+  );
 };
 
 export const useTransactionPagination = () => {
@@ -55,10 +80,13 @@ export const useFinancialSummary = () => {
 };
 
 export const useFinancialSummaryStatus = () => {
-  return useAppSelector((state) => ({
-    isLoading: state.financialSummary.isLoading,
-    error: state.financialSummary.error,
-  }));
+  return useAppSelector(
+    (state) => ({
+      isLoading: state.financialSummary.isLoading,
+      error: state.financialSummary.error,
+    }),
+    shallowEqual,
+  );
 };
 
 // Custom hooks for budget state selections
@@ -67,42 +95,40 @@ export const useBudgets = () => {
 };
 
 export const useBudgetStatus = () => {
-  return useAppSelector((state) => ({
-    isLoading: state.budget.loading,
-    error: state.budget.error,
-  }));
-};
-
-export const useGoals = () => {
-  return useAppSelector((state) => state.goal.goals);
-};
-
-export const useGoalStatus = () => {
-  return useAppSelector((state) => ({
-    isLoading: state.goal.loading,
-    error: state.goal.error,
-  }));
+  return useAppSelector(
+    (state) => ({
+      isLoading: state.budget.loading,
+      error: state.budget.error,
+    }),
+    shallowEqual,
+  );
 };
 
 export const useCalendar = () => {
-  return useAppSelector((state) => ({
-    month: state.calendar.month,
-    year: state.calendar.year,
-  }));
+  return useAppSelector(
+    (state) => ({
+      month: state.calendar.month,
+      year: state.calendar.year,
+    }),
+    shallowEqual,
+  );
 };
 
-// Custom hook for theme state selection
+// Custom hook for theme state selection (returns the slice reference —
+// stable unless the theme itself changes, so no custom equality needed)
 export const useTheme = () => {
   return useAppSelector((state) => state.theme);
 };
 
 // Custom hook for notification preference state selection
 export const useNotificationPreferences = () => {
-  return useAppSelector((state) => ({
-    purchaseRemindersEnabled: state.notifications.purchaseRemindersEnabled,
-    timezone: state.notifications.timezone,
-    loaded: state.notifications.loaded,
-    permissionStatus: state.notifications.permissionStatus,
-  }));
+  return useAppSelector(
+    (state) => ({
+      purchaseRemindersEnabled: state.notifications.purchaseRemindersEnabled,
+      timezone: state.notifications.timezone,
+      loaded: state.notifications.loaded,
+      permissionStatus: state.notifications.permissionStatus,
+    }),
+    shallowEqual,
+  );
 };
-

@@ -408,8 +408,8 @@ public class PlaidTransactionIngestService {
                     id, name, transaction_date, category, type, amount,
                     base_currency, original_amount, original_currency,
                     plaid_transaction_id, plaid_account_id, plaid_item_id, is_transfer,
-                    plaid_pfc_detailed, description, user_id, budget_id, goal_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NOW(), NOW())
+                    plaid_pfc_detailed, description, user_id, budget_id, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NOW(), NOW())
                 ON CONFLICT DO NOTHING
                 """,
                 UUID.randomUUID().toString(),

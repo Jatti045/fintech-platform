@@ -4,7 +4,7 @@
  * Reanimated ships native worklets that cannot run in the Jest/node
  * environment. These stubs make the animated primitives render as plain
  * components and make the animation hooks behave as identity/no-ops so the
- * budget/goal UI can mount in component tests.
+ * budget UI can mount in component tests.
  */
 import React from "react";
 

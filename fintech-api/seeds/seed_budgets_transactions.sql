@@ -43,7 +43,6 @@ INSERT INTO transactions (
     description,
     user_id,
     budget_id,
-    goal_id,
     created_at,
     updated_at
 )
@@ -113,7 +112,6 @@ SELECT
     'Transaction #' || gs AS description,
     u.id AS user_id,
     bl.budget_id,
-    NULL AS goal_id,
     NOW() AS created_at,
     NOW() AS updated_at
 FROM generate_series(1, 50) AS gs

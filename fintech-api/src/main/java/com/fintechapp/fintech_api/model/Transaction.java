@@ -25,7 +25,6 @@ import jakarta.persistence.Index;
 @Table(name = "transactions", indexes = {
         @Index(name = "idx_transactions_user_date", columnList = "user_id,transaction_date"),
         @Index(name = "idx_transactions_budget", columnList = "budget_id"),
-        @Index(name = "idx_transactions_goal", columnList = "goal_id"),
         @Index(name = "idx_transactions_type", columnList = "type"),
         @Index(name = "uq_transactions_plaid_id", columnList = "plaid_transaction_id", unique = true)
 })
@@ -113,10 +112,6 @@ public class Transaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "budget_id")
     private Budget budget;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "goal_id")
-    private Goal goal;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

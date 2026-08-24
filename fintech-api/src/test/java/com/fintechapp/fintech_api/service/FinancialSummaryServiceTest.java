@@ -18,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.fintechapp.fintech_api.dto.financialSummary.FinancialSummaryResponse.FinancialSummaryData;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
-import com.fintechapp.fintech_api.repository.GoalAllocationRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
 
@@ -30,9 +29,6 @@ class FinancialSummaryServiceTest {
 
     @Mock
     private TransactionRepository transactionRepository;
-
-    @Mock
-    private GoalAllocationRepository goalAllocationRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -47,19 +43,12 @@ class FinancialSummaryServiceTest {
         service = new FinancialSummaryService(
                 incomeCalculationService,
                 transactionRepository,
-                goalAllocationRepository,
                 userRepository);
     }
 
     private void stubExpenseTotal(double value) {
         lenient().when(transactionRepository.sumAmountByUserAndTypeAndDateBetween(
                         eq("user-1"), eq(TransactionType.EXPENSE), any(Instant.class), any(Instant.class)))
-                .thenReturn(value);
-    }
-
-    private void stubGoalAllocations(double value) {
-        lenient().when(goalAllocationRepository.sumAllocatedByUserAndAllocatedAtBetween(
-                        eq("user-1"), any(Instant.class), any(Instant.class)))
                 .thenReturn(value);
     }
 
@@ -71,22 +60,19 @@ class FinancialSummaryServiceTest {
     }
 
     @Test
-    void resolveForMonth_sumsExpensesAndGoalAllocationsIntoTotalAmount() {
-        stubExpenseTotal(200.0);
-        stubGoalAllocations(50.0);
+    void resolveForMonth_sumsExpensesIntoTotalAmount() {
+        stubExpenseTotal(250.0);
         stubIncome(1000.0, 0.0);
 
         FinancialSummaryData summary = service.resolveForMonth(user, 2026, 7);
 
         assertEquals(250.0, summary.totalAmount());
         assertEquals(250.0, summary.netSpent());
-        assertEquals(50.0, summary.goalAllocationAmount());
     }
 
     @Test
     void resolveForMonth_usesExpectedIncomeWhenNoActualInflow() {
         stubExpenseTotal(200.0);
-        stubGoalAllocations(0.0);
         stubIncome(4000.0, 0.0);
 
         FinancialSummaryData summary = service.resolveForMonth(user, 2026, 7);
@@ -99,7 +85,6 @@ class FinancialSummaryServiceTest {
     @Test
     void resolveForMonth_usesActualInflowWhenPresent() {
         stubExpenseTotal(200.0);
-        stubGoalAllocations(0.0);
         stubIncome(4000.0, 3000.0);
 
         FinancialSummaryData summary = service.resolveForMonth(user, 2026, 7);
@@ -113,7 +98,6 @@ class FinancialSummaryServiceTest {
     @Test
     void resolveForMonth_negativeActualFallsBackToExpected() {
         stubExpenseTotal(200.0);
-        stubGoalAllocations(0.0);
         stubIncome(2500.0, -120.0);
 
         FinancialSummaryData summary = service.resolveForMonth(user, 2026, 7);
@@ -125,7 +109,6 @@ class FinancialSummaryServiceTest {
     @Test
     void resolveForMonth_zeroIncomeReturnsZeroPercentageAndNegativeRemaining() {
         stubExpenseTotal(200.0);
-        stubGoalAllocations(0.0);
         stubIncome(0.0, 0.0);
 
         FinancialSummaryData summary = service.resolveForMonth(user, 2026, 7);
@@ -137,7 +120,6 @@ class FinancialSummaryServiceTest {
     @Test
     void resolveForMonth_roundsPercentToTwoDecimals() {
         stubExpenseTotal(1.0);
-        stubGoalAllocations(0.0);
         stubIncome(3.0, 0.0);
 
         FinancialSummaryData summary = service.resolveForMonth(user, 2026, 7);
@@ -148,7 +130,6 @@ class FinancialSummaryServiceTest {
     @Test
     void resolveForMonth_delegatesIncomeResolutionToIncomeCalculationService() {
         stubExpenseTotal(0.0);
-        stubGoalAllocations(0.0);
         stubIncome(5000.0, 0.0);
 
         service.resolveForMonth(user, 2026, 7);

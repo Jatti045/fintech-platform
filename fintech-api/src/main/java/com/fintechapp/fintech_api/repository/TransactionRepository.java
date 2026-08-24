@@ -25,8 +25,6 @@ public interface TransactionRepository
 
     List<Transaction> findByBudget_IdOrderByDateDesc(String budgetId);
 
-    List<Transaction> findByGoal_IdOrderByDateDesc(String goalId);
-
     List<Transaction> findByUser_IdAndDateBetweenOrderByDateDesc(String userId, Instant from, Instant to);
 
     Optional<Transaction> findByPlaidTransactionIdAndUser_Id(String plaidTransactionId, String userId);
@@ -47,8 +45,6 @@ public interface TransactionRepository
             @Param("plaidItemId") String plaidItemId);
 
     long countByBudget_IdAndUser_Id(String budgetId, String userId);
-
-    long countByGoal_IdAndUser_Id(String goalId, String userId);
 
     long deleteByUser_Id(String userId);
 

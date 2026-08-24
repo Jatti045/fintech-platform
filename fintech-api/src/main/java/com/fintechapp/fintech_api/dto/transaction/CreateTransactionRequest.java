@@ -26,7 +26,6 @@ public record CreateTransactionRequest(
         @Size(max = 1000, message = "Description is too long") String description,
 
         String budgetId,
-        String goalId,
 
         @Pattern(regexp = "^[A-Za-z]{3}$", message = "Base currency must be a 3-letter ISO code") String baseCurrency,
 

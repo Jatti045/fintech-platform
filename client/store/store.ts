@@ -5,7 +5,6 @@ import financialSummaryReducer from "./slices/financialSummarySlice";
 import themeReducer from "./slices/themeSlice";
 import budgetReducer from "./slices/budgetSlice";
 import calendarReducer from "./slices/calendarSlice";
-import goalReducer from "./slices/goalSlice";
 import notificationReducer from "./slices/notificationSlice";
 import plaidReducer from "./slices/plaidSlice";
 
@@ -16,7 +15,6 @@ export const store = configureStore({
     transaction: transactionReducer,
     financialSummary: financialSummaryReducer,
     budget: budgetReducer,
-    goal: goalReducer,
     calendar: calendarReducer,
     theme: themeReducer,
     notifications: notificationReducer,

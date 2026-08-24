@@ -22,8 +22,6 @@ import com.fintechapp.fintech_api.dto.user.UserDataResponse;
 import com.fintechapp.fintech_api.dto.user.UserSummaryResponse;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.repository.BudgetRepository;
-import com.fintechapp.fintech_api.repository.GoalAllocationRepository;
-import com.fintechapp.fintech_api.repository.GoalRepository;
 import com.fintechapp.fintech_api.repository.PasswordResetTokenRepository;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
@@ -36,8 +34,6 @@ public class UserService {
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
-    private final GoalRepository goalRepository;
-    private final GoalAllocationRepository goalAllocationRepository;
     private final PlaidItemRepository plaidItemRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final MonthlyIncomeService monthlyIncomeService;
@@ -50,8 +46,6 @@ public class UserService {
             UserRepository userRepository,
             TransactionRepository transactionRepository,
             BudgetRepository budgetRepository,
-            GoalRepository goalRepository,
-            GoalAllocationRepository goalAllocationRepository,
             PlaidItemRepository plaidItemRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             MonthlyIncomeService monthlyIncomeService,
@@ -62,8 +56,6 @@ public class UserService {
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
-        this.goalRepository = goalRepository;
-        this.goalAllocationRepository = goalAllocationRepository;
         this.plaidItemRepository = plaidItemRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.monthlyIncomeService = monthlyIncomeService;
@@ -103,9 +95,7 @@ public class UserService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
         transactionRepository.deleteByUser_Id(userId);
-        goalAllocationRepository.deleteByUser_Id(userId);
         budgetRepository.deleteByUser_Id(userId);
-        goalRepository.deleteByUser_Id(userId);
         passwordResetTokenRepository.deleteByUser_Id(userId);
         plaidItemRepository.deleteByUser_Id(userId);
         monthlyIncomeService.deleteByUserId(userId);

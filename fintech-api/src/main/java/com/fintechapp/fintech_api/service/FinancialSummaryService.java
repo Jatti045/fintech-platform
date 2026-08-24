@@ -14,7 +14,6 @@ import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.financialSummary.FinancialSummaryResponse.FinancialSummaryData;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
-import com.fintechapp.fintech_api.repository.GoalAllocationRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
 
@@ -22,10 +21,10 @@ import com.fintechapp.fintech_api.repository.UserRepository;
  * Single source of truth for month-level financial aggregation.
  *
  * <p>Owns every aggregate the app surfaces on dashboards and summary headers:
- * total spending (expenses + goal allocations), expected/actual/effective
- * income, net remaining, and the spending percentage of income. Income math is
- * delegated to {@link IncomeCalculationService} so there is exactly one
- * implementation of each calculation.
+ * total spending, expected/actual/effective income, net remaining, and the
+ * spending percentage of income. Income math is delegated to
+ * {@link IncomeCalculationService} so there is exactly one implementation of
+ * each calculation.
  *
  * <p>Transaction retrieval ({@link TransactionService}) has no responsibility
  * for these aggregates.
@@ -35,17 +34,14 @@ public class FinancialSummaryService {
 
     private final IncomeCalculationService incomeCalculationService;
     private final TransactionRepository transactionRepository;
-    private final GoalAllocationRepository goalAllocationRepository;
     private final UserRepository userRepository;
 
     public FinancialSummaryService(
             IncomeCalculationService incomeCalculationService,
             TransactionRepository transactionRepository,
-            GoalAllocationRepository goalAllocationRepository,
             UserRepository userRepository) {
         this.incomeCalculationService = incomeCalculationService;
         this.transactionRepository = transactionRepository;
-        this.goalAllocationRepository = goalAllocationRepository;
         this.userRepository = userRepository;
     }
 
@@ -75,9 +71,7 @@ public class FinancialSummaryService {
 
         double expenseTotal = transactionRepository.sumAmountByUserAndTypeAndDateBetween(
                 user.getId(), TransactionType.EXPENSE, from, to);
-        double goalAllocationTotal = goalAllocationRepository
-                .sumAllocatedByUserAndAllocatedAtBetween(user.getId(), from, to);
-        double totalAmount = round2(expenseTotal + goalAllocationTotal);
+        double totalAmount = round2(expenseTotal);
 
         double expectedIncome = incomeCalculationService.resolveExpectedForMonth(user, year, month);
         double actualIncome = incomeCalculationService.resolveActualForMonth(user, year, month);
@@ -95,8 +89,7 @@ public class FinancialSummaryService {
                 round2(actualIncome),
                 totalAmount,
                 netRemaining,
-                spentPercentage,
-                round2(goalAllocationTotal));
+                spentPercentage);
     }
 
     private User requireUser(AuthenticatedUser authenticatedUser) {

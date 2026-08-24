@@ -7,15 +7,11 @@ public record DeleteTransactionResponse(
 ) {
     public record Data(
             String deletedTransactionId,
-            RestoredBudget restoredBudget,
-            RestoredGoal restoredGoal
+            RestoredBudget restoredBudget
     ) {
     }
 
     public record RestoredBudget(String budgetId, double amountRestored) {
-    }
-
-    public record RestoredGoal(String goalId, double amountRestored) {
     }
 }
 

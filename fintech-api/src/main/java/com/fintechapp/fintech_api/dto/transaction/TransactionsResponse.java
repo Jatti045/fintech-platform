@@ -28,8 +28,7 @@ public record TransactionsResponse(
                         Double originalAmount,
                         String originalCurrency,
                         String description,
-                        BudgetInfo budget,
-                        GoalInfo goal) {
+                        BudgetInfo budget) {
         }
 
         public record BudgetInfo(
@@ -37,12 +36,6 @@ public record TransactionsResponse(
                         String category,
                         double limit,
                         double spent) {
-        }
-
-        public record GoalInfo(
-                        String id,
-                        double target,
-                        double progress) {
         }
 
         public record Pagination(
@@ -59,7 +52,6 @@ public record TransactionsResponse(
                         String category,
                         String startDate,
                         String endDate,
-                        String budgetId,
-                        String goalId) {
+                        String budgetId) {
         }
 }

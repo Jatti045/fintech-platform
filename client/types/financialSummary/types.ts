@@ -12,7 +12,6 @@ export interface IFinancialSummary {
   netSpent: number;
   netRemaining: number;
   spentPercentageOfIncome: number;
-  goalAllocationAmount: number;
 }
 
 export interface IFinancialSummaryResponse {

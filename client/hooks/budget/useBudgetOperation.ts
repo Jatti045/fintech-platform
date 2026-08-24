@@ -9,7 +9,7 @@ import { useAppDispatch, useCalendar, useTransactions } from "../useRedux";
 import { capitalizeFirst } from "@/utils/helper";
 import { useBudgetForm } from "./useBudgetForm";
 import { validateBudgetForm } from "@/utils/validation";
-import { hapticSuccess, hapticHeavy, hapticError } from "@/utils/haptics";
+import { hapticSuccess, hapticHeavy } from "@/utils/haptics";
 
 /**
  * Combined hook that owns budget form state and exposes both create and update

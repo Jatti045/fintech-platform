@@ -10,7 +10,6 @@ public record TransactionQueryParams(
         String startDate,
         String endDate,
         String budgetId,
-        String goalId,
         String searchQuery
 ) {
 }

@@ -27,7 +27,6 @@ export interface ITransaction {
   createdAt?: string;
   updatedAt?: string;
   budgetId?: string | null;
-  goalId?: string | null;
 }
 
 export interface ITransactionPagination {
@@ -45,7 +44,6 @@ export interface ITransactionFilter {
   startDate?: string;
   endDate?: string;
   budgetId?: string;
-  goalId?: string;
 }
 
 export interface ITransactionResponse<T> {

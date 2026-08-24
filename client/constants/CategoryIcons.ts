@@ -210,7 +210,7 @@ export const ICONS: BudgetIcon[] = [
   // ── Miscellaneous ──────────────────────────────────────────────────────
   { id: "bell", name: "bell", label: "Alerts" },
   { id: "bell-off", name: "bell-off", label: "Silent" },
-  { id: "flag", name: "flag", label: "Goals" },
+  { id: "flag", name: "flag", label: "Flag" },
   { id: "archive", name: "archive", label: "Archive" },
   { id: "trash", name: "trash", label: "Trash" },
   { id: "check-circle", name: "check-circle", label: "Done" },

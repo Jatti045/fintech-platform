@@ -46,7 +46,6 @@ public class TransactionController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(required = false) String budgetId,
-            @RequestParam(required = false) String goalId,
             @RequestParam(required = false) String searchQuery) {
         return transactionService.getTransactions(
                 authenticatedUser,
@@ -60,7 +59,6 @@ public class TransactionController {
                         startDate,
                         endDate,
                         budgetId,
-                        goalId,
                         searchQuery));
     }
 

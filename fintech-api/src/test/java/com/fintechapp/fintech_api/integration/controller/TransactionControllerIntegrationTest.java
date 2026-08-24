@@ -157,7 +157,7 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
     void getTransactions_validToken_returnsTransactions() throws Exception {
         User user = createUser("tx-list@example.com", "Password123!", "tx-list");
         Budget budget = createBudget(user, "Food", 500, Instant.parse("2026-03-01T00:00:00Z"));
-        createTransaction(user, budget, null, "Lunch", Instant.parse("2026-03-05T10:00:00Z"), "Food", TransactionType.EXPENSE, 25.5);
+        createTransaction(user, budget, "Lunch", Instant.parse("2026-03-05T10:00:00Z"), "Food", TransactionType.EXPENSE, 25.5);
 
         mockMvc.perform(get("/api/transactions")
                         .header(authHeaderName(), authHeader(user)))
@@ -178,7 +178,7 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
         int year = utc.getYear();
         Instant monthStart = LocalDate.of(year, month + 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
         Budget budget = createBudget(user, "Food", 500, monthStart);
-        createTransaction(user, budget, null, "Lunch", monthStart.plusSeconds(3600), "Food", TransactionType.EXPENSE, 18.73);
+        createTransaction(user, budget, "Lunch", monthStart.plusSeconds(3600), "Food", TransactionType.EXPENSE, 18.73);
 
         mockMvc.perform(get("/api/transactions")
                         .header(authHeaderName(), authHeader(user))
@@ -207,7 +207,6 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
         Transaction transaction = createTransaction(
                 user,
                 budget,
-                null,
                 "Lunch",
                 Instant.parse("2026-03-05T10:00:00Z"),
                 "Food",
@@ -240,7 +239,6 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
         Transaction transaction = createTransaction(
                 user,
                 marchBudget,
-                null,
                 "Lunch",
                 Instant.parse("2026-03-05T10:00:00Z"),
                 "Food",
@@ -268,7 +266,6 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
         Transaction transaction = createTransaction(
                 user,
                 foodBudget,
-                null,
                 "Lunch",
                 Instant.parse("2026-03-05T10:00:00Z"),
                 "Food",
@@ -323,7 +320,6 @@ class TransactionControllerIntegrationTest extends BaseIntegrationTest {
         Transaction transaction = createTransaction(
                 user,
                 budget,
-                null,
                 "Lunch",
                 Instant.parse("2026-03-05T10:00:00Z"),
                 "Food",

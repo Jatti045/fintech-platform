@@ -11,7 +11,6 @@ import MonthSelector from "@/components/home/MonthSelector";
 import HomePulse from "@/components/home/HomePulse";
 import SpendingRhythm from "@/components/home/SpendingRhythm";
 import BudgetPulse from "@/components/home/BudgetPulse";
-import GoalPulse from "@/components/home/GoalPulse";
 import RecentFlow from "@/components/home/RecentFlow";
 import QuickActions from "@/components/home/QuickActions";
 
@@ -28,7 +27,6 @@ export default function Index() {
 
   const {
     transactions,
-    goals,
     displayTransactions,
     displayBudgets,
     activeCurrency,
@@ -95,8 +93,6 @@ export default function Index() {
         />
 
         <BudgetPulse budgets={displayBudgets} currencyCode={activeCurrency} />
-
-        <GoalPulse goals={goals} currencyCode={activeCurrency} />
 
         <RecentFlow
           transactions={displayTransactions}

@@ -4,7 +4,6 @@ import {
   useBudgets,
   useCalendar,
   useFinancialSummary,
-  useGoals,
   useTransactions,
   useUser,
 } from "@/hooks/useRedux";
@@ -41,7 +40,7 @@ function monthFetchParams(month: number, year: number, useCache: boolean) {
  * Owns everything the screen needs that is neither global Redux state nor
  * pure presentation:
  *
- *  - Redux selectors (transactions, budgets, goals, user currency, calendar,
+ *  - Redux selectors (transactions, budgets, user currency, calendar,
  *    financial summary)
  *  - homepage data fetching (cache-first on month change, cache-bypass on
  *    pull-to-refresh via the shared `useRefresh`)
@@ -57,7 +56,6 @@ export const useHomeScreen = () => {
   const dispatch = useAppDispatch();
   const transactions = useTransactions();
   const budgets = useBudgets();
-  const goals = useGoals();
   const user = useUser();
   const activeCurrency = user?.currency || "USD";
   const calendar = useCalendar();
@@ -207,7 +205,6 @@ export const useHomeScreen = () => {
 
   return {
     transactions,
-    goals,
     displayTransactions,
     displayBudgets,
     activeCurrency,

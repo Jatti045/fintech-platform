@@ -94,7 +94,7 @@ function SegmentArc({
  * On mount (and whenever `progress` changes) the whole dial “spins up”:
  * the outer arc sweeps clockwise to `progress` while inner segments grow
  * from 12 o’clock into their final distribution — the signature motion of
- * the Budget Halo and Goal Summit hero.
+ * the Budget Halo hero.
  */
 export default function RingGauge({
   size,

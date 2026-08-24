@@ -14,12 +14,10 @@ import calendarReducer, {
   nextMonth,
   setMonthYear,
 } from "@/store/slices/calendarSlice";
-import goalReducer, { fetchGoals } from "@/store/slices/goalSlice";
 import notificationReducer from "@/store/slices/notificationSlice";
 
 import transactionAPI from "../api/transaction";
 import budgetAPI from "../api/budget";
-import goalAPI from "../api/goal";
 import financialSummaryAPI from "../api/financialSummary";
 
 // ---------------------------------------------------------------------------
@@ -40,17 +38,6 @@ jest.mock("../api/budget", () => ({
     fetchAll: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn(),
-  },
-}));
-jest.mock("../api/goal", () => ({
-  __esModule: true,
-  default: {
-    fetchAll: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    allocate: jest.fn(),
-    deallocate: jest.fn(),
     delete: jest.fn(),
   },
 }));
@@ -105,17 +92,6 @@ const CURRENT = {
       updatedAt: "2026-06-01T00:00:00.000Z",
     },
   ],
-  goals: [
-    {
-      id: "g-current-emergency",
-      userId: "u1",
-      name: "Emergency Fund",
-      target: 10000,
-      progress: 2500,
-      remaining: 7500,
-      achieved: false,
-    },
-  ],
   transactions: [
     {
       id: "t-current-salary",
@@ -162,26 +138,6 @@ const PREV = {
       updatedAt: "2026-05-01T00:00:00.000Z",
     },
   ],
-  goals: [
-    {
-      id: "g-prev-vacation",
-      userId: "u1",
-      name: "Vacation",
-      target: 5000,
-      progress: 3000,
-      remaining: 2000,
-      achieved: false,
-    },
-    {
-      id: "g-prev-laptop",
-      userId: "u1",
-      name: "New Laptop",
-      target: 2000,
-      progress: 800,
-      remaining: 1200,
-      achieved: false,
-    },
-  ],
   transactions: [
     {
       id: "t-prev-freelance",
@@ -221,8 +177,8 @@ const PREV = {
   ],
 };
 
-// Edge cases: an older month with a very different income and NO transactions,
-// NO budgets and NO goals.
+// Edge cases: an older month with a very different income and NO transactions
+// and NO budgets.
 const TWO_AGO = {
   key: "3-2026",
   month: 3,
@@ -231,7 +187,6 @@ const TWO_AGO = {
   totalAmount: 0,
   currency: "EUR",
   budgets: [],
-  goals: [],
   transactions: [],
 };
 
@@ -278,7 +233,6 @@ function summaryResponse(month: typeof CURRENT) {
       netRemaining: month.income - month.totalAmount,
       spentPercentageOfIncome:
         month.income > 0 ? (month.totalAmount / month.income) * 100 : 0,
-      goalAllocationAmount: 0,
     },
   };
 }
@@ -287,12 +241,6 @@ const budgetResponse = (month: typeof CURRENT) => ({
   success: true,
   message: "ok",
   data: month.budgets,
-});
-
-const goalResponse = (month: typeof CURRENT) => ({
-  success: true,
-  message: "ok",
-  data: month.goals,
 });
 
 // ---------------------------------------------------------------------------
@@ -304,7 +252,6 @@ const rootReducer = combineReducers({
   transaction: transactionReducer,
   financialSummary: financialSummaryReducer,
   budget: budgetReducer,
-  goal: goalReducer,
   calendar: calendarReducer,
   theme: themeReducer,
   notifications: notificationReducer,
@@ -354,9 +301,6 @@ async function loadMonth(store: TestStore, month: number, year: number) {
     store.dispatch(
       fetchBudgets({ currentMonth: month, currentYear: year }) as any,
     ),
-    store.dispatch(
-      fetchGoals({ currentMonth: month, currentYear: year }) as any,
-    ),
   ]);
 }
 
@@ -388,10 +332,6 @@ beforeEach(() => {
   (budgetAPI.fetchAll as jest.Mock).mockImplementation(
     async ({ currentMonth, currentYear }: any) =>
       budgetResponse(MONTHS[monthKey(currentMonth, currentYear)]),
-  );
-  (goalAPI.fetchAll as jest.Mock).mockImplementation(
-    async ({ currentMonth, currentYear }: any) =>
-      goalResponse(MONTHS[monthKey(currentMonth, currentYear)]),
   );
 });
 
@@ -443,12 +383,6 @@ describe("month navigation – initial load", () => {
     expect(state.budget.budgets[0].limit).toBe(1200);
     expect(state.budget.budgets[0].spent).toBe(400);
     expect(state.budget.budgets[1].limit).toBe(600);
-
-    // Goals (GoalPulse)
-    expect(state.goal.goals).toHaveLength(1);
-    expect(state.goal.goals[0].name).toBe("Emergency Fund");
-    expect(state.goal.goals[0].target).toBe(10000);
-    expect(state.goal.goals[0].progress).toBe(2500);
   });
 
   it("requests the correct month's data from the API", async () => {
@@ -459,9 +393,6 @@ describe("month navigation – initial load", () => {
       expect.objectContaining({ currentMonth: 5, currentYear: 2026 }),
     );
     expect(budgetAPI.fetchAll).toHaveBeenCalledWith(
-      expect.objectContaining({ currentMonth: 5, currentYear: 2026 }),
-    );
-    expect(goalAPI.fetchAll).toHaveBeenCalledWith(
       expect.objectContaining({ currentMonth: 5, currentYear: 2026 }),
     );
   });
@@ -515,16 +446,6 @@ describe("month navigation – previous month", () => {
     expect(state.budget.budgets[0].limit).toBe(900);
     expect(
       state.budget.budgets.some((b: any) => b.id.startsWith("b-current-")),
-    ).toBe(false);
-
-    // Goals replaced
-    expect(state.goal.goals).toHaveLength(2);
-    expect(state.goal.goals.map((g: any) => g.id)).toEqual([
-      "g-prev-vacation",
-      "g-prev-laptop",
-    ]);
-    expect(
-      state.goal.goals.some((g: any) => g.id.startsWith("g-current-")),
     ).toBe(false);
   });
 });
@@ -595,13 +516,6 @@ describe("month navigation – current → previous → current", () => {
     expect(
       state.budget.budgets.some((b: any) => b.id === "b-prev-dining"),
     ).toBe(false);
-
-    // Goals restored
-    expect(state.goal.goals).toHaveLength(1);
-    expect(state.goal.goals[0].id).toBe("g-current-emergency");
-    expect(state.goal.goals.some((g: any) => g.id === "g-prev-vacation")).toBe(
-      false,
-    );
   });
 });
 
@@ -631,7 +545,6 @@ describe("month navigation – sequential changes", () => {
     expect(state.financialSummary.data.monthlyIncome).toBe(0);
     expect(state.transaction.transactions).toHaveLength(0);
     expect(state.budget.budgets).toHaveLength(0);
-    expect(state.goal.goals).toHaveLength(0);
 
     // Two months ago → Previous
     await goNext(store);
@@ -639,7 +552,6 @@ describe("month navigation – sequential changes", () => {
     expect(state.calendar.month).toBe(4);
     expect(state.transaction.transactions).toHaveLength(3);
     expect(state.budget.budgets).toHaveLength(1);
-    expect(state.goal.goals).toHaveLength(2);
 
     // Previous → Current
     await goNext(store);
@@ -652,8 +564,6 @@ describe("month navigation – sequential changes", () => {
       ),
     ).toBe(true);
     expect(state.budget.budgets).toHaveLength(2);
-    expect(state.goal.goals).toHaveLength(1);
-    expect(state.goal.goals[0].id).toBe("g-current-emergency");
   });
 
   it("handles repeated back-and-forth navigation without data corruption", async () => {
@@ -679,7 +589,6 @@ describe("month navigation – sequential changes", () => {
     expect(state.calendar.month).toBe(5);
     expect(state.transaction.transactions).toHaveLength(2);
     expect(state.budget.budgets).toHaveLength(2);
-    expect(state.goal.goals).toHaveLength(1);
   });
 });
 
@@ -823,17 +732,13 @@ describe("month navigation – request races / out-of-order responses", () => {
       state.transaction.transactions.some((t: any) => t.baseCurrency === "USD"),
     ).toBe(false);
   });
-  it("applies latest-request-wins to budgets and goals too", async () => {
+  it("applies latest-request-wins to budgets too", async () => {
     const store = makeStore();
     store.dispatch(
       setMonthYear({ month: CURRENT.month, year: CURRENT.year }) as any,
     );
 
     const budgetDeferreds: {
-      month: number;
-      resolve: (v: unknown) => void;
-    }[] = [];
-    const goalDeferreds: {
       month: number;
       resolve: (v: unknown) => void;
     }[] = [];
@@ -844,77 +749,38 @@ describe("month navigation – request races / out-of-order responses", () => {
           budgetDeferreds.push({ month: currentMonth, resolve: res }),
         ),
     );
-    (goalAPI.fetchAll as jest.Mock).mockImplementation(
-      ({ currentMonth }: { currentMonth: number }) =>
-        new Promise((res) =>
-          goalDeferreds.push({ month: currentMonth, resolve: res }),
-        ),
-    );
 
+    const prevReq = store.dispatch(
+      fetchBudgets({
+        currentMonth: PREV.month,
+        currentYear: PREV.year,
+      }) as any,
+    );
     const budgetReq = store.dispatch(
       fetchBudgets({
         currentMonth: CURRENT.month,
         currentYear: CURRENT.year,
       }) as any,
     );
-    const goalPrevReq = store.dispatch(
-      fetchGoals({
-        currentMonth: PREV.month,
-        currentYear: PREV.year,
-      }) as any,
-    );
-    const goalCurrentReq = store.dispatch(
-      fetchGoals({
-        currentMonth: CURRENT.month,
-        currentYear: CURRENT.year,
-      }) as any,
-    );
-    const budgetPrevReq = store.dispatch(
-      fetchBudgets({
-        currentMonth: PREV.month,
-        currentYear: PREV.year,
-      }) as any,
-    );
 
     // Resolve in an order that would corrupt state without the guard:
-    // - current budgets resolve after prev budgets (stale current must be ignored)
-    // - prev goals resolve after current goals (stale prev must be ignored)
-    budgetDeferreds
-      .find((d) => d.month === PREV.month)!
-      .resolve(budgetResponse(PREV));
-    await budgetPrevReq;
+    // the stale PREV response (resolved last) must be ignored.
     budgetDeferreds
       .find((d) => d.month === CURRENT.month)!
       .resolve(budgetResponse(CURRENT));
     await budgetReq;
-
-    goalDeferreds
-      .find((d) => d.month === CURRENT.month)!
-      .resolve(goalResponse(CURRENT));
-    await goalCurrentReq;
-    goalDeferreds
+    budgetDeferreds
       .find((d) => d.month === PREV.month)!
-      .resolve(goalResponse(PREV));
-    await goalPrevReq;
+      .resolve(budgetResponse(PREV));
+    await prevReq;
 
     const state = store.getState() as any;
-    // For budgets, the last request dispatched was PREV → prev data wins and
-    // the stale CURRENT response (resolved later) must be ignored.
-    expect(state.budget.budgets).toHaveLength(1);
-    expect(state.budget.budgets[0].id).toBe("b-prev-dining");
-    expect(
-      state.budget.budgets.some((b: any) => b.id.startsWith("b-current-")),
-    ).toBe(false);
-
-    // For goals, the last request dispatched was CURRENT → current data wins
+    // For budgets, the last request dispatched was CURRENT → current data wins
     // and the stale PREV response (resolved later) must be ignored.
-    expect(state.goal.goals).toHaveLength(1);
-    expect(state.goal.goals.map((g: any) => g.id)).toEqual([
-      "g-current-emergency",
-    ]);
-    expect(state.goal.goals.some((g: any) => g.id.startsWith("g-prev-"))).toBe(
-      false,
-    );
+    expect(state.budget.budgets).toHaveLength(2);
+    expect(
+      state.budget.budgets.some((b: any) => b.id === "b-prev-dining"),
+    ).toBe(false);
   });
 });
 
@@ -923,7 +789,7 @@ describe("month navigation – request races / out-of-order responses", () => {
 // ---------------------------------------------------------------------------
 
 describe("month navigation – edge cases", () => {
-  it("displays an empty month (no transactions, budgets, or goals) correctly", async () => {
+  it("displays an empty month (no transactions or budgets) correctly", async () => {
     const store = makeStore();
     store.dispatch(
       setMonthYear({ month: TWO_AGO.month, year: TWO_AGO.year }) as any,
@@ -935,7 +801,6 @@ describe("month navigation – edge cases", () => {
     expect(state.financialSummary.data.totalAmount).toBe(0);
     expect(state.transaction.transactions).toHaveLength(0);
     expect(state.budget.budgets).toHaveLength(0);
-    expect(state.goal.goals).toHaveLength(0);
   });
 
   it("does not leak data when navigating from a full month into an empty month", async () => {
@@ -954,7 +819,6 @@ describe("month navigation – edge cases", () => {
     const state = store.getState() as any;
     expect(state.transaction.transactions).toHaveLength(0);
     expect(state.budget.budgets).toHaveLength(0);
-    expect(state.goal.goals).toHaveLength(0);
     expect(state.financialSummary.data.monthlyIncome).toBe(0);
   });
 });

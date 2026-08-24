@@ -228,11 +228,14 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void handleWebhook_invalidJsonBody_returnsBadRequest() throws Exception {
+    void handleWebhook_invalidJsonBody_deadLettersAndAcks200() throws Exception {
+        // Contract: malformed payloads are dead-lettered and acked with 200 so
+        // Plaid does not retry a payload that can never parse.
         mockMvc.perform(post("/api/plaid/webhook")
                         .contentType(json())
                         .content("{not-json"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
 

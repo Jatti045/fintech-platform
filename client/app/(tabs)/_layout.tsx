@@ -7,7 +7,6 @@ import {useAppDispatch, useCalendar, useTheme} from "@/hooks/useRedux";
 import {fetchTransaction} from "@/store/slices/transactionSlice";
 import {fetchFinancialSummary} from "@/store/slices/financialSummarySlice";
 import {fetchBudgets} from "@/store/slices/budgetSlice";
-import {fetchGoals} from "@/store/slices/goalSlice";
 import {PAGINATION_LIMIT} from "@/constants/appConfig";
 import {View} from "react-native";
 import {hexToRgba, tintHex} from "@/utils/helper";
@@ -44,7 +43,7 @@ export default function TabsLayout() {
     const {month, year} = useCalendar();
     const notificationOnboarding = useNotificationOnboarding();
 
-    // Fetch transactions + financial summary + budgets + goals for the selected month whenever calendar changes
+    // Fetch transactions + financial summary + budgets for the selected month whenever calendar changes
     useEffect(() => {
         const state = store.getState();
         const month = state.calendar.month;
@@ -61,7 +60,6 @@ export default function TabsLayout() {
         );
         dispatch(fetchFinancialSummary({currentMonth: month, currentYear: year}));
         dispatch(fetchBudgets({currentMonth: month, currentYear: year}));
-        dispatch(fetchGoals({currentMonth: month, currentYear: year}));
     }, [dispatch, month, year]);
 
     return (
@@ -146,21 +144,8 @@ export default function TabsLayout() {
                     }}
                 />
 
-                {/*
-      <Tabs.Screen
-        name="goals"
-        options={{
-          tabBarLabel: "Goals",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="flag" color={color} size={size} />
-          ),
-        }}
-      />
-      */}
-                {/* Expo Router auto-registers every route in this folder, so without
-          this entry the Goals tab would reappear with default styling. Setting
-          `href: null` hides it from the tab bar entirely. */}
-                <Tabs.Screen name="goals" options={{href: null}}/>
+                {/* Expo Router auto-registers every route in this folder.
+                    All routes in this folder are registered above. */}
 
                 <Tabs.Screen
                     name="profile"

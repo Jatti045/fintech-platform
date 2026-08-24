@@ -23,7 +23,6 @@ import transactionReducerDefault from "@/store/slices/transactionSlice";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
 import financialSummaryReducerDefault from "@/store/slices/financialSummarySlice";
-import goalReducerDefault, { fetchGoals } from "@/store/slices/goalSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import { ScrollView, Text, TouchableOpacity } from "react-native";
 import { TransactionType } from "@/types/transaction/types";
@@ -98,7 +97,6 @@ const makeSummary = (
   netSpent: 100,
   netRemaining: 4900,
   spentPercentageOfIncome: 2,
-  goalAllocationAmount: 0,
   ...overrides,
 });
 
@@ -110,7 +108,6 @@ function makeStore() {
       user: userReducer,
       calendar: calendarReducer,
       financialSummary: financialSummaryReducerDefault,
-      goal: goalReducerDefault,
       theme: themeReducer,
     },
   });
@@ -126,12 +123,6 @@ async function setup(options?: { withBudgets?: boolean }) {
   mockedSummaryFetch.mockResolvedValue({ data: makeSummary() });
   mockedBudgetFetch.mockResolvedValue({
     data: options?.withBudgets ? [makeBudget()] : [],
-  });
-  store.dispatch({
-    type: fetchGoals.fulfilled.type,
-    payload: [
-      { id: "g-1", name: "Trip", target: 1000, progress: 200 },
-    ],
   });
 
   let tree!: renderer.ReactTestRenderer;

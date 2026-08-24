@@ -12,7 +12,7 @@ type Props = {
 
 /**
  * Modern search bar with enhanced visual design and smooth interactions.
- * Used on the Transaction, Budget, and Goals screens.
+ * Used on the Transaction and Budget screens.
  */
 export default function SearchBar({
   searchQuery,

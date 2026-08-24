@@ -27,7 +27,6 @@ const summaryPayload = {
   netSpent: 200,
   netRemaining: 3800,
   spentPercentageOfIncome: 5,
-  goalAllocationAmount: 0,
 };
 
 describe("financialSummarySlice – fetchFinancialSummary", () => {

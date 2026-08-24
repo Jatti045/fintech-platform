@@ -621,7 +621,7 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         // TEST 6 — legacy rows are not backfilled or fabricated.
         User user = createUser();
         Transaction legacy = createTransaction(
-                user, null, null, "Legacy", Instant.parse("2024-05-01T00:00:00Z"),
+                user, null, "Legacy", Instant.parse("2024-05-01T00:00:00Z"),
                 "Food", TransactionType.EXPENSE, 10.0);
 
         assertNull(legacy.getPlaidAccountId());

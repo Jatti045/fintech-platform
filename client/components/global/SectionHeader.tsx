@@ -12,7 +12,7 @@ export interface SectionHeaderProps {
 /**
  * Eyebrow-style section divider: a short accent bar, an uppercase title,
  * then a hairline rule — used to frame the distinct zones on the redesigned
- * Budget and Goals screens.
+ * Budget screen.
  */
 export default function SectionHeader({
   title,

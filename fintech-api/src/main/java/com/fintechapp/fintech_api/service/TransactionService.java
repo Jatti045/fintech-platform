@@ -23,12 +23,10 @@ import com.fintechapp.fintech_api.dto.transaction.TransactionQueryParams;
 import com.fintechapp.fintech_api.dto.transaction.TransactionsResponse;
 import com.fintechapp.fintech_api.dto.transaction.UpdateTransactionRequest;
 import com.fintechapp.fintech_api.model.Budget;
-import com.fintechapp.fintech_api.model.Goal;
 import com.fintechapp.fintech_api.model.Transaction;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.repository.BudgetRepository;
-import com.fintechapp.fintech_api.repository.GoalRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
@@ -44,17 +42,14 @@ public class TransactionService {
     private static final String DEFAULT_BASE_CURRENCY = "USD";
 
     private final BudgetRepository budgetRepository;
-    private final GoalRepository goalRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
 
     public TransactionService(
             BudgetRepository budgetRepository,
-            GoalRepository goalRepository,
             TransactionRepository transactionRepository,
             UserRepository userRepository) {
         this.budgetRepository = budgetRepository;
-        this.goalRepository = goalRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
     }
@@ -88,11 +83,6 @@ public class TransactionService {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("budget").get("id"), budgetId));
         }
 
-        String goalId = normalizeOptional(params.goalId());
-        if (StringUtils.hasText(goalId)) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("goal").get("id"), goalId));
-        }
-
         spec = applyCurrentMonthYearFilter(spec, params.currentMonth(), params.currentYear());
 
         String searchQuery = normalizeOptional(params.searchQuery());
@@ -120,14 +110,13 @@ public class TransactionService {
                         category,
                         normalizeOptional(params.startDate()),
                         normalizeOptional(params.endDate()),
-                        budgetId,
-                        goalId));
+                        budgetId));
 
         return new TransactionsResponse(true, "Transactions retrieved successfully", data);
     }
 
     /**
-     * Creates a transaction and updates related budget/goal aggregates atomically.
+     * Creates a transaction and updates related budget aggregates atomically.
      */
     @Transactional
     public TransactionDataResponse createTransaction(
@@ -187,14 +176,6 @@ public class TransactionService {
                     "budgetId is required for expense transactions");
         }
 
-        Goal goal = null;
-        if (StringUtils.hasText(request.goalId())) {
-            goal = goalRepository.findByIdAndUser_Id(request.goalId().trim(), userId)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,
-                            "Goal not found or doesn't belong to user"));
-        }
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
 
@@ -231,19 +212,12 @@ public class TransactionService {
         transaction.setOriginalAmount(originalAmount);
         transaction.setDescription(normalizeOptional(request.description()));
         transaction.setBudget(budget);
-        transaction.setGoal(goal);
 
         Transaction saved = transactionRepository.save(transaction);
 
         if (saved.getType() == TransactionType.EXPENSE) {
             budget.setSpent(budget.getSpent() + saved.getAmount());
             budgetRepository.save(budget);
-        }
-
-        if (saved.getGoal() != null && saved.getType() == TransactionType.INCOME) {
-            Goal linkedGoal = saved.getGoal();
-            linkedGoal.setProgress(linkedGoal.getProgress() + saved.getAmount());
-            goalRepository.save(linkedGoal);
         }
 
         return new TransactionDataResponse(
@@ -253,7 +227,7 @@ public class TransactionService {
     }
 
     /**
-     * Deletes a transaction and restores related budget/goal aggregates atomically.
+     * Deletes a transaction and restores related budget aggregates atomically.
      */
     @Transactional
     public DeleteTransactionResponse deleteTransaction(AuthenticatedUser authenticatedUser, String transactionId) {
@@ -268,18 +242,12 @@ public class TransactionService {
                         "Transaction not found or doesn't belong to user"));
 
         Budget budget = existing.getBudget();
-        Goal goal = existing.getGoal();
         double amount = existing.getAmount();
         TransactionType type = existing.getType();
 
         if (budget != null && type == TransactionType.EXPENSE) {
             budget.setSpent(budget.getSpent() - amount);
             budgetRepository.save(budget);
-        }
-
-        if (goal != null && type == TransactionType.INCOME) {
-            goal.setProgress(goal.getProgress() - amount);
-            goalRepository.save(goal);
         }
 
         transactionRepository.delete(existing);
@@ -290,20 +258,14 @@ public class TransactionService {
                         type == TransactionType.EXPENSE ? amount : 0)
                 : null;
 
-        DeleteTransactionResponse.RestoredGoal restoredGoal = goal != null
-                ? new DeleteTransactionResponse.RestoredGoal(
-                        goal.getId(),
-                        type == TransactionType.INCOME ? amount : 0)
-                : null;
-
         return new DeleteTransactionResponse(
                 true,
                 "Transaction deleted successfully",
-                new DeleteTransactionResponse.Data(existing.getId(), restoredBudget, restoredGoal));
+                new DeleteTransactionResponse.Data(existing.getId(), restoredBudget));
     }
 
     /**
-     * Updates a transaction and synchronizes related budget/goal aggregates
+     * Updates a transaction and synchronizes related budget aggregates
      * atomically.
      */
     @Transactional
@@ -376,20 +338,7 @@ public class TransactionService {
             }
         }
 
-        String newGoalId = request.goalId() == null
-                ? (existing.getGoal() != null ? existing.getGoal().getId() : null)
-                : normalizeOptional(request.goalId());
-
-        Goal newGoal = null;
-        if (StringUtils.hasText(newGoalId)) {
-            newGoal = goalRepository.findByIdAndUser_Id(newGoalId, userId)
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,
-                            "Goal not found or doesn't belong to user"));
-        }
-
         Budget oldBudget = existing.getBudget();
-        Goal oldGoal = existing.getGoal();
         double oldAmount = existing.getAmount();
         TransactionType oldType = existing.getType();
 
@@ -413,25 +362,6 @@ public class TransactionService {
                 && (oldBudget == null || !oldBudget.getId().equals(newBudget.getId()))) {
             newBudget.setSpent(newBudget.getSpent() + newAmount);
             budgetRepository.save(newBudget);
-        }
-
-        if (oldGoal != null && oldType == TransactionType.INCOME) {
-            if (newGoal == null || !oldGoal.getId().equals(newGoal.getId()) || newType != TransactionType.INCOME) {
-                oldGoal.setProgress(oldGoal.getProgress() - oldAmount);
-                goalRepository.save(oldGoal);
-            } else {
-                double diff = newAmount - oldAmount;
-                if (diff != 0) {
-                    oldGoal.setProgress(oldGoal.getProgress() + diff);
-                    goalRepository.save(oldGoal);
-                }
-            }
-        }
-
-        if (newGoal != null && newType == TransactionType.INCOME
-                && (oldGoal == null || !oldGoal.getId().equals(newGoal.getId()))) {
-            newGoal.setProgress(newGoal.getProgress() + newAmount);
-            goalRepository.save(newGoal);
         }
 
         if (request.name() != null) {
@@ -492,7 +422,6 @@ public class TransactionService {
         existing.setOriginalAmount(resolvedOriginalAmount);
 
         existing.setBudget(newBudget);
-        existing.setGoal(newGoal);
 
         Transaction updated = transactionRepository.save(existing);
 
@@ -504,7 +433,6 @@ public class TransactionService {
 
     private TransactionsResponse.TransactionItem toItem(Transaction transaction) {
         Budget budget = transaction.getBudget();
-        Goal goal = transaction.getGoal();
 
         TransactionsResponse.BudgetInfo budgetInfo = budget == null
                 ? null
@@ -513,13 +441,6 @@ public class TransactionService {
                         budget.getCategory(),
                         budget.getLimit(),
                         budget.getSpent());
-
-        TransactionsResponse.GoalInfo goalInfo = goal == null
-                ? null
-                : new TransactionsResponse.GoalInfo(
-                        goal.getId(),
-                        goal.getTarget(),
-                        goal.getProgress());
 
         return new TransactionsResponse.TransactionItem(
                 transaction.getId(),
@@ -533,8 +454,7 @@ public class TransactionService {
                 transaction.getOriginalAmount(),
                 transaction.getOriginalCurrency(),
                 transaction.getDescription(),
-                budgetInfo,
-                goalInfo);
+                budgetInfo);
     }
 
     private Specification<Transaction> userIdEquals(String userId) {
