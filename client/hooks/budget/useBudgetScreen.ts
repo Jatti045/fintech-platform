@@ -60,6 +60,8 @@ export const useBudgetScreen = () => {
 
   // ── Screen-level state ────────────────────────────────────────────────
   const [openSheet, setOpenSheet] = useState(false);
+  /** Smart Month Setup modal (empty + unbudgeted states). */
+  const [openSetup, setOpenSetup] = useState(false);
   const [editingBudget, setEditingBudget] = useState<IBudget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   /** Budget whose drawer is expanded AND feeds the oscilloscope. */
@@ -131,6 +133,14 @@ export const useBudgetScreen = () => {
     setOpenSheet(true);
   }, []);
 
+  const handleOpenSetup = useCallback(() => {
+    setOpenSetup(true);
+  }, []);
+
+  const handleCloseSetup = useCallback(() => {
+    setOpenSetup(false);
+  }, []);
+
   return {
     searchQuery,
     setSearchQuery,
@@ -146,6 +156,7 @@ export const useBudgetScreen = () => {
     activeCurrency,
     openSheet,
     setOpenSheet,
+    openSetup,
     editingBudget,
     transactions,
     month: calendar.month,
@@ -154,6 +165,8 @@ export const useBudgetScreen = () => {
     handleEditPress,
     handleNewBudget,
     handleModalClose,
+    handleOpenSetup,
+    handleCloseSetup,
     handleDeleteBudget,
     onRefresh,
   };

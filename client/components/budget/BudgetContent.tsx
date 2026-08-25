@@ -29,6 +29,8 @@ export interface BudgetContentProps {
   onEdit: (budget: IBudget) => void;
   onDelete: (id: string) => void;
   onSetLimit: (budget: IBudget) => void;
+  /** Opens Smart Month Setup (empty state + unbudgeted section). */
+  onSetup: () => void;
 }
 
 /**
@@ -54,6 +56,7 @@ export default function BudgetContent({
   onEdit,
   onDelete,
   onSetLimit,
+  onSetup,
 }: BudgetContentProps) {
   const { THEME } = useTheme();
 
@@ -66,7 +69,7 @@ export default function BudgetContent({
   }
 
   if (!hasBudgets) {
-    return <EmptyBudgetState />;
+    return <EmptyBudgetState onSetup={onSetup} />;
   }
 
   if (filteredBudgets.length === 0) {
@@ -108,6 +111,7 @@ export default function BudgetContent({
         <UnbudgetedBudgetSection
           budgets={unbudgetedBudgets}
           onSetLimit={onSetLimit}
+          onUseSuggestions={onSetup}
         />
       )}
 

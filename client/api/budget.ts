@@ -1,4 +1,10 @@
-import type { IBudget, IBudgetData } from "@/types/budget/types";
+import type {
+  IBudget,
+  IBudgetData,
+  IBudgetSuggestionApplyItem,
+  IBudgetSuggestions,
+  IApplySuggestionsResult,
+} from "@/types/budget/types";
 import BaseAPI from "./base";
 import type { IApiResponse } from "@/types/api/types";
 
@@ -38,6 +44,32 @@ class BudgetAPI extends BaseAPI {
     return this.makeRequest<any>(`/budget/${budgetId}`, {
       method: "PUT",
       data: updates,
+    });
+  }
+
+  /** Smart Month Setup: fetch suggested limits for a month. */
+  async fetchSuggestions({
+    currentMonth,
+    currentYear,
+  }: {
+    currentMonth: number;
+    currentYear: number;
+  }): Promise<IApiResponse<IBudgetSuggestions>> {
+    return this.makeRequest<IBudgetSuggestions>("/budget/suggestions", {
+      method: "GET",
+      params: { month: currentMonth, year: currentYear },
+    });
+  }
+
+  /** Smart Month Setup: apply a user-confirmed batch of suggested budgets. */
+  async applySuggestions(payload: {
+    month: number;
+    year: number;
+    items: IBudgetSuggestionApplyItem[];
+  }): Promise<IApiResponse<IApplySuggestionsResult>> {
+    return this.makeRequest<IApplySuggestionsResult>("/budget/apply-suggestions", {
+      method: "POST",
+      data: payload,
     });
   }
 }

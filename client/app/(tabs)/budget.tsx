@@ -7,6 +7,7 @@ import {
   BudgetContent,
   BudgetHeader,
   BudgetModal,
+  MonthSetupModal,
   NewBudgetButton,
 } from "@/components/budget";
 
@@ -33,6 +34,7 @@ export default function BudgetScreen() {
     activeCurrency,
     openSheet,
     setOpenSheet,
+    openSetup,
     editingBudget,
     transactions,
     month,
@@ -45,6 +47,8 @@ export default function BudgetScreen() {
     handleEditPress,
     handleNewBudget,
     handleModalClose,
+    handleOpenSetup,
+    handleCloseSetup,
     handleDeleteBudget,
     onRefresh,
   } = useBudgetScreen();
@@ -96,6 +100,7 @@ export default function BudgetScreen() {
           onEdit={handleEditPress}
           onDelete={handleDeleteBudget}
           onSetLimit={handleEditPress}
+          onSetup={handleOpenSetup}
         />
       </ScrollView>
 
@@ -113,6 +118,16 @@ export default function BudgetScreen() {
         setOpenSheet={setOpenSheet}
         editingBudget={editingBudget}
         onClose={handleModalClose}
+      />
+
+      {/* Smart Month Setup — shared flow for empty + unbudgeted states */}
+      <MonthSetupModal
+        open={openSetup}
+        onOpenChange={handleCloseSetup}
+        month={month}
+        year={year}
+        currencyCode={activeCurrency}
+        monthLabel={monthLabel}
       />
     </SafeAreaView>
   );

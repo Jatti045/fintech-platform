@@ -30,6 +30,8 @@ jest.mock("@/api/budget", () => ({
   __esModule: true,
   default: {
     fetchAll: jest.fn(),
+    fetchSuggestions: jest.fn(),
+    applySuggestions: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),

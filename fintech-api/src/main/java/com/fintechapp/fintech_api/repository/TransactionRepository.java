@@ -60,4 +60,28 @@ public interface TransactionRepository
             @Param("type") TransactionType type,
             @Param("from") Instant from,
             @Param("to") Instant to);
+
+    /**
+     * Per-category expense totals for one user + month window, excluding
+     * internal transfers. Used by {@link BudgetSuggestionService} to derive
+     * conservative suggested limits from completed-month spending. Categories
+     * with no expense activity in the window simply have no row.
+     */
+    @Query("SELECT t.category AS category, COALESCE(SUM(t.amount), 0) AS total "
+            + "FROM Transaction t "
+            + "WHERE t.user.id = :userId AND t.type = :type AND t.date >= :from AND t.date < :to "
+            + "AND t.transfer = false "
+            + "GROUP BY t.category")
+    List<CategoryTotal> sumAmountByUserAndTypeGroupedByCategory(
+            @Param("userId") String userId,
+            @Param("type") TransactionType type,
+            @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    /** CI projection returned by {@link #sumAmountByUserAndTypeGroupedByCategory}. */
+    interface CategoryTotal {
+        String getCategory();
+
+        Double getTotal();
+    }
 }

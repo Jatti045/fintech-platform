@@ -41,6 +41,8 @@ jest.mock("@/api/budget", () => ({
   __esModule: true,
   default: {
     fetchAll: jest.fn(),
+    fetchSuggestions: jest.fn(),
+    applySuggestions: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -233,13 +235,15 @@ describe("BudgetScreen", () => {
     await until(() => budgetsSettled(store));
   });
 
-  it("renders the empty state when there are no budgets", async () => {
+  it("renders the empty state with the Smart Month Setup entry point", async () => {
     await setup([]);
 
     expect(renderedText("No budgets yet")).toBe(true);
-    expect(renderedText("Create your first budget to track spending by category.")).toBe(
+    expect(renderedText("Set up this month's budgets in one tap, or create them one by one.")).toBe(
       true,
     );
+    // The one-tap setup CTA is surfaced as the primary empty-state action.
+    expect(renderedText("Set up my month")).toBe(true);
   });
 
   it("renders the header, halo, trend card, and budget rows", async () => {

@@ -3,7 +3,13 @@ package com.fintechapp.fintech_api.service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -11,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fintechapp.fintech_api.dto.budget.ApplyBudgetSuggestionsResponse;
+import com.fintechapp.fintech_api.dto.budget.ApplySuggestionsRequest;
 import com.fintechapp.fintech_api.dto.budget.BudgetDataResponse;
 import com.fintechapp.fintech_api.dto.budget.BudgetIdResponse;
 import com.fintechapp.fintech_api.dto.budget.BudgetItemResponse;
@@ -212,6 +220,111 @@ public class BudgetService {
 
         Budget updated = budgetRepository.save(existing);
         return new BudgetDataResponse(true, "Budget updated successfully", toBudgetItem(updated));
+    }
+
+    /**
+     * Applies a user-confirmed set of suggested budgets as one atomic,
+     * idempotent transaction.
+     *
+     * <p>Safety rules enforced server-side:</p>
+     * <ul>
+     *   <li>a category already carrying a <b>manually configured</b> limit in
+     *   the target month is never overwritten — it is reported as skipped with
+     *   {@code ALREADY_BUDGETED};</li>
+     *   <li>an existing auto-created ($0 Plaid) placeholder for the category is
+     *   given the chosen limit, its {@code autoCreated} flag is cleared (the
+     *   existing convention from {@link #updateBudget}), and its accumulated
+     *   {@code spent} is preserved untouched;</li>
+     *   <li>duplicate categories within one request are applied once
+     *   (subsequent copies reported as {@code DUPLICATE_CATEGORY});</li>
+     *   <li>a category with no target-month row creates a new manual budget.</li>
+     * </ul>
+     *
+     * <p>Calling this twice with the same payload is harmless: the second pass
+     * simply reports every category as {@code ALREADY_BUDGETED} and changes
+     * nothing. Comparison is case-insensitive (matching Plaid ingestion and
+     * {@link BudgetController#getBudgets}).</p>
+     */
+    @Transactional
+    public ApplyBudgetSuggestionsResponse applyBudgetSuggestions(
+            AuthenticatedUser authenticatedUser,
+            ApplySuggestionsRequest request) {
+        String userId = requireUserId(authenticatedUser);
+        if (request == null || request.month() == null || request.year() == null
+                || request.items() == null || request.items().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Month, year and at least one budget item are required");
+        }
+
+        int month = request.month();
+        int year = request.year();
+        Instant monthStart = monthStart(year, month);
+        Instant nextMonth = nextMonthStart(year, month);
+
+        // Target-month budgets indexed by lowercase category (first wins).
+        Map<String, Budget> existingByCategory = new LinkedHashMap<>();
+        for (Budget b : budgetRepository
+                .findByUser_IdAndDateGreaterThanEqualAndDateLessThanOrderByDateDesc(userId, monthStart, nextMonth)) {
+            existingByCategory.putIfAbsent(b.getCategory().toLowerCase(Locale.ROOT), b);
+        }
+
+        List<ApplyBudgetSuggestionsResponse.SkippedItem> skipped = new ArrayList<>();
+        List<BudgetItemResponse> applied = new ArrayList<>();
+        Set<String> written = new LinkedHashSet<>();
+        int created = 0;
+        int updated = 0;
+        int skippedCount = 0;
+
+        for (ApplySuggestionsRequest.Item item : request.items()) {
+            if (item == null || item.category() == null) {
+                continue;
+            }
+            String trimmed = item.category().trim();
+            if (trimmed.isEmpty() || item.limit() == null) {
+                continue;
+            }
+            String key = trimmed.toLowerCase(Locale.ROOT);
+
+            if (!written.add(key)) {
+                skipped.add(new ApplyBudgetSuggestionsResponse.SkippedItem(
+                        trimmed, item.limit(), "DUPLICATE_CATEGORY"));
+                skippedCount++;
+                continue;
+            }
+
+            Budget existing = existingByCategory.get(key);
+            if (existing != null && BudgetSuggestionService.isManuallyConfigured(existing)) {
+                // A real user decision already exists for this month — never override it.
+                skipped.add(new ApplyBudgetSuggestionsResponse.SkippedItem(
+                        existing.getCategory(), item.limit(), "ALREADY_BUDGETED"));
+                skippedCount++;
+                continue;
+            }
+
+            if (existing == null) {
+                User user = userRepository.findById(userId)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
+                Budget budget = new Budget();
+                budget.setUser(user);
+                budget.setCategory(trimmed);
+                budget.setLimit(item.limit());
+                budget.setDate(monthStart);
+                budget.setAutoCreated(false);
+                applied.add(toBudgetItem(budgetRepository.save(budget)));
+                created++;
+            } else {
+                // Auto-created ($0) placeholder — set the limit, clear the flag,
+                // keep the spent aggregate intact.
+                existing.setLimit(item.limit());
+                existing.setAutoCreated(false);
+                applied.add(toBudgetItem(budgetRepository.save(existing)));
+                updated++;
+            }
+        }
+
+        return new ApplyBudgetSuggestionsResponse(true,
+                created + updated + " budget(s) applied", new ApplyBudgetSuggestionsResponse.Data(
+                        year, month, created, updated, skippedCount, List.copyOf(skipped), List.copyOf(applied)));
     }
 
     private BudgetItemResponse toBudgetItem(Budget budget) {

@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useRedux";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
 import TransactionModal from "@/components/transaction/TxModal";
 import BudgetModal from "@/components/budget/BudgetModal";
+import { MonthSetupModal } from "@/components/budget";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
 import MonthSelector from "@/components/home/MonthSelector";
@@ -39,9 +40,11 @@ export default function Index() {
     helpOpen,
     openTxModal,
     openBudgetModal,
+    openSetup,
     setHelpOpen,
     setOpenTxModal,
     setOpenBudgetModal,
+    handleHideSetup,
     refreshing,
     onRefresh,
     handlePrevMonth,
@@ -110,6 +113,15 @@ export default function Index() {
       {/* Modals */}
       <TransactionModal openSheet={openTxModal} setOpenSheet={setOpenTxModal} />
       <BudgetModal openSheet={openBudgetModal} setOpenSheet={setOpenBudgetModal} />
+      {/* Smart Month Setup — opened from the no-budget guard and quick actions */}
+      <MonthSetupModal
+        open={openSetup}
+        onOpenChange={handleHideSetup}
+        month={month}
+        year={year}
+        currencyCode={activeCurrency}
+        monthLabel={monthLabel}
+      />
       <InformationModal helpOpen={helpOpen} setHelpOpen={setHelpOpen} />
     </SafeAreaView>
   );

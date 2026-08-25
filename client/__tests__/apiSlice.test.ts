@@ -32,7 +32,14 @@ jest.mock("@/api/transaction", () => ({
 
 jest.mock("@/api/budget", () => ({
   __esModule: true,
-  default: { fetchAll: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  default: {
+    fetchAll: jest.fn(),
+    fetchSuggestions: jest.fn(),
+    applySuggestions: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 
 jest.mock("@/api/financialSummary", () => ({
@@ -44,6 +51,8 @@ const mockedTxFetch = transactionApi.fetchAll as jest.Mock;
 const mockedTxCreate = transactionApi.create as jest.Mock;
 const mockedBudgetFetch = budgetApi.fetchAll as jest.Mock;
 const mockedSummaryFetch = financialSummaryApi.fetchSummary as jest.Mock;
+const mockedSuggestionsFetch = budgetApi.fetchSuggestions as jest.Mock;
+const mockedApplySuggestions = budgetApi.applySuggestions as jest.Mock;
 
 const makeTx = (id: string) => ({
   id,
@@ -95,6 +104,8 @@ beforeEach(() => {
   mockedTxCreate.mockReset();
   mockedBudgetFetch.mockReset();
   mockedSummaryFetch.mockReset();
+  mockedSuggestionsFetch.mockReset();
+  mockedApplySuggestions.mockReset();
   mockedSummaryFetch.mockResolvedValue({
     success: true,
     data: { totalAmount: 0, monthlyIncome: 0 },
@@ -341,5 +352,90 @@ describe("month race safety", () => {
     const entries = Object.values(store.getState().api.queries);
     const ids = entries.map((e: any) => e.data?.transaction[0]?.id).sort();
     expect(ids).toEqual(["tx-3", "tx-4"]);
+  });
+});
+
+describe("Smart Month Setup", () => {
+  const suggestionsPayload = {
+    success: true,
+    data: { year: 2026, month: 4, suggestions: [] },
+  };
+
+  it("caches suggestions per month under the Suggestions tag", async () => {
+    mockedSuggestionsFetch.mockResolvedValue(suggestionsPayload);
+    const store = makeStore();
+
+    await store.dispatch(
+      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 4, currentYear: 2026 }),
+    ).unwrap();
+
+    // Second subscription to the SAME month is served from cache.
+    await store.dispatch(
+      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 4, currentYear: 2026 }),
+    ).unwrap();
+    expect(mockedSuggestionsFetch).toHaveBeenCalledTimes(1);
+
+    // A different month hits the network again (distinct cache entry).
+    await store.dispatch(
+      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 5, currentYear: 2026 }),
+    ).unwrap();
+    expect(mockedSuggestionsFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("apply invalidates Budgets, Summary, and Suggestions for the target month only", async () => {
+    mockedSuggestionsFetch.mockResolvedValue(suggestionsPayload);
+    mockedApplySuggestions.mockResolvedValue({
+      success: true,
+      message: "applied",
+      data: {
+        year: 2026,
+        month: 4,
+        created: 1,
+        updated: 0,
+        skipped: 0,
+        skippedItems: [],
+        budgets: [],
+      },
+    });
+    mockedBudgetFetch.mockResolvedValue({ success: true, data: [] });
+
+    const store = makeStore();
+
+    // Prime the caches for April and May.
+    await store.dispatch(
+      api.endpoints.getBudgets.initiate({ currentMonth: 4, currentYear: 2026 }),
+    ).unwrap();
+    await store.dispatch(
+      api.endpoints.getFinancialSummary.initiate({ currentMonth: 4, currentYear: 2026 }),
+    ).unwrap();
+    await store.dispatch(
+      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 4, currentYear: 2026 }),
+    ).unwrap();
+    const mayBudgets = store.dispatch(
+      api.endpoints.getBudgets.initiate({ currentMonth: 5, currentYear: 2026 }),
+    );
+    await mayBudgets.unwrap();
+    mayBudgets.unsubscribe();
+
+    mockedBudgetFetch.mockClear();
+    mockedSummaryFetch.mockClear();
+    mockedSuggestionsFetch.mockClear();
+
+    await store.dispatch(
+      api.endpoints.applyBudgetSuggestions.initiate({
+        month: 4,
+        year: 2026,
+        items: [{ category: "Food", limit: 250 }],
+      }),
+    ).unwrap();
+
+    // The applied month's budgets, summary, AND suggestions all refresh…
+    expect(mockedBudgetFetch).toHaveBeenCalledWith({ currentMonth: 4, currentYear: 2026 });
+    expect(mockedSummaryFetch).toHaveBeenCalledWith({ currentMonth: 4, currentYear: 2026 });
+    expect(mockedSuggestionsFetch).toHaveBeenCalledWith({ currentMonth: 4, currentYear: 2026 });
+    // …exactly once each.
+    expect(mockedBudgetFetch).toHaveBeenCalledTimes(1);
+    // …while May's cached budgets stay untouched.
+    expect(mockedBudgetFetch).not.toHaveBeenCalledWith({ currentMonth: 5, currentYear: 2026 });
   });
 });

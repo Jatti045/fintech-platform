@@ -7,7 +7,7 @@ import type {
   ITransactionPagination,
   ITransactionResponse,
 } from "@/types/transaction/types";
-import type { IBudget, IBudgetData } from "@/types/budget/types";
+import type { IBudget, IBudgetData, IBudgetSuggestions, IApplySuggestionsResult } from "@/types/budget/types";
 import type { IFinancialSummary } from "@/types/financialSummary/types";
 import type { IApiResponse } from "@/types/api/types";
 
@@ -53,12 +53,12 @@ export const monthTagId = ({ year, month }: MonthKey) => `${year}-${month}`;
 
 const argsMonth = (a: MonthArgs) => ({ year: a.currentYear, month: a.currentMonth });
 
-const monthTags = (
-  type: "Transactions" | "Budgets" | "Summary",
+const monthTags = <T extends "Transactions" | "Budgets" | "Summary" | "Suggestions">(
+  type: T,
   months: (MonthKey | undefined | null)[],
 ) => {
   const seen = new Set<string>();
-  const tags: { type: typeof type; id: string }[] = [];
+  const tags: { type: T; id: string }[] = [];
   for (const m of months) {
     if (!m) continue;
     const id = monthTagId(m);
@@ -128,7 +128,7 @@ export const api = createApi({
   // All endpoints use `queryFn` and call the typed API layer directly (which
   // owns axios/auth/error normalization); the base query itself is never hit.
   baseQuery: fakeBaseQuery(),
-  tagTypes: ["Transactions", "Budgets", "Summary"],
+  tagTypes: ["Transactions", "Budgets", "Summary", "Suggestions"],
   /**
    * Cold-start revalidation strategy: hydrated cache entries are seeded via
    * `upsertQueryData` in `cachePersistence.ts` and then explicitly
@@ -207,6 +207,54 @@ export const api = createApi({
       },
       providesTags: (_result, _error, arg) => [
         { type: "Budgets", id: monthTagId(argsMonth(arg)) },
+      ],
+    }),
+
+    /**
+     * Smart Month Setup — suggested limits for a month. Read-only; cached per
+     * month under its own tag. Re-suggesting a month whose budgets changed
+     * (via apply or a budget mutation) refreshes this entry because those
+     * mutations invalidate the month's `Suggestions` tag.
+     */
+    getBudgetSuggestions: build.query<IBudgetSuggestions, MonthArgs>({
+      queryFn: async (args) => {
+        try {
+          const response = await budgetAPI.fetchSuggestions(args);
+          if (!response?.data) {
+            return { data: { year: args.currentYear, month: args.currentMonth, suggestions: [] } };
+          }
+          return { data: response.data };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      providesTags: (_result, _error, arg) => [
+        { type: "Suggestions", id: monthTagId(argsMonth(arg)) },
+      ],
+    }),
+
+    /**
+     * Smart Month Setup — apply the user-confirmed batch atomically. The
+     * server never overwrites a manually configured limit. Invalidates the
+     * month's budgets/summary (so the Budget tab and Home refresh) and its
+     * suggestions (so a re-opened setup is authoritative).
+     */
+    applyBudgetSuggestions: build.mutation<
+      IApiResponse<IApplySuggestionsResult>,
+      { month: number; year: number; items: { category: string; limit: number }[] }
+    >({
+      queryFn: async (payload) => {
+        try {
+          const response = await budgetAPI.applySuggestions(payload);
+          return { data: response };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      invalidatesTags: (_r, _e, arg) => [
+        { type: "Budgets", id: monthTagId({ year: arg.year, month: arg.month }) },
+        { type: "Summary", id: monthTagId({ year: arg.year, month: arg.month }) },
+        { type: "Suggestions", id: monthTagId({ year: arg.year, month: arg.month }) },
       ],
     }),
 
@@ -364,6 +412,8 @@ export const {
   useGetTransactionsQuery,
   useGetBudgetsQuery,
   useGetFinancialSummaryQuery,
+  useGetBudgetSuggestionsQuery,
+  useApplyBudgetSuggestionsMutation,
   useCreateTransactionMutation,
   useUpdateTransactionMutation,
   useDeleteTransactionMutation,

@@ -14,7 +14,6 @@ import {
 import { useRefresh } from "@/hooks/useRefresh";
 import { useTransactionDisplayAmounts } from "@/hooks/transaction/useTransactionDisplayAmounts";
 import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
-import { useThemedAlert } from "@/utils/themedAlert";
 import { convertCurrency } from "@/utils/currencyConverter";
 import {
   inferExpenseSourceCurrency,
@@ -53,7 +52,6 @@ const NO_BUDGETS: IBudget[] = [];
  * `useTransactionDisplayAmounts` / `useBudgetDisplayAmounts`.
  */
 export const useHomeScreen = () => {
-  const { showAlert } = useThemedAlert();
   const dispatch = useAppDispatch();
   const user = useUser();
   const activeCurrency = user?.currency || "USD";
@@ -90,6 +88,7 @@ export const useHomeScreen = () => {
   const [helpOpen, setHelpOpen] = useState(false);
   const [openTxModal, setOpenTxModal] = useState(false);
   const [openBudgetModal, setOpenBudgetModal] = useState(false);
+  const [openSetup, setOpenSetup] = useState(false);
 
   // ── Pull-to-refresh: force a network revalidation of all three sources ─
   const { refreshing, onRefresh } = useRefresh(() =>
@@ -168,14 +167,16 @@ export const useHomeScreen = () => {
   /** Guard: a budget must exist for the month before a transaction can be added. */
   const handleNewTransaction = useCallback(() => {
     if (budgets.length === 0) {
-      showAlert({
-        title: "No budgets available",
-        message: "No budgets exist for this month. Please create a budget first.",
-      });
+      // No budgets for this month — surface setup instead of a dead-end alert.
+      setOpenSetup(true);
       return;
     }
     setOpenTxModal(true);
-  }, [budgets.length, showAlert]);
+  }, [budgets.length]);
+
+  const handleHideSetup = useCallback(() => {
+    setOpenSetup(false);
+  }, []);
 
   const handleInfoPress = useCallback(() => {
     setHelpOpen(true);
@@ -195,9 +196,11 @@ export const useHomeScreen = () => {
     helpOpen,
     openTxModal,
     openBudgetModal,
+    openSetup,
     setHelpOpen,
     setOpenTxModal,
     setOpenBudgetModal,
+    handleHideSetup,
     refreshing,
     onRefresh,
     handlePrevMonth,

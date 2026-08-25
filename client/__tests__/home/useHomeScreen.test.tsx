@@ -355,7 +355,7 @@ describe("useHomeScreen", () => {
     expect(captured.current!.openTxModal).toBe(true);
   });
 
-  it("blocks new transactions and alerts when no budget exists", async () => {
+  it("opens Smart Month Setup when no budget exists", async () => {
     const { captured } = await setup();
 
     renderer.act(() => {
@@ -363,7 +363,7 @@ describe("useHomeScreen", () => {
     });
 
     expect(captured.current!.openTxModal).toBe(false);
-    expect(renderedText("No budgets available")).toBe(true);
+    expect(captured.current!.openSetup).toBe(true);
   });
 
   it("keeps the raw expense total when transactions share the active currency", async () => {

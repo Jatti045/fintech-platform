@@ -7,6 +7,7 @@ export { default as NewBudgetButton } from "./NewBudgetButton";
 export { default as BudgetHeader } from "./BudgetHeader";
 export { default as BudgetContent } from "./BudgetContent";
 export { default as UnbudgetedBudgetSection } from "./UnbudgetedBudgetSection";
+export { default as MonthSetupModal } from "./MonthSetupModal";
 
 export type { BudgetReservoirRowProps } from "./BudgetReservoirRow";
 export type { BudgetTrendCardProps } from "./BudgetTrendCard";

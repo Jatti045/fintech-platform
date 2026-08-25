@@ -10,6 +10,8 @@ export interface UnbudgetedBudgetSectionProps {
   budgets: DisplayBudget[];
   /** Invoked by the "Set Limit" action, opening the edit modal for a budget. */
   onSetLimit: (budget: IBudget) => void;
+  /** Optional: surfaces a "Use suggested limits" shortcut into Smart Month Setup. */
+  onUseSuggestions?: () => void;
 }
 
 /**
@@ -20,6 +22,7 @@ export interface UnbudgetedBudgetSectionProps {
 export default function UnbudgetedBudgetSection({
   budgets,
   onSetLimit,
+  onUseSuggestions,
 }: UnbudgetedBudgetSectionProps) {
   const { THEME } = useTheme();
 
@@ -31,17 +34,37 @@ export default function UnbudgetedBudgetSection({
         accent={THEME.warning}
       />
       <GlassPanel padding={12} radius={18} style={{ marginBottom: 12 }}>
-        <Text
-          style={{
-            color: THEME.textSecondary,
-            fontSize: 12,
-            lineHeight: 17,
-            marginBottom: 8,
-          }}
-        >
-          These categories came from your bank feed with no limit set. Tap
-          “Set Limit” to assign one and clear the flag.
-        </Text>
+        {onUseSuggestions ? (
+          <TouchableOpacity
+            onPress={onUseSuggestions}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            style={{
+              backgroundColor: hexToRgba(THEME.primary, 0.12),
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 9,
+              alignItems: "center",
+              marginBottom: 4,
+            }}
+          >
+            <Text style={{ color: THEME.primary, fontSize: 12, fontWeight: "800" }}>
+              Use suggested limits
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text
+            style={{
+              color: THEME.textSecondary,
+              fontSize: 12,
+              lineHeight: 17,
+              marginBottom: 8,
+            }}
+          >
+            These categories came from your bank feed with no limit set. Tap
+            “Set Limit” to assign one and clear the flag.
+          </Text>
+        )}
         {budgets.map((budget) => (
           <View
             key={budget.id}

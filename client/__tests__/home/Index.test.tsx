@@ -45,6 +45,8 @@ jest.mock("@/api/budget", () => ({
   __esModule: true,
   default: {
     fetchAll: jest.fn(),
+    fetchSuggestions: jest.fn(),
+    applySuggestions: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -60,6 +62,7 @@ jest.mock("@/utils/currencyConverter", () => ({
 const mockedTxFetch = transactionApi.fetchAll as jest.Mock;
 const mockedSummaryFetch = financialSummaryApi.fetchSummary as jest.Mock;
 const mockedBudgetFetch = budgetApi.fetchAll as jest.Mock;
+const mockedSuggestionsFetch = budgetApi.fetchSuggestions as jest.Mock;
 
 const makeTx = (overrides: Partial<ITransaction> = {}): ITransaction => ({
   id: "t-1",
@@ -180,6 +183,10 @@ beforeEach(async () => {
   mockedTxFetch.mockReset();
   mockedSummaryFetch.mockReset();
   mockedBudgetFetch.mockReset();
+  mockedSuggestionsFetch.mockReset();
+  mockedSuggestionsFetch.mockResolvedValue({
+    data: { year: 2026, month: 1, suggestions: [] },
+  });
   textMock.mockClear();
   touchableOpacityMock.mockClear();
 });
@@ -237,7 +244,7 @@ describe("Index", () => {
     expect(renderedText("Add New Transaction")).toBe(true);
   });
 
-  it("shows the no-budget guard instead of opening the transaction modal", async () => {
+  it("opens Smart Month Setup instead of the transaction modal when no budget exists", async () => {
     await setup({ withBudgets: false });
 
     const tile = lastProps(
@@ -249,7 +256,7 @@ describe("Index", () => {
     });
 
     expect(renderedText("Add New Transaction")).toBe(false);
-    expect(renderedText("No budgets available")).toBe(true);
+    expect(renderedText("Set up")).toBe(true);
   });
 
   it("opens the budget modal from quick actions", async () => {
