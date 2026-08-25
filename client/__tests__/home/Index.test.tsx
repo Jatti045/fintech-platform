@@ -17,6 +17,7 @@ import { AlertProvider } from "@/utils/themedAlert";
 import transactionApi from "@/api/transaction";
 import financialSummaryApi from "@/api/financialSummary";
 import budgetApi from "@/api/budget";
+import recurringApi from "@/api/recurring";
 import Index from "@/app/(tabs)/index";
 import api from "@/store/api/apiSlice";
 import userReducer from "@/store/slices/userSlice";
@@ -53,6 +54,13 @@ jest.mock("@/api/budget", () => ({
   },
 }));
 
+jest.mock("@/api/recurring", () => ({
+  __esModule: true,
+  default: {
+    fetchUpcoming: jest.fn(),
+  },
+}));
+
 jest.mock("@/utils/currencyConverter", () => ({
   convertCurrency: jest.fn(async (amount: number) => amount),
   getExchangeRate: jest.fn(),
@@ -63,6 +71,7 @@ const mockedTxFetch = transactionApi.fetchAll as jest.Mock;
 const mockedSummaryFetch = financialSummaryApi.fetchSummary as jest.Mock;
 const mockedBudgetFetch = budgetApi.fetchAll as jest.Mock;
 const mockedSuggestionsFetch = budgetApi.fetchSuggestions as jest.Mock;
+const mockedRecurringFetch = recurringApi.fetchUpcoming as jest.Mock;
 
 const makeTx = (overrides: Partial<ITransaction> = {}): ITransaction => ({
   id: "t-1",
@@ -184,6 +193,11 @@ beforeEach(async () => {
   mockedSummaryFetch.mockReset();
   mockedBudgetFetch.mockReset();
   mockedSuggestionsFetch.mockReset();
+  mockedRecurringFetch.mockReset();
+  mockedRecurringFetch.mockResolvedValue({
+    success: true,
+    data: { recurringPayments: [] },
+  });
   mockedSuggestionsFetch.mockResolvedValue({
     data: { year: 2026, month: 1, suggestions: [] },
   });

@@ -24,6 +24,29 @@ export const ANDROID_NOTIFICATION_CHANNEL_NAME = "Purchase reminders";
 /** Route opened when a purchase-reminder notification is tapped. */
 export const PURCHASE_REMINDER_ROUTE = "/(tabs)/transaction";
 
+/** Route opened when an upcoming-bill notification is tapped. */
+export const UPCOMING_BILL_ROUTE = "/(tabs)";
+
+/**
+ * Identifier prefix owned by the upcoming-bill scheduler. Bill reminders are
+ * dated (not repeating), so they are pruned by prefix before every resync
+ * instead of living in NOTIFICATION_SCHEDULES.
+ */
+export const BILL_REMINDER_IDENTIFIER_PREFIX = "bill-reminder-";
+
+/**
+ * Hard cap on scheduled bill reminders at any moment. High-confidence bills
+ * only, so this bound plus the prefix-pruning makes spam structurally
+ * impossible.
+ */
+export const MAX_BILL_REMINDERS = 5;
+
+/**
+ * A bill is reminder-worthy when its predicted date falls within this many
+ * days. Conservative: short horizon keeps the prediction honest.
+ */
+export const BILL_REMINDER_HORIZON_DAYS = 3;
+
 /**
  * The app's repeating daily schedules. `hour`/`minute` are expressed in the
  * user's local time — the OS resolves them against the device's current

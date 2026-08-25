@@ -27,6 +27,7 @@ import {
   resetNotificationPreferences,
   selectNotificationPreferencesLoaded,
   selectPurchaseRemindersEnabled,
+  selectBillRemindersEnabled,
   selectNotificationTimezone,
 } from "@/store/slices/notificationSlice";
 import {
@@ -38,22 +39,42 @@ import { getCurrentTimeZone, timezoneChanged } from "@/utils/notifications/timez
 import {
   cancelPurchaseReminders,
   schedulePurchaseReminders,
+  scheduleBillReminders,
+  cancelBillReminders,
 } from "@/utils/notifications/scheduler";
 import { registerNotificationResponseHandler } from "@/utils/notifications/navigation";
 import {
   isNotificationOnboardingPending,
   clearNotificationOnboardingFlag,
 } from "@/utils/notifications/onboardingFlag";
+import { useGetRecurringPaymentsQuery } from "@/store/api/apiSlice";
 
 const SCOPE = "useNotifications";
+
+/** Stable empty fallback — a fresh [] each render would retrigger effects. */
+const NO_BILLS: never[] = [];
+
+/** Local YYYY-MM-DD key so the recurring cache rolls over at midnight. */
+function todayKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+}
 
 export function useNotifications() {
   const dispatch = useAppDispatch();
   const { isAuthenticated, isLoading } = useAuth();
   const enabled = useAppSelector(selectPurchaseRemindersEnabled);
+  const billsEnabled = useAppSelector(selectBillRemindersEnabled);
   const timezone = useAppSelector(selectNotificationTimezone);
   const prefsLoaded = useAppSelector(selectNotificationPreferencesLoaded);
   const wasAuthenticatedRef = useRef(false);
+
+  // Subscribing here (not only on Home) keeps bill reminders in sync even
+  // when Home has not mounted yet. RTK Query dedupes identical args, so this
+  // shares the exact same cache entry / network request as the Home screen.
+  const recurringQuery = useGetRecurringPaymentsQuery({ today: todayKey() });
+  const detectedBills =
+    recurringQuery.data?.recurringPayments ?? NO_BILLS;
 
   /**
    * Ensures the reminders are scheduled under the current conditions:
@@ -84,6 +105,7 @@ export function useNotifications() {
     if (permission !== "granted") {
       logger.info(SCOPE, "Notifications not permitted; cancelling reminders");
       await cancelPurchaseReminders();
+      await cancelBillReminders();
       return;
     }
 
@@ -97,13 +119,34 @@ export function useNotifications() {
       });
     }
 
-    // Idempotent: prunes owned instances then recreates the configured set.
-    await schedulePurchaseReminders();
+    // Each reminder type is gated by its own preference. Both schedulers are
+    // idempotent (prune-then-create), so calling either branch is always safe.
+    if (enabled) {
+      await schedulePurchaseReminders();
+    } else {
+      await cancelPurchaseReminders();
+    }
+
+    // Bill reminders: HIGH-confidence predictions only, capped and dated.
+    if (billsEnabled && detectedBills.length > 0) {
+      await scheduleBillReminders(
+        detectedBills
+          .filter((bill) => bill.confidence === "HIGH")
+          .map((bill) => ({
+            seriesKey: bill.seriesKey,
+            name: bill.name,
+            expectedAmount: bill.expectedAmount,
+            nextExpectedDate: bill.nextExpectedDate,
+          })),
+      );
+    } else {
+      await cancelBillReminders();
+    }
 
     if (timezoneChanged(timezone, currentTimezone)) {
       dispatch(setNotificationTimezone(currentTimezone));
     }
-  }, [dispatch, timezone]);
+  }, [dispatch, timezone, enabled, billsEnabled, detectedBills]);
 
   // Load preferences once and register the tap-routing handler.
   useEffect(() => {
@@ -132,19 +175,17 @@ export function useNotifications() {
       void cancelPurchaseReminders().catch((error) =>
         logger.warn(SCOPE, "Failed to cancel reminders on logout", error),
       );
+      void cancelBillReminders().catch((error) =>
+        logger.warn(SCOPE, "Failed to cancel bill reminders on logout", error),
+      );
       return;
     }
 
     // Wait for persisted preferences before deciding anything.
     if (!prefsLoaded) return;
 
-    if (!enabled) {
-      void cancelPurchaseReminders().catch((error) =>
-        logger.warn(SCOPE, "Failed to cancel reminders (disabled)", error),
-      );
-      return;
-    }
-
+    // syncReminders applies each preference independently (scheduling enabled
+    // types, cancelling disabled ones), so one call covers every combination.
     void syncReminders().catch((error) =>
       logger.warn(SCOPE, "Failed to sync reminders", error),
     );
@@ -153,14 +194,16 @@ export function useNotifications() {
     isLoading,
     isAuthenticated,
     enabled,
+    billsEnabled,
     prefsLoaded,
     syncReminders,
   ]);
 
   // Re-sync when the app returns to the foreground. This catches permission
-  // grants/revocations and timezone changes made while the app was closed.
+  // grants/revocations, timezone changes and refreshed bill predictions made
+  // while the app was closed.
   useEffect(() => {
-    if (isLoading || !isAuthenticated || !prefsLoaded || !enabled) return;
+    if (isLoading || !isAuthenticated || !prefsLoaded) return;
 
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {

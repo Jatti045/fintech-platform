@@ -7,15 +7,18 @@ import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 
 import { logger } from "@/utils/logger";
-import { PURCHASE_REMINDER_ROUTE } from "@/constants/notifications";
+import {
+  PURCHASE_REMINDER_ROUTE,
+  UPCOMING_BILL_ROUTE,
+} from "@/constants/notifications";
 import type { NotificationKind } from "@/types/notifications/types";
 
 const SCOPE = "notifications.navigation";
 
 /**
- * Routes the user based on a (tapped) notification. Today the only supported
- * kind is the purchase reminder, which opens the Transactions tab where a
- * purchase can be logged.
+ * Routes the user based on a (tapped) notification:
+ *   - purchaseReminder → Transactions tab (where a purchase is logged)
+ *   - upcomingBill     → Home (where the Upcoming Bills card lives)
  */
 export function handleNotificationResponse(
   response: Notifications.NotificationResponse,
@@ -25,6 +28,11 @@ export function handleNotificationResponse(
 
   if (kind === "purchaseReminder") {
     router.navigate(PURCHASE_REMINDER_ROUTE);
+    return;
+  }
+
+  if (kind === "upcomingBill") {
+    router.navigate(UPCOMING_BILL_ROUTE);
     return;
   }
 

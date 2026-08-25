@@ -56,6 +56,7 @@ export function useNotificationOnboarding() {
     dispatch(setPurchaseRemindersEnabled(granted));
     await persistNotificationPreferences({
       purchaseRemindersEnabled: granted,
+      billRemindersEnabled: granted,
       timezone: null,
     });
     await clearNotificationOnboardingFlag();

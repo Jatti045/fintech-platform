@@ -28,9 +28,11 @@ import {setTheme} from "@/store/slices/themeSlice";
 import {
     persistNotificationPreferences,
     setPurchaseRemindersEnabled,
+    setBillRemindersEnabled,
     setNotificationPermissionStatus,
     selectNotificationTimezone,
     selectPurchaseRemindersEnabled,
+    selectBillRemindersEnabled,
     selectNotificationPermissionStatus,
 } from "@/store/slices/notificationSlice";
 import {userAPI} from "@/api/user";
@@ -117,11 +119,14 @@ export interface UseProfileReturn {
     connectedItem: IPlaidItem | null;
     setConnectedItem: (item: IPlaidItem | null) => void;
 
-    /** Purchase-reminder preference state + toggle handler */
+        /** Purchase-reminder preference state + toggle handler */
     purchaseRemindersEnabled: boolean;
+    /** Upcoming-bill reminder preference state + toggle handler */
+    billRemindersEnabled: boolean;
     /** True when notifications are not permitted on this device */
     notificationPermissionDenied: boolean;
     handleTogglePurchaseReminders: (enabled: boolean) => void;
+    handleToggleBillReminders: (enabled: boolean) => void;
     /** Opens the device settings where notification permission can be changed. */
     openNotificationSettings: () => void;
 }
@@ -177,6 +182,7 @@ export function useProfile(): UseProfileReturn {
     const purchaseRemindersEnabled = useAppSelector(
         selectPurchaseRemindersEnabled,
     );
+    const billRemindersEnabled = useAppSelector(selectBillRemindersEnabled);
     const notificationTimezone = useAppSelector(selectNotificationTimezone);
     const permissionStatus = useAppSelector(selectNotificationPermissionStatus);
     const notificationPermissionDenied = permissionStatus === "denied";
@@ -192,10 +198,11 @@ export function useProfile(): UseProfileReturn {
                     permission = await requestPermission();
                     dispatch(setNotificationPermissionStatus(permission));
                 }
-                if (permission === "granted") {
+                                if (permission === "granted") {
                     dispatch(setPurchaseRemindersEnabled(true));
                     await persistNotificationPreferences({
                         purchaseRemindersEnabled: true,
+                        billRemindersEnabled,
                         timezone: notificationTimezone,
                     });
                     return;
@@ -205,6 +212,7 @@ export function useProfile(): UseProfileReturn {
                 dispatch(setPurchaseRemindersEnabled(false));
                 await persistNotificationPreferences({
                     purchaseRemindersEnabled: false,
+                    billRemindersEnabled,
                     timezone: notificationTimezone,
                 });
                 if (permission === "denied") {
@@ -221,15 +229,33 @@ export function useProfile(): UseProfileReturn {
                 return;
             }
 
-            // Disabling: turn the preference off; the notification lifecycle hook
+                        // Disabling: turn the preference off; the notification lifecycle hook
             // cancels any scheduled reminders.
             dispatch(setPurchaseRemindersEnabled(false));
             await persistNotificationPreferences({
                 purchaseRemindersEnabled: false,
+                billRemindersEnabled,
                 timezone: notificationTimezone,
             });
         },
-        [dispatch, permissionStatus, notificationTimezone, showAlert],
+        [dispatch, permissionStatus, notificationTimezone, billRemindersEnabled, showAlert],
+    );
+
+    /**
+     * Toggles upcoming-bill reminders. No OS permission dance needed here:
+     * bill reminders ride the same permission grant as purchase reminders,
+     * and the lifecycle hook applies the change on its next sync.
+     */
+    const handleToggleBillReminders = useCallback(
+        async (value: boolean) => {
+            dispatch(setBillRemindersEnabled(value));
+            await persistNotificationPreferences({
+                purchaseRemindersEnabled,
+                billRemindersEnabled: value,
+                timezone: notificationTimezone,
+            });
+        },
+        [dispatch, purchaseRemindersEnabled, notificationTimezone],
     );
 
     /** Opens the OS settings screen where notification permission lives. */
@@ -780,8 +806,10 @@ export function useProfile(): UseProfileReturn {
         pwSaving,
         settingsItems,
         purchaseRemindersEnabled,
+        billRemindersEnabled,
         notificationPermissionDenied,
         handleTogglePurchaseReminders,
+        handleToggleBillReminders,
         openNotificationSettings,
         linking,
         handleLinkBank,

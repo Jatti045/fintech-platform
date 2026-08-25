@@ -12,6 +12,7 @@ export type { NotificationPreferencesState };
 
 const initialState: NotificationPreferencesState = {
   purchaseRemindersEnabled: true,
+  billRemindersEnabled: true,
   timezone: null,
   permissionStatus: "undetermined",
   loaded: false,
@@ -42,7 +43,10 @@ export const loadNotificationPreferences = createAsyncThunk(
  * persistence happens at the call site).
  */
 export async function persistNotificationPreferences(
-  preferences: Pick<NotificationPreferencesState, "purchaseRemindersEnabled" | "timezone">,
+  preferences: Pick<
+    NotificationPreferencesState,
+    "purchaseRemindersEnabled" | "billRemindersEnabled" | "timezone"
+  >,
 ): Promise<void> {
   try {
     await AsyncStorage.setItem(
@@ -61,6 +65,9 @@ const notificationSlice = createSlice({
     setPurchaseRemindersEnabled(state, action: PayloadAction<boolean>) {
       state.purchaseRemindersEnabled = action.payload;
     },
+    setBillRemindersEnabled(state, action: PayloadAction<boolean>) {
+      state.billRemindersEnabled = action.payload;
+    },
     setNotificationTimezone(state, action: PayloadAction<string | null>) {
       state.timezone = action.payload;
     },
@@ -72,6 +79,7 @@ const notificationSlice = createSlice({
     },
     resetNotificationPreferences(state) {
       state.purchaseRemindersEnabled = initialState.purchaseRemindersEnabled;
+      state.billRemindersEnabled = initialState.billRemindersEnabled;
       state.timezone = initialState.timezone;
       state.permissionStatus = initialState.permissionStatus;
     },
@@ -83,6 +91,8 @@ const notificationSlice = createSlice({
         state.purchaseRemindersEnabled =
           preferences?.purchaseRemindersEnabled ??
           initialState.purchaseRemindersEnabled;
+        state.billRemindersEnabled =
+          preferences?.billRemindersEnabled ?? initialState.billRemindersEnabled;
         state.timezone = preferences?.timezone ?? initialState.timezone;
         state.loaded = true;
       })
@@ -94,6 +104,7 @@ const notificationSlice = createSlice({
 
 export const {
   setPurchaseRemindersEnabled,
+  setBillRemindersEnabled,
   setNotificationTimezone,
   setNotificationPermissionStatus,
   resetNotificationPreferences,
@@ -105,6 +116,10 @@ export default notificationSlice.reducer;
 export const selectPurchaseRemindersEnabled = (state: {
   notifications: NotificationPreferencesState;
 }) => state.notifications.purchaseRemindersEnabled;
+
+export const selectBillRemindersEnabled = (state: {
+  notifications: NotificationPreferencesState;
+}) => state.notifications.billRemindersEnabled;
 
 export const selectNotificationTimezone = (state: {
   notifications: NotificationPreferencesState;

@@ -13,10 +13,14 @@ interface NotificationPreferenceProps {
   permissionDenied: boolean;
   onToggle: (enabled: boolean) => void;
   onOpenSettings: () => void;
+  /** Row title. Defaults to the purchase-reminder copy. */
+  title?: string;
+  /** Row subtitle shown when permission is granted. */
+  subtitle?: string;
 }
 
 /**
- * Renders the purchase-reminder preference on a subtle glass surface with a
+ * Renders a notification preference on a subtle glass surface with a
  * switch. The switch reflects the *effective* state: when the OS has denied
  * permission, it is shown off and disabled (never a fake "on" toggle), and an
  * "Open Settings" action is offered so the user can grant permission at the
@@ -28,6 +32,8 @@ export default function NotificationPreference({
   permissionDenied,
   onToggle,
   onOpenSettings,
+  title = "Purchase Reminders",
+  subtitle = "A gentle nudge at 12 PM and 6 PM to log your purchases.",
 }: NotificationPreferenceProps) {
   return (
     <GlassPanel padding={14} radius={18} style={{ marginBottom: 12 }}>
@@ -53,7 +59,7 @@ export default function NotificationPreference({
               fontWeight: "800",
             }}
           >
-            Purchase Reminders
+            {title}
           </Text>
           <Text
             style={{
@@ -65,7 +71,7 @@ export default function NotificationPreference({
           >
             {permissionDenied
               ? "Notifications are off for Budgee in device settings. Turn them on there to receive reminders."
-              : "A gentle nudge at 12 PM and 6 PM to log your purchases."}
+              : subtitle}
           </Text>
         </View>
         <Switch

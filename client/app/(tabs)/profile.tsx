@@ -41,9 +41,11 @@ export default function ProfileScreen() {
         handleChangePassword,
         pwSaving,
         settingsItems,
-        purchaseRemindersEnabled,
+                purchaseRemindersEnabled,
+        billRemindersEnabled,
         notificationPermissionDenied,
         handleTogglePurchaseReminders,
+        handleToggleBillReminders,
         openNotificationSettings,
         linking,
         handleLinkBank,
@@ -150,6 +152,16 @@ export default function ProfileScreen() {
                     enabled={purchaseRemindersEnabled && !notificationPermissionDenied}
                     permissionDenied={notificationPermissionDenied}
                     onToggle={handleTogglePurchaseReminders}
+                    onOpenSettings={openNotificationSettings}
+                />
+
+                <NotificationPreference
+                    THEME={THEME}
+                    title="Upcoming Bill Reminders"
+                    subtitle="A heads-up the evening before a bill you pay regularly, like rent. Estimates only."
+                    enabled={billRemindersEnabled && !notificationPermissionDenied}
+                    permissionDenied={notificationPermissionDenied}
+                    onToggle={handleToggleBillReminders}
                     onOpenSettings={openNotificationSettings}
                 />
 

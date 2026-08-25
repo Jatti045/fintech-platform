@@ -2,6 +2,7 @@ import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import transactionAPI from "@/api/transaction";
 import budgetAPI from "@/api/budget";
 import financialSummaryAPI from "@/api/financialSummary";
+import recurringAPI from "@/api/recurring";
 import type {
   ITransaction,
   ITransactionPagination,
@@ -9,6 +10,7 @@ import type {
 } from "@/types/transaction/types";
 import type { IBudget, IBudgetData, IBudgetSuggestions, IApplySuggestionsResult } from "@/types/budget/types";
 import type { IFinancialSummary } from "@/types/financialSummary/types";
+import type { IRecurringPaymentsResponseData } from "@/types/recurring/types";
 import type { IApiResponse } from "@/types/api/types";
 
 /**
@@ -128,7 +130,7 @@ export const api = createApi({
   // All endpoints use `queryFn` and call the typed API layer directly (which
   // owns axios/auth/error normalization); the base query itself is never hit.
   baseQuery: fakeBaseQuery(),
-  tagTypes: ["Transactions", "Budgets", "Summary", "Suggestions"],
+  tagTypes: ["Transactions", "Budgets", "Summary", "Suggestions", "Recurring"],
   /**
    * Cold-start revalidation strategy: hydrated cache entries are seeded via
    * `upsertQueryData` in `cachePersistence.ts` and then explicitly
@@ -234,6 +236,26 @@ export const api = createApi({
     }),
 
     /**
+     * Upcoming Bills — recurring-payment predictions derived from history.
+     * Keyed per local calendar day (`today`) so a cached prediction set can
+     * never outlive midnight; invalidated by every transaction mutation via
+     * the shared `Recurring` tag (a new charge extends or confirms a series).
+     */
+    getRecurringPayments: build.query<IRecurringPaymentsResponseData, { today: string }>({
+      queryFn: async ({ today }) => {
+        try {
+          const response = await recurringAPI.fetchUpcoming(today);
+          return {
+            data: response?.data ?? { recurringPayments: [] },
+          };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      providesTags: () => [{ type: "Recurring", id: "all" }],
+    }),
+
+    /**
      * Smart Month Setup — apply the user-confirmed batch atomically. The
      * server never overwrites a manually configured limit. Invalidates the
      * month's budgets/summary (so the Budget tab and Home refresh) and its
@@ -298,9 +320,10 @@ export const api = createApi({
         const fromArgs = tx.month != null && tx.year != null
           ? [{ year: tx.year, month: tx.month }]
           : [];
-        return [
+                return [
           ...monthTags("Budgets", [...fromArgs, monthOfDate(tx.date)]),
           ...monthTags("Summary", [...fromArgs, monthOfDate(tx.date)]),
+          { type: "Recurring", id: "all" },
         ];
       },
     }),
@@ -331,6 +354,7 @@ export const api = createApi({
         return [
           ...monthTags("Budgets", months),
           ...monthTags("Summary", months),
+          { type: "Recurring", id: "all" },
         ];
       },
     }),
@@ -353,6 +377,7 @@ export const api = createApi({
         return [
           ...monthTags("Budgets", arg.invalidateMonths ?? []),
           ...monthTags("Summary", arg.invalidateMonths ?? []),
+          { type: "Recurring", id: "all" },
         ];
       },
     }),
@@ -414,6 +439,7 @@ export const {
   useGetFinancialSummaryQuery,
   useGetBudgetSuggestionsQuery,
   useApplyBudgetSuggestionsMutation,
+  useGetRecurringPaymentsQuery,
   useCreateTransactionMutation,
   useUpdateTransactionMutation,
   useDeleteTransactionMutation,

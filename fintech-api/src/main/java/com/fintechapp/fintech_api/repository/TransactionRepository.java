@@ -84,4 +84,16 @@ public interface TransactionRepository
 
         Double getTotal();
     }
+
+    /**
+     * Bounded, indexed history window for recurring-payment detection
+     * ({@code idx_transactions_user_date}). Expenses only: recurring bills are
+     * money out; income and internal transfers are structurally excluded so
+     * neither can ever surface as an upcoming bill. Ordered ascending so the
+     * detector sees chronology without re-sorting semantics.
+     */
+    List<Transaction> findByUser_IdAndTypeAndDateGreaterThanEqualOrderByDateAsc(
+            String userId,
+            TransactionType type,
+            Instant from);
 }

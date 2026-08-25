@@ -5,11 +5,10 @@
 
 /**
  * The distinct kinds of notifications the app can produce today.
- * Extend this union (and add a schedule in `constants/notifications.ts`)
- * to support new notification types such as budget alerts or monthly
- * summaries.
+ * Extend this union (and handle it in `getNotificationContent` /
+ * `handleNotificationResponse`) to support new notification types.
  */
-export type NotificationKind = "purchaseReminder";
+export type NotificationKind = "purchaseReminder" | "upcomingBill";
 
 /**
  * The part of the day a reminder belongs to. Used to pick message copy and
@@ -37,6 +36,11 @@ export type NotificationPermissionState = "granted" | "denied" | "undetermined";
 export interface NotificationPreferencesState {
   /** Master switch for purchase reminders. */
   purchaseRemindersEnabled: boolean;
+  /**
+   * Master switch for upcoming-bill reminders (local only, high-confidence
+   * bills due within the next few days, capped to avoid spam).
+   */
+  billRemindersEnabled: boolean;
   /**
    * IANA timezone (e.g. "America/Toronto") the schedule was last built for.
    * Used to detect travel/timezone changes so the schedule can be rebuilt.

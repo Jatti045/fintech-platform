@@ -58,6 +58,23 @@ function utcDayIndex(): number {
 }
 
 /**
+ * Structured content for an upcoming-bill reminder. Deliberately hedged
+ * wording: Budgee predicts from history, it does not know a charge will
+ * happen, so the message says "usually" / "about" — never "will".
+ */
+export function getUpcomingBillContent(
+  name: string,
+  amountText: string,
+  whenText: string,
+): NotificationContent {
+  return {
+    title: "Upcoming bill",
+    body: `${name} usually renews ${whenText}. Estimated amount about ${amountText}.`,
+    data: { kind: "upcomingBill" },
+  };
+}
+
+/**
  * Returns the structured content (title, body and routing payload) for a
  * notification of the given kind and time slot.
  *
@@ -74,7 +91,7 @@ export function getNotificationContent(
   dayIndex: number = utcDayIndex(),
 ): NotificationContent {
   switch (kind) {
-    case "purchaseReminder": {
+        case "purchaseReminder": {
       const variants = PURCHASE_REMINDER_VARIANTS[timeSlot];
       const variant = variants[dayIndex % variants.length];
       return {
@@ -82,6 +99,12 @@ export function getNotificationContent(
         data: { kind },
       };
     }
+    case "upcomingBill":
+      // Bill reminders carry per-bill copy — build them via
+      // getUpcomingBillContent(), never through this static-copy path.
+      throw new Error(
+        "getNotificationContent: use getUpcomingBillContent() for upcomingBill",
+      );
     default: {
       // Exhaustive guard — a future kind must be handled here.
       const exhaustive: never = kind;

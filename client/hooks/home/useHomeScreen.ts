@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useAppDispatch,
   useCalendar,
@@ -9,6 +9,7 @@ import {
   defaultTransactionArgs,
   useGetBudgetsQuery,
   useGetFinancialSummaryQuery,
+  useGetRecurringPaymentsQuery,
   useGetTransactionsQuery,
 } from "@/store/api/apiSlice";
 import { useRefresh } from "@/hooks/useRefresh";
@@ -22,6 +23,11 @@ import {
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import type { IBudget } from "@/types/budget/types";
 import type { ITransaction } from "@/types/transaction/types";
+import type { IRecurringPayment } from "@/types/recurring/types";
+import {
+  loadDismissedSeries,
+  dismissSeries,
+} from "@/utils/recurring/dismissedSeries";
 
 /**
  * Stable empty-array fallbacks.
@@ -73,6 +79,44 @@ export const useHomeScreen = () => {
   const transactions = transactionsQuery.data?.transaction ?? NO_TRANSACTIONS;
   const budgets = budgetsQuery.data ?? NO_BUDGETS;
   const financialSummary = financialSummaryQuery.data ?? null;
+
+  // ── Upcoming Bills ─────────────────────────────────────────────────────
+  // Predictions are day-scoped (`today` busts the cache at midnight) and
+  // filtered client-side by persisted dismissals. Failures degrade silently —
+  // Home's other content must never be blocked by an analytics nicety.
+  const todayKey = useMemo(
+    () =>
+      `${new Date().getFullYear()}-${new Date().getMonth() + 1}-${new Date().getDate()}`,
+    // Recomputed per render is fine; memo keeps the arg reference stable.
+    [],
+  );
+  const recurringQuery = useGetRecurringPaymentsQuery({ today: todayKey });
+
+  const [dismissedKeys, setDismissedKeys] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadDismissedSeries().then((keys) => {
+      if (!cancelled) setDismissedKeys(keys);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Dismisses a series locally (persisted) so it stops appearing. */
+  const handleDismissBill = useCallback((seriesKey: string) => {
+    setDismissedKeys((prev) =>
+      prev.includes(seriesKey) ? prev : [...prev, seriesKey],
+    );
+    void dismissSeries(seriesKey);
+  }, []);
+
+  const upcomingBills: IRecurringPayment[] = useMemo(() => {
+    const all = recurringQuery.data?.recurringPayments ?? [];
+    return all
+      .filter((b) => !dismissedKeys.includes(b.seriesKey))
+      .slice(0, 5);
+  }, [recurringQuery.data, dismissedKeys]);
 
   const { displayTransactions } = useTransactionDisplayAmounts(
     transactions,
@@ -193,6 +237,8 @@ export const useHomeScreen = () => {
     isCurrentMonth,
     month: calendar.month,
     year: calendar.year,
+    upcomingBills,
+    handleDismissBill,
     helpOpen,
     openTxModal,
     openBudgetModal,

@@ -14,6 +14,7 @@ import type { NotificationPreferencesState } from "@/types/notifications/types";
 describe("notificationSlice", () => {
   const initialState: NotificationPreferencesState = {
     purchaseRemindersEnabled: true,
+    billRemindersEnabled: true,
     timezone: null,
     permissionStatus: "undetermined",
     loaded: false,
@@ -96,14 +97,16 @@ describe("notificationSlice", () => {
     const state = notificationReducer(
       {
         purchaseRemindersEnabled: false,
+        billRemindersEnabled: false,
         timezone: "Asia/Tokyo",
         permissionStatus: "denied",
         loaded: true,
       },
       resetNotificationPreferences(),
     );
-    expect(state).toEqual({
+        expect(state).toEqual({
       purchaseRemindersEnabled: true,
+      billRemindersEnabled: true,
       timezone: null,
       permissionStatus: "undetermined",
       loaded: true,

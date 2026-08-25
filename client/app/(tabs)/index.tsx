@@ -6,6 +6,7 @@ import { useHomeScreen } from "@/hooks/home/useHomeScreen";
 import TransactionModal from "@/components/transaction/TxModal";
 import BudgetModal from "@/components/budget/BudgetModal";
 import { MonthSetupModal } from "@/components/budget";
+import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
 import MonthSelector from "@/components/home/MonthSelector";
@@ -37,6 +38,8 @@ export default function Index() {
     isCurrentMonth,
     month,
     year,
+    upcomingBills,
+    handleDismissBill,
     helpOpen,
     openTxModal,
     openBudgetModal,
@@ -95,7 +98,13 @@ export default function Index() {
           currencyCode={activeCurrency}
         />
 
-        <BudgetPulse budgets={displayBudgets} currencyCode={activeCurrency} />
+              <BudgetPulse budgets={displayBudgets} currencyCode={activeCurrency} />
+
+        <UpcomingBillsCard
+          bills={upcomingBills}
+          currencyCode={activeCurrency}
+          onDismiss={handleDismissBill}
+        />
 
         <RecentFlow
           transactions={displayTransactions}
