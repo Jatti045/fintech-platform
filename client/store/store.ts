@@ -1,20 +1,17 @@
 import { configureStore } from "@reduxjs/toolkit";
 import userReducer from "./slices/userSlice";
-import transactionReducer from "./slices/transactionSlice";
-import financialSummaryReducer from "./slices/financialSummarySlice";
 import themeReducer from "./slices/themeSlice";
-import budgetReducer from "./slices/budgetSlice";
 import calendarReducer from "./slices/calendarSlice";
 import notificationReducer from "./slices/notificationSlice";
 import plaidReducer from "./slices/plaidSlice";
+import api from "./api/apiSlice";
+import { apiCachePersistenceMiddleware } from "./api/cachePersistence";
 
 // Configure the store
 export const store = configureStore({
   reducer: {
     user: userReducer,
-    transaction: transactionReducer,
-    financialSummary: financialSummaryReducer,
-    budget: budgetReducer,
+    [api.reducerPath]: api.reducer,
     calendar: calendarReducer,
     theme: themeReducer,
     notifications: notificationReducer,
@@ -26,7 +23,7 @@ export const store = configureStore({
         // Ignore these action types for serializability check
         ignoredActions: ["persist/PERSIST", "persist/REHYDRATE"],
       },
-    }),
+    }).concat(api.middleware, apiCachePersistenceMiddleware.middleware),
   devTools: __DEV__, // Enable Redux DevTools in development only
 });
 

@@ -21,13 +21,9 @@ import transactionApi from "@/api/transaction";
 import financialSummaryApi from "@/api/financialSummary";
 import budgetApi from "@/api/budget";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
-import budgetReducer from "@/store/slices/budgetSlice";
-import transactionReducerDefault from "@/store/slices/transactionSlice";
+import api from "@/store/api/apiSlice";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
-import financialSummaryReducerDefault, {
-  fetchFinancialSummary,
-} from "@/store/slices/financialSummarySlice";
 import themeReducer from "@/store/slices/themeSlice";
 import { Text } from "react-native";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
@@ -109,13 +105,13 @@ const makeSummary = (
 function makeStore() {
   return configureStore({
     reducer: {
-      budget: budgetReducer,
-      transaction: transactionReducerDefault,
       user: userReducer,
       calendar: calendarReducer,
-      financialSummary: financialSummaryReducerDefault,
       theme: themeReducer,
+      [api.reducerPath]: api.reducer,
     },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(api.middleware),
   });
 }
 
@@ -424,19 +420,18 @@ describe("useHomeScreen", () => {
     mockedSummaryFetch.mockResolvedValue({
       data: makeSummary({ totalAmount: 100 }),
     });
-    const { captured, store } = await setup();
+    const { captured } = await setup();
 
     // The first conversion is in flight.
     expect(deferreds).toHaveLength(1);
 
-    // New summary total triggers a second conversion; the first is cancelled.
-    renderer.act(() => {
-      store.dispatch({
-        type: fetchFinancialSummary.fulfilled.type,
-        payload: makeSummary({ totalAmount: 200 }),
-      });
+    // New summary total arrives via background revalidation (pull-to-refresh);
+    // the first (stale) conversion must be cancelled, not allowed to win.
+    mockedSummaryFetch.mockResolvedValue({
+      data: makeSummary({ totalAmount: 200 }),
     });
     await renderer.act(async () => {
+      await captured.current!.onRefresh();
       await flush();
     });
     expect(deferreds).toHaveLength(2);

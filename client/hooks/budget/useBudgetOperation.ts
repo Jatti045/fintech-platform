@@ -1,11 +1,12 @@
 import { useCallback } from "react";
 import {
-  createBudget,
-  updateBudget,
-  deleteBudget,
-} from "@/store/slices/budgetSlice";
+  useCreateBudgetMutation,
+  useDeleteBudgetMutation,
+  useUpdateBudgetMutation,
+} from "@/store/api/apiSlice";
+import type { MonthKey } from "@/store/api/apiSlice";
 import { useThemedAlert } from "@/utils/themedAlert";
-import { useAppDispatch, useCalendar, useTransactions } from "../useRedux";
+import { useCalendar, useTransactions } from "../useRedux";
 import { capitalizeFirst } from "@/utils/helper";
 import { useBudgetForm } from "./useBudgetForm";
 import { validateBudgetForm } from "@/utils/validation";
@@ -16,14 +17,20 @@ import { hapticSuccess, hapticHeavy } from "@/utils/haptics";
  * handlers. Mirrors the `useTransactionOperations` pattern: `useBudgetForm()` is
  * called here so there is a single shared state instance between the handlers and
  * the modal's rendered inputs — no prop-drilling of values or setters required.
+ *
+ * Mutations run through RTK Query; invalidating the month's `Budgets` tag
+ * refetches authoritative data (including server-computed `spent`) instead of
+ * patching lists client-side.
  */
 export const useBudgetOperations = () => {
   const form = useBudgetForm();
   const { showAlert } = useThemedAlert();
   const calendar = useCalendar();
-  const dispatch = useAppDispatch();
   // Used by handleDeleteBudget to enforce referential integrity before deletion
   const transactions = useTransactions();
+  const [createBudgetMutation] = useCreateBudgetMutation();
+  const [updateBudgetMutation] = useUpdateBudgetMutation();
+  const [deleteBudgetMutation] = useDeleteBudgetMutation();
 
   const {
     budgetCategory,
@@ -50,24 +57,27 @@ export const useBudgetOperations = () => {
 
       setBudgetSaving(true);
       try {
-        const response: any = await dispatch(
-          createBudget({
-            category: parsedCategory,
-            limit: parsedLimit,
-            month: calendar.month,
-            year: calendar.year,
-          } as any),
-        );
-        const { success, message } = response.payload ?? {};
-        if (!success) {
-          showAlert({ title: "Error", message: message || "Failed to save" });
+        const result: any = await createBudgetMutation({
+          category: parsedCategory,
+          limit: parsedLimit,
+          month: calendar.month,
+          year: calendar.year,
+        });
+        if (!result.error && result.data?.success) {
+          hapticSuccess();
+          // Reset form only on success, preserving input on error for correction
+          setBudgetCategory("");
+          setBudgetLimit("");
+          setOpenSheet(false);
           return;
         }
-        hapticSuccess();
-        // Reset form only on success, preserving input on error for correction
-        setBudgetCategory("");
-        setBudgetLimit("");
-        setOpenSheet(false);
+        showAlert({
+          title: "Error",
+          message:
+            result.data?.message ??
+            result.error?.error ??
+            "Failed to save",
+        });
       } catch (err: any) {
         showAlert({ title: "Error", message: err.message || "Failed to save" });
       } finally {
@@ -82,7 +92,7 @@ export const useBudgetOperations = () => {
       setBudgetSaving,
       showAlert,
       calendar,
-      dispatch,
+      createBudgetMutation,
     ],
   );
 
@@ -128,18 +138,24 @@ export const useBudgetOperations = () => {
 
       setBudgetSaving(true);
       try {
-        const response: any = await dispatch(
-          updateBudget({ id: editingBudget.id, updates }),
-        );
-        const { success, message } = response.payload ?? {};
-        if (success) {
+        const result: any = await updateBudgetMutation({
+          id: editingBudget.id,
+          updates,
+          invalidateMonths: [
+            { year: calendar.year, month: calendar.month } as MonthKey,
+          ],
+        });
+        if (!result.error && result.data?.success) {
           hapticSuccess();
           setOpenSheet(false);
           return;
         }
         showAlert({
           title: "Error",
-          message: message || "Failed to update budget",
+          message:
+            result.data?.message ??
+            result.error?.error ??
+            "Failed to update budget",
         });
       } catch (err: any) {
         showAlert({
@@ -155,7 +171,8 @@ export const useBudgetOperations = () => {
       budgetLimit,
       setBudgetSaving,
       showAlert,
-      dispatch,
+      calendar,
+      updateBudgetMutation,
     ],
   );
 
@@ -188,8 +205,15 @@ export const useBudgetOperations = () => {
             style: "destructive",
             onPress: async () => {
               try {
-                const response: any = await dispatch(deleteBudget(budgetId));
-                const { success, message } = response?.payload ?? {};
+                const result: any = await deleteBudgetMutation({
+                  id: budgetId,
+                  invalidateMonths: [
+                    { year: calendar.year, month: calendar.month },
+                  ],
+                });
+                const success = !result.error && !!result.data?.success;
+                const message =
+                  result.data?.message ?? result.error?.error ?? "";
                 setTimeout(() => {
                   if (success) {
                     hapticSuccess();
@@ -213,7 +237,7 @@ export const useBudgetOperations = () => {
         ],
       });
     },
-    [transactions, showAlert, dispatch],
+    [transactions, showAlert, calendar, deleteBudgetMutation],
   );
 
   return {

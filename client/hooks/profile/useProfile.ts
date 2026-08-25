@@ -35,8 +35,7 @@ import {
 } from "@/store/slices/notificationSlice";
 import {userAPI} from "@/api/user";
 import {plaidAPI} from "@/api/plaid";
-import {fetchTransaction} from "@/store/slices/transactionSlice";
-import {fetchFinancialSummary} from "@/store/slices/financialSummarySlice";
+import {api} from "@/store/api/apiSlice";
 import {requestPermission} from "@/utils/notifications/permissions";
 import type {LinkSuccess} from "react-native-plaid-link-sdk";
 
@@ -336,23 +335,15 @@ export function useProfile(): UseProfileReturn {
                             // new bank is connected — not just the first one.
                             setConnectedItem(item);
                         }
-                        // Surface newly-synced transactions for the selected month.
-                        await dispatch(
-                            fetchTransaction({
-                                searchQuery: "",
-                                currentMonth: calendar.month,
-                                currentYear: calendar.year,
-                                useCache: false,
-                            }),
-                        );
-                        // Bank-synced transactions change the month's totals; refresh the
-                        // financial summary so Home/Transaction headers stay accurate.
-                        await dispatch(
-                            fetchFinancialSummary({
-                                currentMonth: calendar.month,
-                                currentYear: calendar.year,
-                            }),
-                        );
+                        // Surface newly-synced transactions for the selected month:
+                        // invalidate the month tags so RTK Query refetches the
+                        // transactions, budgets and financial summary.
+                        const monthTag = {year: calendar.year, month: calendar.month};
+                        dispatch(api.util.invalidateTags([
+                            {type: "Transactions", id: `${monthTag.year}-${monthTag.month}`},
+                            {type: "Budgets", id: `${monthTag.year}-${monthTag.month}`},
+                            {type: "Summary", id: `${monthTag.year}-${monthTag.month}`},
+                        ]));
                     } catch (e) {
                         showAlert({
                             title: "Connection Failed",
@@ -585,13 +576,15 @@ export function useProfile(): UseProfileReturn {
             );
             if (updateUserMonthlyIncome.fulfilled.match(result)) {
                 await loadMonthlyIncomeForSelectedMonth();
-                // The expected income feeds the month's financial summary; refresh it so
-                // Home/Transaction headers reflect the new baseline immediately.
+                // The expected income feeds the month's financial summary; invalidate
+                // the tag so Home/Transaction headers reflect the new baseline.
                 dispatch(
-                    fetchFinancialSummary({
-                        currentMonth: calendar.month,
-                        currentYear: calendar.year,
-                    }),
+                    api.util.invalidateTags([
+                        {
+                            type: "Summary",
+                            id: `${calendar.year}-${calendar.month}`,
+                        },
+                    ]),
                 );
                 showAlert({
                     title: "Monthly income updated",
@@ -680,7 +673,11 @@ export function useProfile(): UseProfileReturn {
                 {
                     text: "Log Out",
                     style: "destructive",
-                    onPress: () => dispatch(logoutUser()),
+                    onPress: () => {
+                        dispatch(logoutUser());
+                        // Drop all cached server data for the signed-out user.
+                        dispatch(api.util.resetApiState());
+                    },
                 },
             ],
         });
@@ -714,6 +711,8 @@ export function useProfile(): UseProfileReturn {
                                             const {success, message} =
                                                 response.payload as DeleteAccountPayload;
                                             if (success) {
+                                                // Drop all cached server data for the deleted account.
+                                                dispatch(api.util.resetApiState());
                                                 showAlert({
                                                     title: "Account Deleted",
                                                     message:

@@ -33,7 +33,6 @@ export interface BudgetState {
   budgets: IBudget[];
   loading: boolean;
   error: string | null;
-  latestRequestId?: string | null;
 }
 
 export interface IBudgetData {

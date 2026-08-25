@@ -5,6 +5,10 @@
  * loading / empty state, search + search-clear skeleton suppression, filter
  * loader coordination, selected budget / min / max normalization, pull-to-
  * refresh, load-more wiring, edit/delete handlers, and loader messages.
+ *
+ * Data flows through the mocked API modules behind the RTK Query endpoints;
+ * mounting the harness subscribes and auto-fetches (replacing the old slice
+ * seeding), so helpers poll-within-act until queries settle.
  */
 
 /// <reference types="jest" />
@@ -17,23 +21,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AlertProvider } from "@/utils/themedAlert";
 import transactionApi from "@/api/transaction";
 import budgetApi from "@/api/budget";
+import financialSummaryApi from "@/api/financialSummary";
 import { useTransactionScreen } from "@/hooks/transaction/useTransactionScreen";
-import budgetReducer from "@/store/slices/budgetSlice";
-import transactionReducerDefault, {
-  createTransaction,
-  deleteTransaction,
-  fetchTransaction,
-  updateTransaction,
-} from "@/store/slices/transactionSlice";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer from "@/store/slices/calendarSlice";
-import financialSummaryReducerDefault from "@/store/slices/financialSummarySlice";
 import themeReducer from "@/store/slices/themeSlice";
-import {
-  ActivityIndicator,
-  Text,
-  TouchableOpacity,
-} from "react-native";
+import api from "@/store/api/apiSlice";
+import { ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import { TransactionType } from "@/types/transaction/types";
 import type { TransactionItem } from "@/types/transaction/types";
 
@@ -61,6 +55,11 @@ jest.mock("@/api/budget", () => ({
   },
 }));
 
+jest.mock("@/api/financialSummary", () => ({
+  __esModule: true,
+  default: { fetchSummary: jest.fn() },
+}));
+
 const mockedTxFetch = transactionApi.fetchAll as jest.Mock;
 const mockedBudgetFetch = budgetApi.fetchAll as jest.Mock;
 
@@ -77,22 +76,105 @@ const makeTx = (overrides: Partial<TransactionItem> = {}): TransactionItem => ({
   ...overrides,
 });
 
+const txEnvelope = (
+  items: TransactionItem[],
+  pagination?: Record<string, unknown>,
+) => ({
+  success: true,
+  message: "ok",
+  data: {
+    transaction: items,
+    pagination: {
+      currentPage: 1,
+      totalPages: 1,
+      totalCount: items.length,
+      hasNextPage: false,
+      hasPrevPage: false,
+      limit: 20,
+      ...pagination,
+    },
+  },
+});
+
+/**
+ * Resolves on demand, but with a safety timeout so an unresolved gate can
+ * never wedge the suite (the display-amount effects keep re-running while a
+ * query is in flight, so pending requests must stay bounded in tests).
+ */
+function gatedResponse(value: any, safetyMs = 500) {
+  let resolveNow!: (v: any) => void;
+  const timer = setTimeout(() => resolveNow(value), safetyMs);
+  const promise = new Promise<any>((res) => {
+    resolveNow = (v: any) => {
+      clearTimeout(timer);
+      res(v);
+    };
+  });
+  return { promise, resolve: resolveNow };
+}
+
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/**
+ * Repeatedly act-flushes until the predicate holds (RTKQ fulfillment is
+ * async). The bare harness can miss external-store notifications in the test
+ * renderer, so each pass forces a re-render via `tree.update` before the
+ * predicate is evaluated.
+ */
+async function until(pred: () => boolean, tries = 300) {
+  for (let i = 0; i < tries; i++) {
+    await renderer.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    });
+    if (activeRoot) {
+      renderer.act(() => {
+        activeRoot!.tree.update(activeRoot!.build());
+      });
+    }
+    if (pred()) return;
+  }
+  throw new Error("timed out waiting for expected store/hook state");
+}
+
+/** Force the active harness to re-render and observe latest store state. */
+function refresh() {
+  if (activeRoot) {
+    renderer.act(() => {
+      activeRoot!.tree.update(activeRoot!.build());
+    });
+  }
+}
+
+/** Root of the currently-mounted harness, for forced re-renders in `until`. */
+let activeRoot: {
+  tree: renderer.ReactTestRenderer;
+  build: () => React.ReactElement;
+} | null = null;
+
+const txQueries = (store: { getState(): unknown }) =>
+  Object.values((store.getState() as any).api.queries).filter(
+    (q: any) => q.endpointName === "getTransactions",
+  ) as any[];
+/** Every started getTransactions request has landed (none left pending). */
+const txSettled = (store: { getState(): unknown }) => {
+  const list = txQueries(store);
+  return list.length > 0 && list.every((q) => q.status === "fulfilled");
+};
+
 function makeStore() {
   return configureStore({
     reducer: {
-      budget: budgetReducer,
-      transaction: transactionReducerDefault,
       user: userReducer,
       calendar: calendarReducer,
-      financialSummary: financialSummaryReducerDefault,
       theme: themeReducer,
+      [api.reducerPath]: api.reducer,
     },
+    middleware: (gDM) => gDM().concat(api.middleware),
   });
 }
 
-async function setup(seed?: (store: ReturnType<typeof makeStore>) => void) {
+async function setup(options: { awaitData?: boolean } = {}) {
   const store = makeStore();
-  seed?.(store);
 
   const captured: { current: Screen | null } = { current: null };
 
@@ -101,24 +183,35 @@ async function setup(seed?: (store: ReturnType<typeof makeStore>) => void) {
     return null;
   }
 
-  renderer.act(() => {
-    renderer.create(
-      <Provider store={store}>
-        <AlertProvider>
-          <Harness />
-        </AlertProvider>
-      </Provider>,
-    );
-  });
+  const build = () => (
+    <Provider store={store}>
+      <AlertProvider>
+        <Harness />
+      </AlertProvider>
+    </Provider>
+  );
 
-  await renderer.act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  let tree!: renderer.ReactTestRenderer;
+  renderer.act(() => {
+    tree = renderer.create(build());
   });
+  activeRoot = { tree, build };
+
+  if (options.awaitData !== false) {
+    // Wait for the seeded responses, then give the display-amount effect
+    // (query data -> state mirror) two more observed renders.
+    await until(() => txSettled(store));
+    await renderer.act(async () => {
+      await flush();
+    });
+    refresh();
+    await renderer.act(async () => {
+      await flush();
+    });
+  }
 
   return { captured, store };
 }
-
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function renderedText(matches: string) {
   return textMock.mock.calls.some((call) => {
@@ -127,32 +220,6 @@ function renderedText(matches: string) {
       ? children.join("")
       : String(children ?? "");
     return text.includes(matches);
-  });
-}
-
-function seedTransactions(
-  store: ReturnType<typeof makeStore>,
-  transactions: TransactionItem[],
-  pagination?: Partial<{
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
-  }>,
-) {
-  store.dispatch({
-    type: fetchTransaction.fulfilled.type,
-    payload: {
-      transaction: transactions,
-      pagination: {
-        currentPage: pagination?.currentPage ?? 1,
-        totalPages: pagination?.totalPages ?? 1,
-        totalCount: pagination?.totalCount ?? transactions.length,
-        hasNextPage: pagination?.hasNextPage ?? false,
-        hasPrevPage: pagination?.hasPrevPage ?? false,
-      },
-    },
   });
 }
 
@@ -187,26 +254,35 @@ beforeEach(async () => {
   textMock.mockClear();
   activityIndicatorMock.mockClear();
   touchableOpacityMock.mockClear();
-  mockedTxFetch.mockResolvedValue({ data: { transaction: [] } });
-  mockedBudgetFetch.mockResolvedValue({ data: [] });
+  // Mounting a subscription auto-fetches; default to an empty month.
+  mockedTxFetch.mockResolvedValue(txEnvelope([]));
+  mockedBudgetFetch.mockResolvedValue({ success: true, data: [] });
+  (financialSummaryApi.fetchSummary as jest.Mock).mockResolvedValue({
+    success: true,
+    data: { totalAmount: 0, monthlyIncome: 0, actualIncome: 0, expectedIncome: 0 },
+  });
 });
-
 
 describe("useTransactionScreen", () => {
   it("shows the initial-loading spinner, then the empty state", async () => {
-    const { captured, store } = await setup();
+    // An in-flight request stands in for the old `fetchTransaction.pending`
+    // dispatch (bounded by a safety timeout instead of never resolving).
+    const gate = gatedResponse(txEnvelope([]));
+    mockedTxFetch.mockReturnValue(gate.promise);
+    const { captured, store } = await setup({ awaitData: false });
 
-    renderer.act(() => {
-      store.dispatch({ type: fetchTransaction.pending.type });
-    });
     renderer.act(() => {
       renderer.create(captured.current!.listEmpty);
     });
     expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
 
     renderer.act(() => {
-      seedTransactions(store, []);
+      gate.resolve(txEnvelope([]));
     });
+    await until(() => txSettled(store));
+    refresh();
+    activityIndicatorMock.mockClear();
+
     renderer.act(() => {
       renderer.create(captured.current!.listEmpty);
     });
@@ -222,11 +298,13 @@ describe("useTransactionScreen", () => {
     expect(captured.current!.searchQuery).toBe("coffee");
     expect(captured.current!.isSearching).toBe(true);
 
-    // While a clear-search fetch is still loading, the initial skeleton must
-    // stay suppressed (no spinner in listEmpty).
-    renderer.act(() => {
-      store.dispatch({ type: fetchTransaction.pending.type });
-    });
+    // Let the debounce fire so the search fetch is genuinely in flight.
+    const gate = gatedResponse(txEnvelope([]));
+    mockedTxFetch.mockReturnValue(gate.promise);
+    await until(() => mockedTxFetch.mock.calls.length >= 3);
+
+    // While the clear-search fetch is still loading, the initial skeleton
+    // must stay suppressed (no spinner in listEmpty).
     renderer.act(() => {
       captured.current!.handleSearchQueryChange("");
     });
@@ -237,6 +315,11 @@ describe("useTransactionScreen", () => {
       renderer.create(captured.current!.listEmpty);
     });
     expect(activityIndicatorMock.mock.calls.length).toBe(0);
+
+    renderer.act(() => {
+      gate.resolve(txEnvelope([]));
+    });
+    await until(() => txSettled(store));
   });
 
   it("shows the filtering loader and clears it after the fetch completes", async () => {
@@ -249,16 +332,14 @@ describe("useTransactionScreen", () => {
     expect(captured.current!.loaderMessage).toBe("Filtering transactions…");
     expect(captured.current!.isLoaderVisible).toBe(true);
 
-    // fetch starts → saw-loading, then completes → rAF clears the loader.
-    renderer.act(() => {
-      store.dispatch({ type: fetchTransaction.pending.type });
-    });
-    renderer.act(() => {
-      seedTransactions(store, [makeTx()]);
-    });
+    // The filter change refetches through RTKQ; once it lands, rAF clears
+    // the loader.
+    await until(() => txSettled(store));
     await renderer.act(async () => {
       await flush();
+      await flush();
     });
+    refresh();
 
     expect(captured.current!.isFiltering).toBe(false);
     expect(captured.current!.loaderMessage).toBe("");
@@ -318,13 +399,16 @@ describe("useTransactionScreen", () => {
   });
 
   it("wires the footer load-more action to fetch the next page", async () => {
-    const { captured, store } = await setup((store) => {
-      seedTransactions(store, [makeTx()], {
+    // Backend-authoritative pagination seeds the feed with more pages.
+    mockedTxFetch.mockResolvedValue(
+      txEnvelope([makeTx()], {
+        currentPage: 1,
+        totalPages: 3,
+        totalCount: 45,
         hasNextPage: true,
-        totalPages: 2,
-        totalCount: 1,
-      });
-    });
+      }),
+    );
+    const { captured, store } = await setup();
     mockedTxFetch.mockClear();
 
     let tree!: renderer.ReactTestRenderer;
@@ -340,9 +424,7 @@ describe("useTransactionScreen", () => {
     renderer.act(() => {
       loadMore!.onPress();
     });
-    await renderer.act(async () => {
-      await flush();
-    });
+    await until(() => mockedTxFetch.mock.calls.length >= 1);
 
     expect(mockedTxFetch).toHaveBeenCalledWith(
       expect.objectContaining({ page: 2 }),
@@ -381,42 +463,140 @@ describe("useTransactionScreen", () => {
   it("selects the correct loader message for each operation", async () => {
     const { captured, store } = await setup();
 
-    renderer.act(() => {
-      store.dispatch({ type: createTransaction.pending.type });
-    });
+    // Mutation loaders read state.api.mutations.<name>.status === "pending",
+    // so start real RTKQ mutations instead of dispatching thunk action types.
+    let req: any = store.dispatch(
+      api.endpoints.createTransaction.initiate({
+        name: "New",
+        month: 1,
+        year: 2026,
+        date: "2026-02-02T00:00:00.000Z",
+        category: "Food",
+        amount: 5,
+        type: TransactionType.EXPENSE,
+      } as any),
+    );
+    refresh();
     expect(captured.current!.loaderMessage).toBe("Adding transaction…");
     expect(captured.current!.isLoaderVisible).toBe(true);
-    renderer.act(() => {
-      store.dispatch({
-        type: createTransaction.fulfilled.type,
-        payload: { data: makeTx() },
-      });
+    await renderer.act(async () => {
+      await req.unwrap().catch(() => {});
+      await flush();
     });
 
-    renderer.act(() => {
-      store.dispatch({ type: updateTransaction.pending.type });
-    });
+    req = store.dispatch(
+      api.endpoints.updateTransaction.initiate({
+        id: "t-1",
+        updates: {},
+        invalidateMonths: [{ year: 2026, month: 1 }],
+      }),
+    );
+    refresh();
     expect(captured.current!.loaderMessage).toBe("Updating transaction…");
-    renderer.act(() => {
-      store.dispatch({
-        type: updateTransaction.fulfilled.type,
-        payload: {},
-      });
+    await renderer.act(async () => {
+      await req.unwrap().catch(() => {});
+      await flush();
     });
 
-    renderer.act(() => {
-      store.dispatch({ type: deleteTransaction.pending.type });
-    });
+    req = store.dispatch(
+      api.endpoints.deleteTransaction.initiate({
+        id: "t-1",
+        invalidateMonths: [{ year: 2026, month: 1 }],
+      }),
+    );
+    refresh();
     expect(captured.current!.loaderMessage).toBe("Deleting transaction…");
+    await renderer.act(async () => {
+      await req.unwrap().catch(() => {});
+      await flush();
+    });
+  });
+
+  it("collapses accumulated pages to an authoritative page 1 after a mutation settles", async () => {
+    const { captured, store } = await setup();
+
+    // Give the month two server pages: reconfigure the backend, then let a
+    // real pull-to-refresh land the authoritative page-1 envelope.
+    mockedTxFetch.mockImplementation(async ({ page }: any) =>
+      (page ?? 1) === 1
+        ? txEnvelope([makeTx()], {
+            currentPage: 1,
+            totalPages: 2,
+            totalCount: 25,
+            hasNextPage: true,
+          })
+        : txEnvelope([makeTx({ id: "t-2", name: "Second" })], {
+            currentPage: 2,
+            totalPages: 2,
+            totalCount: 25,
+            hasNextPage: false,
+          }),
+    );
+    await renderer.act(async () => {
+      await captured.current!.onRefresh();
+      await flush();
+    });
+
+    const entryWith = (): any =>
+      (
+        Object.values((store.getState() as any).api.queries) as any[]
+      ).find((q: any) => q.endpointName === "getTransactions");
+    const ids = () => entryWith()?.data?.transaction?.map((t: any) => t.id);
+
+    await until(() => entryWith()?.data?.pagination?.hasNextPage === true);
+
+    let tree!: renderer.ReactTestRenderer;
+    renderer.act(() => {
+      tree = renderer.create(
+        <Provider store={store}>{captured.current!.listFooter}</Provider>,
+      );
+    });
+    void tree;
+    const loadMore = lastTouchableContaining("Load More Transactions");
+    expect(loadMore).toBeDefined();
+    renderer.act(() => {
+      loadMore!.onPress();
+    });
+    await until(() =>
+      mockedTxFetch.mock.calls.some((c) => (c[0] as any)?.page === 2),
+    );
+    await until(() => ids()?.length === 2);
+
+    // A deletion settles → the feed must collapse to a fresh authoritative
+    // page-1 fetch whose merge REPLACES the list (no ghost rows from the old
+    // page-2 accumulation).
+    mockedTxFetch.mockClear();
+    await renderer.act(async () => {
+      await store
+        .dispatch(
+          api.endpoints.deleteTransaction.initiate({
+            id: "t-2",
+            invalidateMonths: [{ year: 2026, month: 1 }],
+          }),
+        )
+        .unwrap()
+        .catch(() => {});
+      await flush();
+    });
+
+    await until(() => mockedTxFetch.mock.calls.length > 0);
+    expect(mockedTxFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1 }),
+    );
+    await until(() => {
+      const list = ids();
+      return list?.length === 1 && list[0] === "t-1";
+    });
   });
 
   it("groups seeded transactions into sections and exposes render callbacks", async () => {
-    const { captured } = await setup((store) => {
-      seedTransactions(store, [
+    mockedTxFetch.mockResolvedValue(
+      txEnvelope([
         makeTx({ id: "a", date: "2026-02-10T09:00:00.000Z" }),
         makeTx({ id: "b", date: "2026-02-10T18:00:00.000Z" }),
-      ]);
-    });
+      ]),
+    );
+    const { captured } = await setup();
 
     expect(captured.current!.sectionsWithTotals).toHaveLength(1);
     expect(captured.current!.sectionsWithTotals[0].data).toHaveLength(2);
@@ -438,4 +618,3 @@ describe("useTransactionScreen", () => {
     );
   });
 });
-

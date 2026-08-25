@@ -1,25 +1,51 @@
 import { useCallback } from "react";
 import {
-  fetchTransaction,
-  createTransaction,
-  updateTransaction,
-  deleteTransaction,
-} from "@/store/slices/transactionSlice";
-import { fetchBudgets } from "@/store/slices/budgetSlice";
-import { fetchFinancialSummary } from "@/store/slices/financialSummarySlice";
+  useCreateTransactionMutation,
+  useDeleteTransactionMutation,
+  useUpdateTransactionMutation,
+} from "@/store/api/apiSlice";
+import type { MonthKey } from "@/store/api/apiSlice";
 import { TransactionType } from "@/types/transaction/types";
 import { formatCurrency } from "@/utils/helper";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { validateTransactionAmount } from "@/utils/validation";
 import { MAX_TRANSACTION_AMOUNT } from "@/constants/appConfig";
-import { useAppDispatch, useCalendar } from "../useRedux";
+import {
+  useCalendar,
+  useTransactions,
+} from "../useRedux";
 import { useTransactionForm } from "./useTransactionForm";
 import { convertCurrency } from "@/utils/currencyConverter";
 import { getCurrencySymbol } from "@/constants/Currencies";
 import { hapticSuccess, hapticHeavy } from "@/utils/haptics";
 
+/** Unique `{year, month}` keys for cache-tag invalidation. */
+function uniqueMonths(months: (MonthKey | null | undefined)[]): MonthKey[] {
+  const seen = new Set<string>();
+  const out: MonthKey[] = [];
+  for (const m of months) {
+    if (!m) continue;
+    const key = `${m.year}-${m.month}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(m);
+  }
+  return out;
+}
+
+const monthOfDate = (date?: string | Date | null): MonthKey | null => {
+  if (!date) return null;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return null;
+  return { year: d.getFullYear(), month: d.getMonth() };
+};
+
 /**
  * Combined hook that owns form state and exposes both create and update handlers.
+ *
+ * Mutations run through RTK Query and invalidate the affected month tags
+ * (`Transactions`, `Budgets`, `Summary`), which triggers authoritative
+ * refetches automatically — no manual post-mutation refetch dispatches.
  *
  * Calling `useTransactionForm()` here means there is a single state instance
  * shared between the handlers and the modal's rendered inputs — no prop-drilling
@@ -30,7 +56,10 @@ export const useTransactionOperations = () => {
   const form = useTransactionForm();
   const { showAlert } = useThemedAlert();
   const calendar = useCalendar();
-  const dispatch = useAppDispatch();
+  const transactions = useTransactions();
+  const [createTransactionMutation] = useCreateTransactionMutation();
+  const [updateTransactionMutation] = useUpdateTransactionMutation();
+  const [deleteTransactionMutation] = useDeleteTransactionMutation();
 
   const {
     txName,
@@ -108,9 +137,8 @@ export const useTransactionOperations = () => {
       setOpenSheet(false);
 
       try {
-        const response: any = await dispatch(createTransaction(payload));
-        const { success, message } = response.payload ?? {};
-        if (success) {
+        const result = await createTransactionMutation(payload);
+        if (!result.error && result.data?.success) {
           hapticSuccess();
           // Reset form only on success
           setTxName("");
@@ -119,27 +147,12 @@ export const useTransactionOperations = () => {
           setTxDate(new Date());
           setTxCurrency(userCurrency);
           setType(TransactionType.EXPENSE);
-          dispatch(
-            fetchTransaction({
-              searchQuery: "",
-              currentMonth: calendar.month,
-              currentYear: calendar.year,
-              useCache: false,
-            } as any),
-          );
-          // Keep the month's financial summary in sync with the new transaction.
-          dispatch(
-            fetchFinancialSummary({
-              currentMonth: calendar.month,
-              currentYear: calendar.year,
-            }),
-          );
           return;
         }
-        showAlert({
-          title: "Error",
-          message: message || "Failed to create transaction",
-        });
+        const message =
+          (result.data as any)?.message ??
+          ((result.error as any)?.error ?? "Failed to create transaction");
+        showAlert({ title: "Error", message });
       } catch (err: any) {
         showAlert({
           title: "Error",
@@ -164,7 +177,7 @@ export const useTransactionOperations = () => {
       setType,
       showAlert,
       calendar,
-      dispatch,
+      createTransactionMutation,
     ],
   );
 
@@ -264,44 +277,31 @@ export const useTransactionOperations = () => {
         updates.amount = finalAmount;
       }
 
+      // Invalidate both the month the transaction is leaving and the one it
+      // may be entering (an edited date can move it across months).
+      const invalidateMonths = uniqueMonths([
+        { year: calendar.year, month: calendar.month },
+        monthOfDate(editingTransaction.date),
+        monthOfDate(updates.date),
+      ]);
+
       // Close modal first so any loader overlay is visible
       setOpenSheet(false);
 
       try {
-        const response: any = await dispatch(
-          updateTransaction({ id: editingTransaction.id, updates }),
-        );
-        const { success, message } = response.payload ?? {};
-        if (success) {
+        const result = await updateTransactionMutation({
+          id: editingTransaction.id,
+          updates,
+          invalidateMonths,
+        });
+        if (!result.error && result.data?.success) {
           hapticSuccess();
-          dispatch(
-            fetchTransaction({
-              searchQuery: "",
-              currentMonth: calendar.month,
-              currentYear: calendar.year,
-              useCache: false,
-            } as any),
-          );
-          // Refresh budgets so the spent amount reflects the updated transaction
-          dispatch(
-            fetchBudgets({
-              currentMonth: calendar.month,
-              currentYear: calendar.year,
-            }),
-          );
-          // Keep the month's financial summary in sync with the updated transaction.
-          dispatch(
-            fetchFinancialSummary({
-              currentMonth: calendar.month,
-              currentYear: calendar.year,
-            }),
-          );
           return;
         }
-        showAlert({
-          title: "Error",
-          message: message || "Failed to update transaction",
-        });
+        const message =
+          (result.data as any)?.message ??
+          ((result.error as any)?.error ?? "Failed to update transaction");
+        showAlert({ title: "Error", message });
       } catch (err: any) {
         showAlert({
           title: "Error",
@@ -317,10 +317,9 @@ export const useTransactionOperations = () => {
       txCurrency,
       userCurrency,
       type,
-      setType,
       showAlert,
       calendar,
-      dispatch,
+      updateTransactionMutation,
     ],
   );
 
@@ -331,6 +330,15 @@ export const useTransactionOperations = () => {
   const handleDeleteTransaction = useCallback(
     (id: string) => {
       hapticHeavy();
+
+      // Derive the deleted transaction's month (fall back to the selected
+      // calendar month) so the correct month caches are invalidated.
+      const deletedTx = transactions.find((t: any) => t.id === id);
+      const invalidateMonths = uniqueMonths([
+        { year: calendar.year, month: calendar.month },
+        monthOfDate(deletedTx?.date),
+      ]);
+
       showAlert({
         title: "Delete Transaction",
         message: "Are you sure you want to delete this transaction?",
@@ -341,17 +349,14 @@ export const useTransactionOperations = () => {
             style: "destructive",
             onPress: async () => {
               try {
-                const response: any = await dispatch(deleteTransaction(id));
-                const { success, message } = response?.payload ?? {};
-                if (success) {
-                  // Keep the month's financial summary in sync after the delete.
-                  dispatch(
-                    fetchFinancialSummary({
-                      currentMonth: calendar.month,
-                      currentYear: calendar.year,
-                    }),
-                  );
-                }
+                const result = await deleteTransactionMutation({
+                  id,
+                  invalidateMonths,
+                });
+                const success = !result.error && !!result.data?.success;
+                const message =
+                  (result.data as any)?.message ??
+                  ((result.error as any)?.error ?? "");
                 // Small delay so the confirmation alert fully dismisses first
                 setTimeout(() => {
                   if (success) {
@@ -376,7 +381,12 @@ export const useTransactionOperations = () => {
         ],
       });
     },
-    [showAlert, dispatch, calendar],
+    [
+      transactions,
+      showAlert,
+      calendar,
+      deleteTransactionMutation,
+    ],
   );
 
   return {

@@ -1,17 +1,21 @@
 import { useCallback, useMemo, useState } from "react";
 import {
-  useAppDispatch,
-  useBudgets,
-  useBudgetStatus,
   useCalendar,
   useTransactions,
   useUser,
 } from "@/hooks/useRedux";
-import { fetchBudgets } from "@/store/slices/budgetSlice";
+import { useGetBudgetsQuery } from "@/store/api/apiSlice";
 import { useRefresh } from "@/hooks/useRefresh";
 import { useBudgetDisplayAmounts } from "./useBudgetDisplayAmounts";
 import { useBudgetOperations } from "./useBudgetOperation";
 import type { DisplayBudget, IBudget } from "@/types/budget/types";
+
+/**
+ * Stable empty-array fallback (see useHomeScreen) — an inline `?? []` is a new
+ * reference every render, which loops the display-amount effect while data is
+ * pending.
+ */
+const NO_BUDGETS: IBudget[] = [];
 
 /**
  * Cohesive screen hook for the Budget tab.
@@ -31,13 +35,18 @@ import type { DisplayBudget, IBudget } from "@/types/budget/types";
  */
 export const useBudgetScreen = () => {
   // ── Redux selectors ─────────────────────────────────────────────────────
-  const budgets = useBudgets();
-  const transactions = useTransactions();
   const user = useUser();
   const activeCurrency = user?.currency || "USD";
-  const { isLoading } = useBudgetStatus();
   const calendar = useCalendar();
-  const dispatch = useAppDispatch();
+
+  const budgetsQuery = useGetBudgetsQuery({
+    currentMonth: calendar.month,
+    currentYear: calendar.year,
+  });
+  const budgets = budgetsQuery.data ?? NO_BUDGETS;
+  const isLoading = budgetsQuery.isFetching;
+
+  const transactions = useTransactions();
 
   const { displayBudgets } = useBudgetDisplayAmounts(
     budgets,
@@ -59,14 +68,7 @@ export const useBudgetScreen = () => {
   const isSearching = searchQuery.trim().length > 0;
   const isInitialLoading = isLoading && budgets.length === 0 && !isSearching;
 
-  const { refreshing, onRefresh } = useRefresh(() =>
-    dispatch(
-      fetchBudgets({
-        currentMonth: calendar.month,
-        currentYear: calendar.year,
-      }),
-    ),
-  );
+  const { refreshing, onRefresh } = useRefresh(() => budgetsQuery.refetch());
 
   // ── Derived data ──────────────────────────────────────────────────────
 

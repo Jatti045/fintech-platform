@@ -1,29 +1,45 @@
+/**
+ * Month-navigation behavior tests — rewritten for the RTK Query data layer.
+ *
+ * The old suite drove the deleted thunks (`fetchTransaction`,
+ * `fetchFinancialSummary`, `fetchBudgets`) plus the hand-rolled AsyncStorage
+ * cache, and asserted against the removed slice state shapes. This version
+ * exercises the same behaviors through `store/api/apiSlice` — the single
+ * owner of month-scoped fetching — preserving every scenario:
+ *
+ *  1. initial load renders the selected month's complete financial state
+ *  2. requests carry the correct month parameters
+ *  3. switching months swaps ALL data with no cross-month leakage
+ *  4. returning to a month restores its own data/currency exactly
+ *  5. sequential + repeated navigation never corrupts state
+ *  6. out-of-order / overlapping responses cannot contaminate any month
+ *     (structurally guaranteed by per-month cache keys)
+ *  7. empty months render empty; nothing leaks into them
+ *  8. revisited months keep their backend-authoritative pagination metadata
+ */
+
+/// <reference types="jest" />
+
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
 
+import api, { defaultTransactionArgs } from "@/store/api/apiSlice";
+import type { GetTransactionsArgs } from "@/store/api/apiSlice";
 import userReducer from "@/store/slices/userSlice";
-import transactionReducer, {
-  fetchTransaction,
-} from "@/store/slices/transactionSlice";
-import financialSummaryReducer, {
-  fetchFinancialSummary,
-} from "@/store/slices/financialSummarySlice";
-import themeReducer from "@/store/slices/themeSlice";
-import budgetReducer, { fetchBudgets } from "@/store/slices/budgetSlice";
 import calendarReducer, {
   prevMonth,
   nextMonth,
   setMonthYear,
 } from "@/store/slices/calendarSlice";
-import notificationReducer from "@/store/slices/notificationSlice";
 
-import transactionAPI from "../api/transaction";
-import budgetAPI from "../api/budget";
-import financialSummaryAPI from "../api/financialSummary";
+import transactionAPI from "@/api/transaction";
+import budgetAPI from "@/api/budget";
+import financialSummaryAPI from "@/api/financialSummary";
 
 // ---------------------------------------------------------------------------
-// Network + cache are ENTIRELY mocked → no real requests, no real DB, offline.
+// Network is ENTIRELY mocked → no real requests, offline.
 // ---------------------------------------------------------------------------
-jest.mock("../api/transaction", () => ({
+
+jest.mock("@/api/transaction", () => ({
   __esModule: true,
   default: {
     fetchAll: jest.fn(),
@@ -32,7 +48,8 @@ jest.mock("../api/transaction", () => ({
     delete: jest.fn(),
   },
 }));
-jest.mock("../api/budget", () => ({
+
+jest.mock("@/api/budget", () => ({
   __esModule: true,
   default: {
     fetchAll: jest.fn(),
@@ -41,24 +58,14 @@ jest.mock("../api/budget", () => ({
     delete: jest.fn(),
   },
 }));
-jest.mock("../api/financialSummary", () => ({
+
+jest.mock("@/api/financialSummary", () => ({
   __esModule: true,
   default: {
     fetchSummary: jest.fn(),
   },
 }));
-jest.mock("../utils/cache", () => ({
-  getTransactionsCache: jest.fn(),
-  setTransactionsCache: jest.fn(),
-  appendTransactionToCache: jest.fn(),
-  removeTransactionFromCacheById: jest.fn(),
-  removeTransactionFromCacheByIdAcrossAllMonths: jest.fn(),
-  getBudgetsCache: jest.fn(),
-  setBudgetsCache: jest.fn(),
-  appendBudgetToCache: jest.fn(),
-  removeBudgetFromCacheById: jest.fn(),
-  removeBudgetFromCacheByIdAcrossAllMonths: jest.fn(),
-}));
+
 // ---------------------------------------------------------------------------
 // Mock month data — three months, all intentionally DIFFERENT.
 // ---------------------------------------------------------------------------
@@ -202,13 +209,16 @@ const monthKey = (month: number, year: number) => `${month}-${year}`;
 // Mock "backend" response builders (shape matches the real API layer).
 // ---------------------------------------------------------------------------
 
-function txResponse(month: typeof CURRENT) {
+function txEnvelope(
+  month: typeof CURRENT,
+  pagination?: Record<string, unknown>,
+) {
   return {
     success: true,
     message: "ok",
     data: {
       transaction: month.transactions,
-      pagination: {
+      pagination: pagination ?? {
         currentPage: 1,
         totalPages: 1,
         totalCount: month.transactions.length,
@@ -218,6 +228,10 @@ function txResponse(month: typeof CURRENT) {
       },
     },
   };
+}
+
+function txResponse(month: typeof CURRENT) {
+  return txEnvelope(month);
 }
 
 function summaryResponse(month: typeof CURRENT) {
@@ -244,17 +258,13 @@ const budgetResponse = (month: typeof CURRENT) => ({
 });
 
 // ---------------------------------------------------------------------------
-// Store + navigation driver (mirrors the real app effects).
+// Store + navigation driver (mirrors how components consume the API slice).
 // ---------------------------------------------------------------------------
 
 const rootReducer = combineReducers({
   user: userReducer,
-  transaction: transactionReducer,
-  financialSummary: financialSummaryReducer,
-  budget: budgetReducer,
   calendar: calendarReducer,
-  theme: themeReducer,
-  notifications: notificationReducer,
+  [api.reducerPath]: api.reducer,
 });
 
 function makeStore(userCurrency = "CAD") {
@@ -276,31 +286,59 @@ function makeStore(userCurrency = "CAD") {
         signupError: null,
       },
     } as any,
-    middleware: (getDefaultMiddleware) => getDefaultMiddleware(),
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(api.middleware),
   });
 }
 
 type TestStore = ReturnType<typeof makeStore>;
 
-/** Load the given month exactly like the Home/tabs effects do. */
+/** Query args identical to what the production hooks subscribe with. */
+const txArgs = (month: number, year: number): GetTransactionsArgs =>
+  defaultTransactionArgs(month, year);
+
+const selectTx = (store: TestStore, month: number, year: number) =>
+  api.endpoints.getTransactions.select(txArgs(month, year))(store.getState());
+
+const selectBudgets = (store: TestStore, month: number, year: number) =>
+  api.endpoints.getBudgets.select({ currentMonth: month, currentYear: year })(
+    store.getState(),
+  );
+
+const selectSummary = (store: TestStore, month: number, year: number) =>
+  api.endpoints.getFinancialSummary.select({
+    currentMonth: month,
+    currentYear: year,
+  })(store.getState());
+
+const transactionsOf = (store: TestStore, month: number, year: number) =>
+  selectTx(store, month, year).data?.transaction ?? [];
+
+const budgetsOf = (store: TestStore, month: number, year: number) =>
+  selectBudgets(store, month, year).data ?? [];
+
+/** Load the given month exactly like the Home/tabs subscriptions do. */
 async function loadMonth(store: TestStore, month: number, year: number) {
   await Promise.all([
-    store.dispatch(
-      fetchTransaction({
-        searchQuery: "",
-        currentMonth: month,
-        currentYear: year,
-        page: 1,
-        limit: 20,
-        useCache: false,
-      }) as any,
-    ),
-    store.dispatch(
-      fetchFinancialSummary({ currentMonth: month, currentYear: year }) as any,
-    ),
-    store.dispatch(
-      fetchBudgets({ currentMonth: month, currentYear: year }) as any,
-    ),
+    store
+      .dispatch(api.endpoints.getTransactions.initiate(txArgs(month, year)))
+      .unwrap(),
+    store
+      .dispatch(
+        api.endpoints.getFinancialSummary.initiate({
+          currentMonth: month,
+          currentYear: year,
+        }),
+      )
+      .unwrap(),
+    store
+      .dispatch(
+        api.endpoints.getBudgets.initiate({
+          currentMonth: month,
+          currentYear: year,
+        }),
+      )
+      .unwrap(),
   ]);
 }
 
@@ -339,6 +377,7 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
+
 // ---------------------------------------------------------------------------
 // 1. Initial month loading
 // ---------------------------------------------------------------------------
@@ -351,38 +390,38 @@ describe("month navigation – initial load", () => {
     );
     await loadMonth(store, CURRENT.month, CURRENT.year);
 
-    const state = store.getState() as any;
-
     // Calendar
-    expect(state.calendar.month).toBe(5);
-    expect(state.calendar.year).toBe(2026);
+    expect(store.getState().calendar.month).toBe(5);
+    expect(store.getState().calendar.year).toBe(2026);
 
     // Monthly income (HomePulse "Income")
-    expect(state.financialSummary.data.totalAmount).toBe(2800);
+    expect(selectSummary(store, 5, 2026).data?.totalAmount).toBe(2800);
 
     // Currency (HomePulse uses user.currency)
-    expect(state.user.user.currency).toBe("CAD");
+    expect((store.getState() as any).user.user.currency).toBe("CAD");
 
     // Transactions (RecentFlow)
-    expect(state.transaction.transactions).toHaveLength(2);
-    expect(state.transaction.transactions.map((t: any) => t.id)).toEqual([
+    const txs = transactionsOf(store, 5, 2026);
+    expect(txs).toHaveLength(2);
+    expect(txs.map((t: any) => t.id)).toEqual([
       "t-current-salary",
       "t-current-groceries",
     ]);
-    expect(state.transaction.transactions[0].amount).toBe(5000);
-    expect(state.transaction.transactions[0].baseCurrency).toBe("CAD");
-    expect(state.transaction.transactions[1].name).toBe("Weekly Groceries");
-    expect(state.transaction.transactions[1].amount).toBe(200);
+    expect(txs[0].amount).toBe(5000);
+    expect(txs[0].baseCurrency).toBe("CAD");
+    expect(txs[1].name).toBe("Weekly Groceries");
+    expect(txs[1].amount).toBe(200);
 
     // Budgets (BudgetPulse)
-    expect(state.budget.budgets).toHaveLength(2);
-    expect(state.budget.budgets.map((b: any) => b.category)).toEqual([
+    const budgets = budgetsOf(store, 5, 2026);
+    expect(budgets).toHaveLength(2);
+    expect(budgets.map((b: any) => b.category)).toEqual([
       "Groceries",
       "Transport",
     ]);
-    expect(state.budget.budgets[0].limit).toBe(1200);
-    expect(state.budget.budgets[0].spent).toBe(400);
-    expect(state.budget.budgets[1].limit).toBe(600);
+    expect(budgets[0].limit).toBe(1200);
+    expect(budgets[0].spent).toBe(400);
+    expect(budgets[1].limit).toBe(600);
   });
 
   it("requests the correct month's data from the API", async () => {
@@ -390,8 +429,17 @@ describe("month navigation – initial load", () => {
     await loadMonth(store, CURRENT.month, CURRENT.year);
 
     expect(transactionAPI.fetchAll).toHaveBeenCalledWith(
-      expect.objectContaining({ currentMonth: 5, currentYear: 2026 }),
+      expect.objectContaining({
+        currentMonth: 5,
+        currentYear: 2026,
+        page: 1,
+        searchQuery: "",
+      }),
     );
+    expect(financialSummaryAPI.fetchSummary).toHaveBeenCalledWith({
+      currentMonth: 5,
+      currentYear: 2026,
+    });
     expect(budgetAPI.fetchAll).toHaveBeenCalledWith(
       expect.objectContaining({ currentMonth: 5, currentYear: 2026 }),
     );
@@ -404,7 +452,7 @@ describe("month navigation – initial load", () => {
 
 describe("month navigation – previous month", () => {
   it("switches all data to the previous month with no current-month leakage", async () => {
-    const store = makeStore();
+    const store = makeStore("USD");
     store.dispatch(
       setMonthYear({ month: CURRENT.month, year: CURRENT.year }) as any,
     );
@@ -412,43 +460,36 @@ describe("month navigation – previous month", () => {
 
     await goPrev(store);
 
-    const state = store.getState() as any;
-
     // Calendar moved back one month
-    expect(state.calendar.month).toBe(4);
-    expect(state.calendar.year).toBe(2026);
+    expect(store.getState().calendar.month).toBe(4);
+    expect(store.getState().calendar.year).toBe(2026);
 
     // Income changed to prev month's income
-    expect(state.financialSummary.data.totalAmount).toBe(4100);
+    expect(selectSummary(store, 4, 2026).data?.totalAmount).toBe(4100);
 
-    // Transactions replaced — no current-month transactions remain
-    expect(state.transaction.transactions).toHaveLength(3);
-    expect(state.transaction.transactions.map((t: any) => t.id)).toEqual([
+    // The selected month reads prev-month transactions — no current leakage
+    const txs = transactionsOf(store, 4, 2026);
+    expect(txs).toHaveLength(3);
+    expect(txs.map((t: any) => t.id)).toEqual([
       "t-prev-freelance",
       "t-prev-dining-1",
       "t-prev-dining-2",
     ]);
-    expect(
-      state.transaction.transactions.some((t: any) =>
-        t.id.startsWith("t-current-"),
-      ),
-    ).toBe(false);
-    expect(
-      state.transaction.transactions.every(
-        (t: any) => t.baseCurrency === "USD",
-      ),
-    ).toBe(true);
+    expect(txs.some((t: any) => t.id.startsWith("t-current-"))).toBe(false);
+    expect(txs.every((t: any) => t.baseCurrency === "USD")).toBe(true);
 
-    // Budgets replaced
-    expect(state.budget.budgets).toHaveLength(1);
-    expect(state.budget.budgets[0].id).toBe("b-prev-dining");
-    expect(state.budget.budgets[0].category).toBe("Dining");
-    expect(state.budget.budgets[0].limit).toBe(900);
+    // Budgets swapped to the previous month's set
+    const budgets = budgetsOf(store, 4, 2026);
+    expect(budgets).toHaveLength(1);
+    expect(budgets[0].id).toBe("b-prev-dining");
+    expect(budgets[0].category).toBe("Dining");
+    expect(budgets[0].limit).toBe(900);
     expect(
-      state.budget.budgets.some((b: any) => b.id.startsWith("b-current-")),
+      budgets.some((b: any) => b.id.startsWith("b-current-")),
     ).toBe(false);
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // 3. Current → Previous → Current (stale-state / currency restore)
@@ -464,60 +505,50 @@ describe("month navigation – current → previous → current", () => {
 
     // Current month: CAD
     expect((store.getState() as any).user.user.currency).toBe("CAD");
-    expect(
-      (store.getState() as any).transaction.transactions[0].baseCurrency,
-    ).toBe("CAD");
+    expect(transactionsOf(store, 5, 2026)[0].baseCurrency).toBe("CAD");
 
     // -> Previous month: USD
     await goPrev(store);
     expect(
-      (store.getState() as any).transaction.transactions.every(
-        (t: any) => t.baseCurrency === "USD",
-      ),
+      transactionsOf(store, 4, 2026).every((t: any) => t.baseCurrency === "USD"),
     ).toBe(true);
-    expect(
-      (store.getState() as any).financialSummary.data.monthlyIncome,
-    ).toBe(3200);
+    expect(selectSummary(store, 4, 2026).data?.monthlyIncome).toBe(3200);
 
     // -> Back to current month: must be CAD again
     await goNext(store);
-    const state = store.getState() as any;
 
-    expect(state.calendar.month).toBe(5);
-    expect(state.calendar.year).toBe(2026);
+    expect(store.getState().calendar.month).toBe(5);
+    expect(store.getState().calendar.year).toBe(2026);
 
     // Income restored
-    expect(state.financialSummary.data.totalAmount).toBe(2800);
+    expect(selectSummary(store, 5, 2026).data?.totalAmount).toBe(2800);
 
     // Currency restored to CAD — NOT retaining USD from the previous visit
-    expect(state.user.user.currency).toBe("CAD");
+    expect((store.getState() as any).user.user.currency).toBe("CAD");
     expect(
-      state.transaction.transactions.every(
-        (t: any) => t.baseCurrency === "CAD",
-      ),
+      transactionsOf(store, 5, 2026).every((t: any) => t.baseCurrency === "CAD"),
     ).toBe(true);
     expect(
-      state.transaction.transactions.some((t: any) => t.baseCurrency === "USD"),
+      transactionsOf(store, 5, 2026).some((t: any) => t.baseCurrency === "USD"),
     ).toBe(false);
 
     // Transactions restored (current month only)
-    expect(state.transaction.transactions).toHaveLength(2);
-    expect(state.transaction.transactions.map((t: any) => t.id)).toEqual([
+    expect(transactionsOf(store, 5, 2026).map((t: any) => t.id)).toEqual([
       "t-current-salary",
       "t-current-groceries",
     ]);
 
     // Budgets restored
-    expect(state.budget.budgets).toHaveLength(2);
-    expect(state.budget.budgets.map((b: any) => b.category)).toEqual([
+    expect(budgetsOf(store, 5, 2026).map((b: any) => b.category)).toEqual([
       "Groceries",
       "Transport",
     ]);
     expect(
-      state.budget.budgets.some((b: any) => b.id === "b-prev-dining"),
+      budgetsOf(store, 5, 2026).some((b: any) => b.id === "b-prev-dining"),
     ).toBe(false);
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // 4. Multiple sequential month changes
@@ -533,37 +564,30 @@ describe("month navigation – sequential changes", () => {
 
     // Current → Previous
     await goPrev(store);
-    expect(
-      (store.getState() as any).financialSummary.data.monthlyIncome,
-    ).toBe(3200);
-    expect((store.getState() as any).calendar.month).toBe(4);
+    expect(selectSummary(store, 4, 2026).data?.monthlyIncome).toBe(3200);
+    expect(store.getState().calendar.month).toBe(4);
 
     // Previous → Two months ago (empty edge-case month)
     await goPrev(store);
-    let state = store.getState() as any;
-    expect(state.calendar.month).toBe(3);
-    expect(state.financialSummary.data.monthlyIncome).toBe(0);
-    expect(state.transaction.transactions).toHaveLength(0);
-    expect(state.budget.budgets).toHaveLength(0);
+    expect(store.getState().calendar.month).toBe(3);
+    expect(selectSummary(store, 3, 2026).data?.monthlyIncome).toBe(0);
+    expect(transactionsOf(store, 3, 2026)).toHaveLength(0);
+    expect(budgetsOf(store, 3, 2026)).toHaveLength(0);
 
     // Two months ago → Previous
     await goNext(store);
-    state = store.getState() as any;
-    expect(state.calendar.month).toBe(4);
-    expect(state.transaction.transactions).toHaveLength(3);
-    expect(state.budget.budgets).toHaveLength(1);
+    expect(store.getState().calendar.month).toBe(4);
+    expect(transactionsOf(store, 4, 2026)).toHaveLength(3);
+    expect(budgetsOf(store, 4, 2026)).toHaveLength(1);
 
     // Previous → Current
     await goNext(store);
-    state = store.getState() as any;
-    expect(state.calendar.month).toBe(5);
-    expect(state.transaction.transactions).toHaveLength(2);
+    expect(store.getState().calendar.month).toBe(5);
+    expect(transactionsOf(store, 5, 2026)).toHaveLength(2);
     expect(
-      state.transaction.transactions.every(
-        (t: any) => t.baseCurrency === "CAD",
-      ),
+      transactionsOf(store, 5, 2026).every((t: any) => t.baseCurrency === "CAD"),
     ).toBe(true);
-    expect(state.budget.budgets).toHaveLength(2);
+    expect(budgetsOf(store, 5, 2026)).toHaveLength(2);
   });
 
   it("handles repeated back-and-forth navigation without data corruption", async () => {
@@ -576,28 +600,29 @@ describe("month navigation – sequential changes", () => {
     // A quick back-and-forth series
     for (let i = 0; i < 3; i += 1) {
       await goPrev(store);
-      expect(
-        (store.getState() as any).financialSummary.data.monthlyIncome,
-      ).toBe(3200);
+      expect(selectSummary(store, 4, 2026).data?.monthlyIncome).toBe(3200);
       await goNext(store);
-      expect(
-        (store.getState() as any).financialSummary.data.monthlyIncome,
-      ).toBe(5000);
+      expect(selectSummary(store, 5, 2026).data?.monthlyIncome).toBe(5000);
     }
 
-    const state = store.getState() as any;
-    expect(state.calendar.month).toBe(5);
-    expect(state.transaction.transactions).toHaveLength(2);
-    expect(state.budget.budgets).toHaveLength(2);
+    expect(store.getState().calendar.month).toBe(5);
+    expect(transactionsOf(store, 5, 2026)).toHaveLength(2);
+    expect(budgetsOf(store, 5, 2026)).toHaveLength(2);
   });
 });
 
+
 // ---------------------------------------------------------------------------
-// 5. Race conditions / out-of-order responses (latest-request-wins)
+// 5. Race conditions / out-of-order responses
+//
+// The old architecture needed a `latestRequestId` guard for these. RTK Query
+// keys each month's data under its own cache entry, so a late response for
+// one month can only ever land in that month's entry — the tests below pin
+// that structural guarantee.
 // ---------------------------------------------------------------------------
 
 describe("month navigation – request races / out-of-order responses", () => {
-  it("ignores a stale earlier-month response that resolves after a newer one", async () => {
+  it("cannot let a stale earlier-month response contaminate the newer month", async () => {
     const store = makeStore();
     store.dispatch(
       setMonthYear({ month: CURRENT.month, year: CURRENT.year }) as any,
@@ -622,50 +647,35 @@ describe("month navigation – request races / out-of-order responses", () => {
 
     // Start the CURRENT-month request, then the PREV-month request (newer).
     const currentReq = store.dispatch(
-      fetchTransaction({
-        searchQuery: "",
-        currentMonth: CURRENT.month,
-        currentYear: CURRENT.year,
-        page: 1,
-        limit: 20,
-        useCache: false,
-      }) as any,
+      api.endpoints.getTransactions.initiate(txArgs(CURRENT.month, CURRENT.year)),
     );
     const prevReq = store.dispatch(
-      fetchTransaction({
-        searchQuery: "",
-        currentMonth: PREV.month,
-        currentYear: PREV.year,
-        page: 1,
-        limit: 20,
-        useCache: false,
-      }) as any,
+      api.endpoints.getTransactions.initiate(txArgs(PREV.month, PREV.year)),
     );
 
     // The NEWER (prev) request resolves first…
-    const prevDeferred = deferreds.find((d) => d.month === PREV.month)!;
-    prevDeferred.resolve(txResponse(PREV));
-    await prevReq;
+    deferreds.find((d) => d.month === PREV.month)!.resolve(txResponse(PREV));
+    await prevReq.unwrap();
 
-    // …then the OLDER (current) request resolves LAST. It must be ignored.
-    const currentDeferred = deferreds.find((d) => d.month === CURRENT.month)!;
-    currentDeferred.resolve(txResponse(CURRENT));
-    await currentReq;
+    // …then the OLDER (current) request resolves LAST. It must land only in
+    // the current-month entry and never overwrite the selected month.
+    deferreds
+      .find((d) => d.month === CURRENT.month)!
+      .resolve(txResponse(CURRENT));
+    await currentReq.unwrap();
 
-    const state = store.getState() as any;
-    // The finally selected month was PREV → its data must win, untouched by the
-    // stale current-month response that arrived out of order.
-    expect(state.transaction.transactions).toHaveLength(3);
+    // Selected month (PREV) holds its own data, untouched:
+    const prevTxs = transactionsOf(store, PREV.month, PREV.year);
+    expect(prevTxs).toHaveLength(3);
+    expect(prevTxs.every((t: any) => t.baseCurrency === "USD")).toBe(true);
     expect(
-      state.transaction.transactions.every(
-        (t: any) => t.baseCurrency === "USD",
-      ),
-    ).toBe(true);
-    expect(
-      state.transaction.transactions.some((t: any) =>
-        t.id.startsWith("t-current-"),
-      ),
+      prevTxs.some((t: any) => t.id.startsWith("t-current-")),
     ).toBe(false);
+
+    // …and the stale response still populated ITS OWN month's entry correctly.
+    const currentTxs = transactionsOf(store, CURRENT.month, CURRENT.year);
+    expect(currentTxs).toHaveLength(2);
+    expect(currentTxs.every((t: any) => t.baseCurrency === "CAD")).toBe(true);
   });
 
   it("keeps the final selected month's data when rapid navigation overlaps", async () => {
@@ -679,70 +689,39 @@ describe("month navigation – request races / out-of-order responses", () => {
       return new Promise((res) => queue.push(res));
     });
 
-    // Rapid current → prev → current (three overlapping requests).
+    // Rapid current → prev → current. The two identical CURRENT dispatches
+    // share one deduplicated request, so exactly two network calls occur.
     const req1 = store.dispatch(
-      fetchTransaction({
-        searchQuery: "",
-        currentMonth: CURRENT.month,
-        currentYear: CURRENT.year,
-        page: 1,
-        limit: 20,
-        useCache: false,
-      }) as any,
+      api.endpoints.getTransactions.initiate(txArgs(CURRENT.month, CURRENT.year)),
     );
     const req2 = store.dispatch(
-      fetchTransaction({
-        searchQuery: "",
-        currentMonth: PREV.month,
-        currentYear: PREV.year,
-        page: 1,
-        limit: 20,
-        useCache: false,
-      }) as any,
+      api.endpoints.getTransactions.initiate(txArgs(PREV.month, PREV.year)),
     );
-    const req3 = store.dispatch(
-      fetchTransaction({
-        searchQuery: "",
-        currentMonth: CURRENT.month,
-        currentYear: CURRENT.year,
-        page: 1,
-        limit: 20,
-        useCache: false,
-      }) as any,
-    );
-
-    // Resolve out of order: req2 (prev) first, then req1 (stale current),
-    // then req3 (the final/selected current). Only req3 may win.
-    queue[1](txResponse(PREV));
-    await req2;
-    queue[0](txResponse(CURRENT));
-    await req1;
-    queue[2](txResponse(CURRENT));
-    await req3;
-
-    const state = store.getState() as any;
-    // Final selected month = CURRENT → CAD, income 5000, current budgets.
-    expect(state.transaction.transactions).toHaveLength(2);
-    expect(
-      state.transaction.transactions.every(
-        (t: any) => t.baseCurrency === "CAD",
-      ),
-    ).toBe(true);
-    expect(
-      state.transaction.transactions.some((t: any) => t.baseCurrency === "USD"),
-    ).toBe(false);
-  });
-  it("applies latest-request-wins to budgets too", async () => {
-    const store = makeStore();
     store.dispatch(
-      setMonthYear({ month: CURRENT.month, year: CURRENT.year }) as any,
+      api.endpoints.getTransactions.initiate(txArgs(CURRENT.month, CURRENT.year)),
     );
+    expect(queue).toHaveLength(2);
 
-    const budgetDeferreds: {
-      month: number;
-      resolve: (v: unknown) => void;
-    }[] = [];
+    // Resolve out of order: prev first, then the (still selected) current.
+    queue[1](txResponse(PREV));
+    await req2.unwrap();
+    queue[0](txResponse(CURRENT));
+    await req1.unwrap();
 
+    // Final selected month = CURRENT → its entry holds CAD data.
+    const currentTxs = transactionsOf(store, CURRENT.month, CURRENT.year);
+    expect(currentTxs).toHaveLength(2);
+    expect(currentTxs.every((t: any) => t.baseCurrency === "CAD")).toBe(true);
+    expect(currentTxs.some((t: any) => t.id.startsWith("t-prev-"))).toBe(false);
+
+    // Prev's late-resolving data stayed confined to its own month.
+    const prevTxs = transactionsOf(store, PREV.month, PREV.year);
+    expect(prevTxs).toHaveLength(3);
+    expect(prevTxs.every((t: any) => t.baseCurrency === "USD")).toBe(true);
+
+    // Budgets are isolated per month too.
+    const budgetDeferreds: { month: number; resolve: (v: unknown) => void }[] =
+      [];
     (budgetAPI.fetchAll as jest.Mock).mockImplementation(
       ({ currentMonth }: { currentMonth: number }) =>
         new Promise((res) =>
@@ -750,39 +729,40 @@ describe("month navigation – request races / out-of-order responses", () => {
         ),
     );
 
-    const prevReq = store.dispatch(
-      fetchBudgets({
+    const budgetPrev = store.dispatch(
+      api.endpoints.getBudgets.initiate({
         currentMonth: PREV.month,
         currentYear: PREV.year,
-      }) as any,
+      }),
     );
-    const budgetReq = store.dispatch(
-      fetchBudgets({
+    const budgetCurrent = store.dispatch(
+      api.endpoints.getBudgets.initiate({
         currentMonth: CURRENT.month,
         currentYear: CURRENT.year,
-      }) as any,
+      }),
     );
 
-    // Resolve in an order that would corrupt state without the guard:
-    // the stale PREV response (resolved last) must be ignored.
+    // Resolve in an order that would corrupt shared state without isolation:
+    // CURRENT first, stale PREV last.
     budgetDeferreds
       .find((d) => d.month === CURRENT.month)!
       .resolve(budgetResponse(CURRENT));
-    await budgetReq;
+    await budgetCurrent.unwrap();
     budgetDeferreds
       .find((d) => d.month === PREV.month)!
       .resolve(budgetResponse(PREV));
-    await prevReq;
+    await budgetPrev.unwrap();
 
-    const state = store.getState() as any;
-    // For budgets, the last request dispatched was CURRENT → current data wins
-    // and the stale PREV response (resolved later) must be ignored.
-    expect(state.budget.budgets).toHaveLength(2);
+    expect(budgetsOf(store, CURRENT.month, CURRENT.year)).toHaveLength(2);
     expect(
-      state.budget.budgets.some((b: any) => b.id === "b-prev-dining"),
+      budgetsOf(store, CURRENT.month, CURRENT.year).some(
+        (b: any) => b.id === "b-prev-dining",
+      ),
     ).toBe(false);
+    expect(budgetsOf(store, PREV.month, PREV.year)).toHaveLength(1);
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // 6. Edge cases
@@ -796,11 +776,10 @@ describe("month navigation – edge cases", () => {
     );
     await loadMonth(store, TWO_AGO.month, TWO_AGO.year);
 
-    const state = store.getState() as any;
-    expect(state.financialSummary.data.monthlyIncome).toBe(0);
-    expect(state.financialSummary.data.totalAmount).toBe(0);
-    expect(state.transaction.transactions).toHaveLength(0);
-    expect(state.budget.budgets).toHaveLength(0);
+    expect(selectSummary(store, 3, 2026).data?.monthlyIncome).toBe(0);
+    expect(selectSummary(store, 3, 2026).data?.totalAmount).toBe(0);
+    expect(transactionsOf(store, 3, 2026)).toHaveLength(0);
+    expect(budgetsOf(store, 3, 2026)).toHaveLength(0);
   });
 
   it("does not leak data when navigating from a full month into an empty month", async () => {
@@ -816,9 +795,62 @@ describe("month navigation – edge cases", () => {
     );
     await loadMonth(store, TWO_AGO.month, TWO_AGO.year);
 
-    const state = store.getState() as any;
-    expect(state.transaction.transactions).toHaveLength(0);
-    expect(state.budget.budgets).toHaveLength(0);
-    expect(state.financialSummary.data.monthlyIncome).toBe(0);
+    expect(transactionsOf(store, 3, 2026)).toHaveLength(0);
+    expect(budgetsOf(store, 3, 2026)).toHaveLength(0);
+    expect(selectSummary(store, 3, 2026).data?.monthlyIncome).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 7. Cached pagination metadata stays authoritative
+//
+// Regression pin for Audit #1's core bug: a cached month must never claim
+// `totalPages: 1` / `hasNextPage: false` when more pages exist server-side.
+// ---------------------------------------------------------------------------
+
+describe("month navigation – cached pagination metadata", () => {
+  it("a revisited month serves its cached entry with the backend-authoritative pagination envelope intact", async () => {
+    // PREV has three pages of transactions server-side; only page 1 loaded.
+    (transactionAPI.fetchAll as jest.Mock).mockImplementation(
+      async ({ currentMonth, currentYear }: any) =>
+        monthKey(currentMonth, currentYear) === PREV.key
+          ? txEnvelope(PREV, {
+              currentPage: 1,
+              totalPages: 3,
+              totalCount: 45,
+              hasNextPage: true,
+              hasPrevPage: false,
+              limit: 20,
+            })
+          : txResponse(MONTHS[monthKey(currentMonth, currentYear)]),
+    );
+
+    const store = makeStore();
+    store.dispatch(setMonthYear({ month: PREV.month, year: PREV.year }));
+    await loadMonth(store, PREV.month, PREV.year);
+    expect(selectTx(store, 4, 2026).data?.pagination).toMatchObject({
+      currentPage: 1,
+      totalPages: 3,
+      totalCount: 45,
+      hasNextPage: true,
+    });
+
+    // Leave the month and come back — the cached entry is served without a
+    // refetch (in-session revisit), and it must retain the REAL pagination
+    // metadata verbatim. A cached month must never claim totalPages: 1 /
+    // hasNextPage: false when more pages exist server-side. Cold-start
+    // freshness is handled separately by hydrateApiCache's tag invalidation.
+    await goPrev(store); // → TWO_AGO (empty month)
+    await goNext(store); // → back to PREV
+
+    expect(transactionAPI.fetchAll).toHaveBeenCalledTimes(2); // no third call
+    const pagination = selectTx(store, 4, 2026).data?.pagination;
+    expect(pagination).toMatchObject({
+      currentPage: 1,
+      totalPages: 3,
+      totalCount: 45,
+      hasNextPage: true,
+    });
+  });
+});
+

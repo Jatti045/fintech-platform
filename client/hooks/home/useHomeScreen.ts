@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   useAppDispatch,
-  useBudgets,
   useCalendar,
-  useFinancialSummary,
-  useTransactions,
   useUser,
 } from "@/hooks/useRedux";
 import { nextMonth, prevMonth } from "@/store/slices/calendarSlice";
-import { fetchTransaction } from "@/store/slices/transactionSlice";
-import { fetchFinancialSummary } from "@/store/slices/financialSummarySlice";
-import { fetchBudgets } from "@/store/slices/budgetSlice";
+import {
+  defaultTransactionArgs,
+  useGetBudgetsQuery,
+  useGetFinancialSummaryQuery,
+  useGetTransactionsQuery,
+} from "@/store/api/apiSlice";
 import { useRefresh } from "@/hooks/useRefresh";
 import { useTransactionDisplayAmounts } from "@/hooks/transaction/useTransactionDisplayAmounts";
 import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
@@ -21,18 +21,19 @@ import {
   normalizeCurrency,
 } from "@/utils/currencyInference";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
+import type { IBudget } from "@/types/budget/types";
+import type { ITransaction } from "@/types/transaction/types";
 
-/** Params used for both the initial (cache-first) and refresh fetches. */
-function monthFetchParams(month: number, year: number, useCache: boolean) {
-  return {
-    searchQuery: "",
-    currentMonth: month,
-    currentYear: year,
-    page: 1,
-    limit: PAGINATION_LIMIT,
-    useCache,
-  };
-}
+/**
+ * Stable empty-array fallbacks.
+ *
+ * The display-amount hooks run `setState` from effects keyed on these inputs,
+ * so the fallbacks MUST be referentially stable — an inline `?? []` creates a
+ * new array every render and, while RTK Query data is pending, produces an
+ * infinite effect/render loop (the old slices had stable initial states).
+ */
+const NO_TRANSACTIONS: ITransaction[] = [];
+const NO_BUDGETS: IBudget[] = [];
 
 /**
  * Cohesive orchestration hook for the Home tab.
@@ -40,10 +41,10 @@ function monthFetchParams(month: number, year: number, useCache: boolean) {
  * Owns everything the screen needs that is neither global Redux state nor
  * pure presentation:
  *
- *  - Redux selectors (transactions, budgets, user currency, calendar,
- *    financial summary)
- *  - homepage data fetching (cache-first on month change, cache-bypass on
- *    pull-to-refresh via the shared `useRefresh`)
+ *  - month-scoped RTK Query subscriptions (transactions, budgets, summary).
+ *    Subscribing is the only fetch mechanism — requests are deduped across
+ *    all screens viewing the same month, and cache entries are keyed per
+ *    month so navigation can never mix months.
  *  - currency conversion of the expense total (with stale-response guard)
  *  - month metadata + calendar navigation handlers
  *  - modal state + the "budget required" transaction guard
@@ -54,12 +55,26 @@ function monthFetchParams(month: number, year: number, useCache: boolean) {
 export const useHomeScreen = () => {
   const { showAlert } = useThemedAlert();
   const dispatch = useAppDispatch();
-  const transactions = useTransactions();
-  const budgets = useBudgets();
   const user = useUser();
   const activeCurrency = user?.currency || "USD";
   const calendar = useCalendar();
-  const financialSummary = useFinancialSummary();
+
+  const transactionsQuery = useGetTransactionsQuery({
+    ...defaultTransactionArgs(calendar.month, calendar.year),
+    limit: PAGINATION_LIMIT,
+  });
+  const budgetsQuery = useGetBudgetsQuery({
+    currentMonth: calendar.month,
+    currentYear: calendar.year,
+  });
+  const financialSummaryQuery = useGetFinancialSummaryQuery({
+    currentMonth: calendar.month,
+    currentYear: calendar.year,
+  });
+
+  const transactions = transactionsQuery.data?.transaction ?? NO_TRANSACTIONS;
+  const budgets = budgetsQuery.data ?? NO_BUDGETS;
+  const financialSummary = financialSummaryQuery.data ?? null;
 
   const { displayTransactions } = useTransactionDisplayAmounts(
     transactions,
@@ -76,49 +91,12 @@ export const useHomeScreen = () => {
   const [openTxModal, setOpenTxModal] = useState(false);
   const [openBudgetModal, setOpenBudgetModal] = useState(false);
 
-  // ── Data fetching: cache-first whenever the month changes ─────────────
-  useEffect(() => {
-    void Promise.all([
-      dispatch(
-        fetchTransaction(
-          monthFetchParams(calendar.month, calendar.year, true),
-        ),
-      ),
-      dispatch(
-        fetchFinancialSummary({
-          currentMonth: calendar.month,
-          currentYear: calendar.year,
-        }),
-      ),
-      dispatch(
-        fetchBudgets({
-          currentMonth: calendar.month,
-          currentYear: calendar.year,
-        }),
-      ),
-    ]);
-  }, [dispatch, calendar.month, calendar.year]);
-
-  // ── Pull-to-refresh: bypass the transaction cache ─────────────────────
+  // ── Pull-to-refresh: force a network revalidation of all three sources ─
   const { refreshing, onRefresh } = useRefresh(() =>
     Promise.all([
-      dispatch(
-        fetchTransaction(
-          monthFetchParams(calendar.month, calendar.year, false),
-        ),
-      ),
-      dispatch(
-        fetchFinancialSummary({
-          currentMonth: calendar.month,
-          currentYear: calendar.year,
-        }),
-      ),
-      dispatch(
-        fetchBudgets({
-          currentMonth: calendar.month,
-          currentYear: calendar.year,
-        }),
-      ),
+      transactionsQuery.refetch(),
+      budgetsQuery.refetch(),
+      financialSummaryQuery.refetch(),
     ]),
   );
 
@@ -229,4 +207,3 @@ export const useHomeScreen = () => {
     handleInfoPress,
   };
 };
-

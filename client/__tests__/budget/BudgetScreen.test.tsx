@@ -4,6 +4,9 @@
  * Verifies the refactored screen composition: loading / empty / search /
  * main-content states, the create + edit modals, delete wiring, and
  * pull-to-refresh.
+ *
+ * Budgets arrive through the mocked budget API behind the RTK Query
+ * `getBudgets` endpoint (the old budgetSlice seeding/dispatches are gone).
  */
 
 /// <reference types="jest" />
@@ -14,12 +17,12 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { AlertProvider } from "@/utils/themedAlert";
 import budgetApi from "@/api/budget";
+import transactionApi from "@/api/transaction";
 import BudgetScreen from "@/app/(tabs)/budget";
-import budgetReducer, { fetchBudgets } from "@/store/slices/budgetSlice";
-import transactionReducerDefault from "@/store/slices/transactionSlice";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer from "@/store/slices/calendarSlice";
 import themeReducer from "@/store/slices/themeSlice";
+import api from "@/store/api/apiSlice";
 import {
   ActivityIndicator,
   ScrollView,
@@ -44,6 +47,16 @@ jest.mock("@/api/budget", () => ({
   },
 }));
 
+jest.mock("@/api/transaction", () => ({
+  __esModule: true,
+  default: {
+    fetchAll: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+}));
+
 const mockedFetchAll = budgetApi.fetchAll as jest.Mock;
 
 const makeBudget = (overrides: Partial<IBudget> = {}): IBudget => ({
@@ -58,30 +71,62 @@ const makeBudget = (overrides: Partial<IBudget> = {}): IBudget => ({
   ...overrides,
 });
 
+function gatedResponse(value: any, safetyMs = 500) {
+  let resolveNow!: (v: any) => void;
+  const timer = setTimeout(() => resolveNow(value), safetyMs);
+  const promise = new Promise<any>((res) => {
+    resolveNow = (v: any) => {
+      clearTimeout(timer);
+      res(v);
+    };
+  });
+  return { promise, resolve: resolveNow };
+}
+
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/** Repeatedly act-flushes until the predicate holds (RTKQ fulfillment is async). */
+async function until(pred: () => boolean, tries = 300) {
+  for (let i = 0; i < tries; i++) {
+    let ok = false;
+    await renderer.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      ok = pred();
+    });
+    if (ok) return;
+  }
+  throw new Error("timed out waiting for expected store state");
+}
+
+const budgetsSettled = (store: { getState(): unknown }) => {
+  const list = Object.values((store.getState() as any).api.queries).filter(
+    (q: any) => q.endpointName === "getBudgets",
+  ) as any[];
+  return list.length > 0 && list.every((q) => q.status === "fulfilled");
+};
+
 function makeStore() {
   return configureStore({
     reducer: {
-      budget: budgetReducer,
-      transaction: transactionReducerDefault,
       user: userReducer,
       calendar: calendarReducer,
       theme: themeReducer,
+      [api.reducerPath]: api.reducer,
     },
+    middleware: (gDM) => gDM().concat(api.middleware),
   });
 }
 
 async function setup(
   initialBudgets: IBudget[] = [],
-  seed?: (store: ReturnType<typeof makeStore>) => void,
+  options: { awaitData?: boolean } = {},
 ) {
-  const store = makeStore();
-  if (initialBudgets.length > 0) {
-    store.dispatch({
-      type: fetchBudgets.fulfilled.type,
-      payload: initialBudgets,
-    });
+  // Mounting subscribes to getBudgets; the mocked API delivers seed data.
+  if (!mockedFetchAll.getMockImplementation()) {
+    mockedFetchAll.mockResolvedValue({ success: true, data: initialBudgets });
   }
-  seed?.(store);
+
+  const store = makeStore();
 
   let tree!: renderer.ReactTestRenderer;
   renderer.act(() => {
@@ -94,15 +139,18 @@ async function setup(
     );
   });
 
-  // Let the display-amounts async effect settle.
-  await renderer.act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+  if (options.awaitData !== false) {
+    // Wait for the seeded budgets, then one extra turn for the display-
+    // amounts effect.
+    await until(() => budgetsSettled(store));
+    await renderer.act(async () => {
+      await flush();
+    });
+  }
 
   return { tree, store };
 }
 
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function lastProps(
   mock: jest.Mock,
@@ -154,6 +202,12 @@ const refreshControlProps = () => {
 
 beforeEach(() => {
   mockedFetchAll.mockReset();
+  (transactionApi.fetchAll as jest.Mock).mockReset();
+  // The screen hook also subscribes to transactions for display amounts.
+  (transactionApi.fetchAll as jest.Mock).mockResolvedValue({
+    success: true,
+    data: { transaction: [] },
+  });
   textMock.mockClear();
   textInputMock.mockClear();
   touchableOpacityMock.mockClear();
@@ -162,15 +216,25 @@ beforeEach(() => {
 
 describe("BudgetScreen", () => {
   it("renders the loading state before budgets arrive", async () => {
-    await setup([], (store) => {
-      store.dispatch({ type: fetchBudgets.pending.type });
-    });
+    // An in-flight fetch keeps budgetsQuery.isFetching true — the RTKQ
+    // equivalent of the old `fetchBudgets.pending` dispatch. It resolves via
+    // gate/safety-timeout because the display-amount effects keep re-running
+    // while a budget query is pending (a never-resolving mock would starve
+    // the suite).
+    const gate = gatedResponse({ success: true, data: [] });
+    mockedFetchAll.mockReturnValue(gate.promise);
+    const { store } = await setup([], { awaitData: false });
 
     expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
+
+    renderer.act(() => {
+      gate.resolve({ success: true, data: [] });
+    });
+    await until(() => budgetsSettled(store));
   });
 
   it("renders the empty state when there are no budgets", async () => {
-    await setup();
+    await setup([]);
 
     expect(renderedText("No budgets yet")).toBe(true);
     expect(renderedText("Create your first budget to track spending by category.")).toBe(
@@ -259,9 +323,9 @@ describe("BudgetScreen", () => {
     expect(renderedText("Delete Budget")).toBe(true);
   });
 
-  it("refreshes by dispatching fetchBudgets", async () => {
-    mockedFetchAll.mockResolvedValue({ data: [] });
+  it("refetches budgets on pull-to-refresh", async () => {
     await setup([makeBudget()]);
+    mockedFetchAll.mockClear();
 
     const refresh = refreshControlProps();
     expect(refresh).toBeDefined();
@@ -271,7 +335,6 @@ describe("BudgetScreen", () => {
       await flush();
     });
 
-    expect(mockedFetchAll).toHaveBeenCalled();
+    expect(mockedFetchAll).toHaveBeenCalledTimes(1);
   });
 });
-

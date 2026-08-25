@@ -1,29 +1,29 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type {
   TransactionItem,
   GroupedSection,
 } from "@/types/transaction/types";
 
+type FilterState = {
+  filterCategoryId: string;
+  minAmount: string;
+  maxAmount: string;
+};
+
 /**
- * Encapsulates all filter state and the derived filtered + grouped transaction
- * data that feeds into the SectionList on the Transactions screen.
+ * Derives the filtered + grouped transaction data that feeds into the
+ * SectionList on the Transactions screen.
+ *
+ * Filter state is owned by the caller (`useTransactionScreen`) so the same
+ * values can be passed to the server-side query before this hook runs;
+ * client-side filtering here remains as a display-level refinement.
  */
-export function useTransactionFilters(transactions: any[], budgets: any[]) {
-  // ── Filter controls ───────────────────────────────────────────────────
-  const [filterCategoryId, setFilterCategoryId] = useState<string | "all">(
-    "all",
-  );
-  const [minAmount, setMinAmount] = useState("");
-  const [maxAmount, setMaxAmount] = useState("");
-
-  /** Reset all filter controls to their default values. */
-  const clearFilters = useCallback(() => {
-    setFilterCategoryId("all");
-    setMinAmount("");
-    setMaxAmount("");
-  }, []);
-
+export function useTransactionFilters(
+  transactions: any[],
+  budgets: any[],
+  { filterCategoryId, minAmount, maxAmount }: FilterState,
+) {
   // ── Derived / memoised data ───────────────────────────────────────────
 
   /**
@@ -119,14 +119,6 @@ export function useTransactionFilters(transactions: any[], budgets: any[]) {
   }, [filteredTransactions]);
 
   return {
-    // Filter state
-    filterCategoryId,
-    setFilterCategoryId,
-    minAmount,
-    setMinAmount,
-    maxAmount,
-    setMaxAmount,
-    clearFilters,
     // Derived data
     filteredTransactions,
     sectionsWithTotals,

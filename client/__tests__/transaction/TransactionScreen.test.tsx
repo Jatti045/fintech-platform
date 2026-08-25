@@ -5,6 +5,9 @@
  * header + ledger + rows render, empty state, search triggers a debounced
  * fetch, the create/edit modals open, delete shows the confirmation, and
  * pull-to-refresh refreshes transactions + budgets.
+ *
+ * Data flows through the mocked API modules behind the RTK Query endpoints
+ * (the old transaction slice seeding is gone).
  */
 
 /// <reference types="jest" />
@@ -17,15 +20,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AlertProvider } from "@/utils/themedAlert";
 import transactionApi from "@/api/transaction";
 import budgetApi from "@/api/budget";
+import financialSummaryApi from "@/api/financialSummary";
 import TransactionScreen from "@/app/(tabs)/transaction";
-import budgetReducer from "@/store/slices/budgetSlice";
-import transactionReducerDefault, {
-  fetchTransaction,
-} from "@/store/slices/transactionSlice";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
-import financialSummaryReducerDefault from "@/store/slices/financialSummarySlice";
 import themeReducer from "@/store/slices/themeSlice";
+import api from "@/store/api/apiSlice";
 import {
   SectionList,
   Text,
@@ -59,6 +59,11 @@ jest.mock("@/api/budget", () => ({
   },
 }));
 
+jest.mock("@/api/financialSummary", () => ({
+  __esModule: true,
+  default: { fetchSummary: jest.fn() },
+}));
+
 const mockedTxFetch = transactionApi.fetchAll as jest.Mock;
 const mockedBudgetFetch = budgetApi.fetchAll as jest.Mock;
 
@@ -73,43 +78,41 @@ const makeTx = (overrides: Partial<TransactionItem> = {}): TransactionItem => ({
   ...overrides,
 });
 
+const txEnvelope = (items: TransactionItem[]) => ({
+  success: true,
+  message: "ok",
+  data: {
+    transaction: items,
+    pagination: {
+      currentPage: 1,
+      totalPages: 1,
+      totalCount: items.length,
+      hasNextPage: false,
+      hasPrevPage: false,
+      limit: 20,
+    },
+  },
+});
+
 function makeStore() {
   return configureStore({
     reducer: {
-      budget: budgetReducer,
-      transaction: transactionReducerDefault,
       user: userReducer,
       calendar: calendarReducer,
-      financialSummary: financialSummaryReducerDefault,
       theme: themeReducer,
+      [api.reducerPath]: api.reducer,
     },
-  });
-}
-
-function seedTransactions(
-  store: ReturnType<typeof makeStore>,
-  transactions: TransactionItem[],
-  pagination?: { hasNextPage?: boolean; currentPage?: number },
-) {
-  store.dispatch({
-    type: fetchTransaction.fulfilled.type,
-    payload: {
-      transaction: transactions,
-      pagination: {
-        currentPage: pagination?.currentPage ?? 1,
-        totalPages: 1,
-        totalCount: transactions.length,
-        hasNextPage: pagination?.hasNextPage ?? false,
-        hasPrevPage: false,
-      },
-    },
+    middleware: (gDM) => gDM().concat(api.middleware),
   });
 }
 
 async function setup(options?: { transactions?: TransactionItem[] }) {
+  // Mounting the screen subscribes to getTransactions/getBudgets; the mocked
+  // API modules deliver the seed data (replaces old slice dispatches).
+  mockedTxFetch.mockResolvedValue(txEnvelope(options?.transactions ?? []));
+
   const store = makeStore();
   store.dispatch(setMonthYear({ month: 1, year: 2026 }));
-  seedTransactions(store, options?.transactions ?? []);
 
   let tree!: renderer.ReactTestRenderer;
   renderer.act(() => {
@@ -125,11 +128,44 @@ async function setup(options?: { transactions?: TransactionItem[] }) {
   await renderer.act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
+  // Wait for the seeded getTransactions response to land, then for the
+  // display-amount render pass that turns it into rows/empty state (one
+  // extra effect cycle — polling the store alone races this under load).
+  await until(() => txSettled(store));
+  const firstSeed = options?.transactions?.[0];
+  await until(() =>
+    firstSeed
+      ? renderedText(String(firstSeed.name ?? ""))
+      : renderedText("No transactions match filters."),
+  );
+  await renderer.act(async () => {
+    await flush();
+  });
 
   return { tree, store };
 }
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/** Repeatedly act-flushes until the predicate holds (RTKQ fulfillment is async). */
+async function until(pred: () => boolean, tries = 300) {
+  for (let i = 0; i < tries; i++) {
+    let ok = false;
+    await renderer.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      ok = pred();
+    });
+    if (ok) return;
+  }
+  throw new Error("timed out waiting for expected store state");
+}
+
+const txSettled = (store: { getState(): unknown }) => {
+  const list = Object.values((store.getState() as any).api.queries).filter(
+    (q: any) => q.endpointName === "getTransactions",
+  ) as any[];
+  return list.length > 0 && list.every((q) => q.status === "fulfilled");
+};
 
 function lastProps(
   mock: jest.Mock,
@@ -181,8 +217,12 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   mockedTxFetch.mockReset();
   mockedBudgetFetch.mockReset();
-  mockedTxFetch.mockResolvedValue({ data: { transaction: [] } });
-  mockedBudgetFetch.mockResolvedValue({ data: [] });
+  mockedTxFetch.mockResolvedValue(txEnvelope([]));
+  mockedBudgetFetch.mockResolvedValue({ success: true, data: [] });
+  (financialSummaryApi.fetchSummary as jest.Mock).mockResolvedValue({
+    success: true,
+    data: { totalAmount: 0, monthlyIncome: 0, actualIncome: 0, expectedIncome: 0 },
+  });
   textMock.mockClear();
   textInputMock.mockClear();
   touchableOpacityMock.mockClear();
@@ -277,4 +317,3 @@ describe("TransactionScreen", () => {
     expect(mockedBudgetFetch).toHaveBeenCalledTimes(1);
   });
 });
-

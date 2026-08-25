@@ -5,6 +5,12 @@ import {
   shallowEqual,
 } from "react-redux";
 import type { RootState, AppDispatch } from "../store";
+import {
+  defaultTransactionArgs,
+  useGetBudgetsQuery,
+  useGetFinancialSummaryQuery,
+  useGetTransactionsQuery,
+} from "../store/api/apiSlice";
 
 // Used instead of plain `useDispatch` and `useSelector`
 export const useAppDispatch = () => useDispatch<AppDispatch>();
@@ -51,57 +57,80 @@ export const useAuthStatus = () => {
   );
 };
 
-// Custom hooks for transaction state selections
-export const useTransactions = () => {
-  return useAppSelector((state) => state.transaction.transactions);
+const NO_TRANSACTIONS: never[] = [];
+const NO_BUDGETS: never[] = [];
+
+/** Extracts a human-readable message from an RTK Query custom error. */
+const errorMessage = (error: unknown): string | null => {
+  if (!error) return null;
+  if (typeof error === "object" && "error" in (error as any)) {
+    return String((error as any).error);
+  }
+  return null;
 };
 
-export const useTransactionStatus = () => {
-  return useAppSelector(
-    (state) => ({
-      isAdding: state.transaction.isAdding,
-      isEditing: state.transaction.isEditing,
-      isDeleting: state.transaction.isDeleting,
-      isLoading: state.transaction.isLoading,
-      isLoadingMore: state.transaction.isLoadingMore,
-      error: state.transaction.error,
-    }),
-    shallowEqual,
-  );
+/**
+ * Transactions for the selected calendar month (unfiltered page 1).
+ *
+ * Multiple components subscribing through this hook share one request and
+ * one cache entry — this replaces the old competing layout/screen fetches.
+ */
+export const useTransactions = () => {
+  const { month, year } = useCalendar();
+  const { data } = useGetTransactionsQuery(defaultTransactionArgs(month, year));
+  return data?.transaction ?? NO_TRANSACTIONS;
 };
 
 export const useTransactionPagination = () => {
-  return useAppSelector((state) => state.transaction.pagination);
+  const { month, year } = useCalendar();
+  const { data } = useGetTransactionsQuery(defaultTransactionArgs(month, year));
+  return (
+    data?.pagination ?? {
+      currentPage: 1,
+      totalPages: 1,
+      totalCount: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+    }
+  );
 };
 
 // Custom hooks for financial summary state selections
 export const useFinancialSummary = () => {
-  return useAppSelector((state) => state.financialSummary.data);
+  const { month, year } = useCalendar();
+  const { data } = useGetFinancialSummaryQuery({
+    currentMonth: month,
+    currentYear: year,
+  });
+  return data ?? null;
 };
 
 export const useFinancialSummaryStatus = () => {
-  return useAppSelector(
-    (state) => ({
-      isLoading: state.financialSummary.isLoading,
-      error: state.financialSummary.error,
-    }),
-    shallowEqual,
-  );
+  const { month, year } = useCalendar();
+  const { isFetching, error } = useGetFinancialSummaryQuery({
+    currentMonth: month,
+    currentYear: year,
+  });
+  return { isLoading: isFetching, error: errorMessage(error) };
 };
 
 // Custom hooks for budget state selections
 export const useBudgets = () => {
-  return useAppSelector((state) => state.budget.budgets);
+  const { month, year } = useCalendar();
+  const { data } = useGetBudgetsQuery({
+    currentMonth: month,
+    currentYear: year,
+  });
+  return data ?? NO_BUDGETS;
 };
 
 export const useBudgetStatus = () => {
-  return useAppSelector(
-    (state) => ({
-      isLoading: state.budget.loading,
-      error: state.budget.error,
-    }),
-    shallowEqual,
-  );
+  const { month, year } = useCalendar();
+  const { isFetching, error } = useGetBudgetsQuery({
+    currentMonth: month,
+    currentYear: year,
+  });
+  return { isLoading: isFetching, error: errorMessage(error) };
 };
 
 export const useCalendar = () => {
@@ -109,6 +138,41 @@ export const useCalendar = () => {
     (state) => ({
       month: state.calendar.month,
       year: state.calendar.year,
+    }),
+    shallowEqual,
+  );
+};
+
+/**
+ * In-flight flags for transaction mutations (create/update/delete), read
+ * from the RTK Query mutation entries so loader overlays can render while
+ * any screen/modal has an operation in progress.
+ *
+ * RTK Query keys `state.api.mutations` by requestId (each entry carries its
+ * own `endpointName`), so the check scans entries for a matching endpoint
+ * rather than indexing by endpoint name.
+ */
+const isMutationPending = (
+  state: RootState,
+  endpointName: string,
+): boolean => {
+  const mutations = state.api.mutations as Record<string, any> | undefined;
+  if (!mutations) return false;
+  for (const key of Object.keys(mutations)) {
+    const entry = mutations[key];
+    if (entry?.endpointName === endpointName && entry.status === "pending") {
+      return true;
+    }
+  }
+  return false;
+};
+
+export const useTransactionMutationStatus = () => {
+  return useAppSelector(
+    (state) => ({
+      isAdding: isMutationPending(state, "createTransaction"),
+      isEditing: isMutationPending(state, "updateTransaction"),
+      isDeleting: isMutationPending(state, "deleteTransaction"),
     }),
     shallowEqual,
   );

@@ -1,26 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import {
-  useAppDispatch,
+  useAppSelector,
   useAuth,
-  useBudgets,
   useCalendar,
   useFinancialSummary,
   useTheme,
-  useTransactionStatus,
-  useTransactions,
+  useTransactionMutationStatus,
 } from "@/hooks/useRedux";
-import { fetchBudgets } from "@/store/slices/budgetSlice";
+import { useGetBudgetsQuery } from "@/store/api/apiSlice";
 import { useRefresh } from "@/hooks/useRefresh";
 import { useTransactionDisplayAmounts } from "./useTransactionDisplayAmounts";
 import { useTransactionFilters } from "./useTransactionFilters";
 import { useTransactionSearch } from "./useTransactionSearch";
-import { useTransactionLoadMore } from "./useTransactionLoadMore";
 import { useTransactionOperations } from "./useTransactionOperation";
 import SectionHeader from "@/components/transaction/SectionHeader";
 import TransactionRow from "@/components/transaction/TxRow";
 import ListFooter from "@/components/transaction/TxFooter";
-import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import type { GroupedSection, TransactionItem } from "@/types/transaction/types";
 
 /**
@@ -31,15 +27,50 @@ import type { GroupedSection, TransactionItem } from "@/types/transaction/types"
  */
 export const useTransactionScreen = () => {
   // ── Redux selectors ─────────────────────────────────────────────────────
-  const transactions = useTransactions();
-  const budgets = useBudgets();
   const { user } = useAuth();
   const activeCurrency = user?.currency || "USD";
   const { THEME } = useTheme();
-  const { isAdding, isEditing, isDeleting, isLoading } = useTransactionStatus();
   const calendar = useCalendar();
-  const dispatch = useAppDispatch();
   const financialSummary = useFinancialSummary();
+
+  const budgetsQuery = useGetBudgetsQuery({
+    currentMonth: calendar.month,
+    currentYear: calendar.year,
+  });
+  const budgets = budgetsQuery.data ?? [];
+
+  // ── Filters ─────────────────────────────────────────────────────────────
+  // Filter UI state; declared before the feed so the feed can subscribe with
+  // the selected filter values.
+  const [filterCategoryId, setFilterCategoryId] = useState<string>("all");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+
+  const selectedBudgetId = filterCategoryId !== "all" ? filterCategoryId : null;
+  const selectedMinAmount =
+    minAmount.trim() === "" ? null : Number(minAmount) || 0;
+  const selectedMaxAmount =
+    maxAmount.trim() === "" ? null : Number(maxAmount) || 0;
+
+  // ── Server feed (search + filters + pagination) ─────────────────────────
+  const {
+    searchQuery,
+    setSearchQuery,
+    normalizedQuery,
+    transactions,
+    refreshTransactions,
+    handleLoadMore,
+    isLoading,
+    isLoadingMore,
+    hasNextPage,
+  } = useTransactionSearch({
+    currentMonth: calendar.month,
+    currentYear: calendar.year,
+    budgetId: selectedBudgetId,
+    minAmount: selectedMinAmount,
+    maxAmount: selectedMaxAmount,
+  });
+  const isSearching = searchQuery.trim().length > 0;
 
   const monthlyIncome = Number(financialSummary?.monthlyIncome || 0);
   const actualIncome = Number(financialSummary?.actualIncome || 0);
@@ -50,35 +81,20 @@ export const useTransactionScreen = () => {
     activeCurrency,
   );
 
-  // ── Filters ─────────────────────────────────────────────────────────────
   const {
-    filterCategoryId,
-    setFilterCategoryId,
-    minAmount,
-    setMinAmount,
-    maxAmount,
-    setMaxAmount,
-    clearFilters,
     sectionsWithTotals,
-  } = useTransactionFilters(displayTransactions, budgets);
+  } = useTransactionFilters(displayTransactions, budgets, {
+    filterCategoryId,
+    minAmount,
+    maxAmount,
+  });
 
-  const selectedBudgetId = filterCategoryId !== "all" ? filterCategoryId : null;
-  const selectedMinAmount =
-    minAmount.trim() === "" ? null : Number(minAmount) || 0;
-  const selectedMaxAmount =
-    maxAmount.trim() === "" ? null : Number(maxAmount) || 0;
-
-  // ── Search ──────────────────────────────────────────────────────────────
-  const { searchQuery, setSearchQuery, normalizedQuery, refreshTransactions } =
-    useTransactionSearch({
-      currentMonth: calendar.month,
-      currentYear: calendar.year,
-      limit: PAGINATION_LIMIT,
-      budgetId: selectedBudgetId,
-      minAmount: selectedMinAmount,
-      maxAmount: selectedMaxAmount,
-    });
-  const isSearching = searchQuery.trim().length > 0;
+  /** Clears the category/amount filter inputs. */
+  const clearFilters = useCallback(() => {
+    setFilterCategoryId("all");
+    setMinAmount("");
+    setMaxAmount("");
+  }, []);
 
   // ── Search-clear skeleton suppression ───────────────────────────────────
   const [suppressInitialSkeleton, setSuppressInitialSkeleton] = useState(false);
@@ -180,23 +196,12 @@ export const useTransactionScreen = () => {
 
   // ── Pull-to-refresh: transactions (respecting the query) + budgets ─────
   const { refreshing, onRefresh } = useRefresh(() =>
-    Promise.all([
-      refreshTransactions(),
-      dispatch(
-        fetchBudgets({
-          currentMonth: calendar.month,
-          currentYear: calendar.year,
-        }),
-      ),
-    ]),
+    Promise.all([refreshTransactions(), budgetsQuery.refetch()]),
   );
 
   // Only the delete handler is needed at screen level;
   // create + update are fully managed inside TransactionModal.
   const { handleDeleteTransaction } = useTransactionOperations();
-
-  const { handleLoadMore, isLoadingMore, hasNextPage } =
-    useTransactionLoadMore();
 
   // ── Create / edit modal state ──────────────────────────────────────────
   const [openSheet, setOpenSheet] = useState(false);
@@ -215,6 +220,7 @@ export const useTransactionScreen = () => {
   }, []);
 
   // ── Loader message / visibility ─────────────────────────────────────────
+  const { isAdding, isEditing, isDeleting } = useTransactionMutationStatus();
   const loaderMessage = isAdding
     ? "Adding transaction…"
     : isEditing
@@ -259,14 +265,7 @@ export const useTransactionScreen = () => {
       hasNextPage={hasNextPage}
       isLoadingMore={isSearching ? false : isLoadingMore}
       hasTransactions={transactions.length > 0}
-      onLoadMore={() =>
-        handleLoadMore(
-          normalizedQuery,
-          selectedBudgetId,
-          selectedMinAmount,
-          selectedMaxAmount,
-        )
-      }
+      onLoadMore={handleLoadMore}
     />
   );
 

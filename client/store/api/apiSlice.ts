@@ -1,0 +1,386 @@
+import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
+import transactionAPI from "@/api/transaction";
+import budgetAPI from "@/api/budget";
+import financialSummaryAPI from "@/api/financialSummary";
+import type {
+  ITransaction,
+  ITransactionPagination,
+  ITransactionResponse,
+} from "@/types/transaction/types";
+import type { IBudget, IBudgetData } from "@/types/budget/types";
+import type { IFinancialSummary } from "@/types/financialSummary/types";
+import type { IApiResponse } from "@/types/api/types";
+
+/**
+ * The single owner for month-scoped server-state fetching.
+ *
+ * All transactions / budgets / financial-summary reads and writes go through
+ * this slice. Cache entries are keyed per month + filter set (page is
+ * deliberately excluded and handled by `merge`), which makes cross-month
+ * race conditions structurally impossible: two months can never clobber each
+ * other's entry, replacing the previous hand-rolled `latestRequestId` guards.
+ */
+
+export interface MonthArgs {
+  currentMonth: number;
+  currentYear: number;
+}
+
+export interface GetTransactionsArgs extends MonthArgs {
+  searchQuery?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  budgetId?: string | null;
+  minAmount?: number | null;
+  maxAmount?: number | null;
+  page?: number;
+  limit?: number;
+}
+
+export interface TransactionsEnvelope {
+  transaction: ITransaction[];
+  pagination?: ITransactionPagination;
+}
+
+/** A `{year, month}` pair identifying one month-scoped cache tag. */
+export interface MonthKey {
+  year: number;
+  month: number;
+}
+
+/** Cache-tag id for a month (`"year-month"`), shared with cachePersistence. */
+export const monthTagId = ({ year, month }: MonthKey) => `${year}-${month}`;
+
+const argsMonth = (a: MonthArgs) => ({ year: a.currentYear, month: a.currentMonth });
+
+const monthTags = (
+  type: "Transactions" | "Budgets" | "Summary",
+  months: (MonthKey | undefined | null)[],
+) => {
+  const seen = new Set<string>();
+  const tags: { type: typeof type; id: string }[] = [];
+  for (const m of months) {
+    if (!m) continue;
+    const id = monthTagId(m);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    tags.push({ type, id });
+  }
+  return tags;
+};
+
+/** Derive the month a transaction date falls in. */
+export const monthOfDate = (date?: string | Date | null): MonthKey | null => {
+  if (!date) return null;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return null;
+  return { year: d.getFullYear(), month: d.getMonth() };
+};
+
+const toError = (e: any) => ({
+  status: "CUSTOM_ERROR" as const,
+  error: e?.message || "Request failed",
+});
+
+/**
+ * Pagination metadata is taken verbatim from the backend (which computes it
+ * from an authoritative COUNT query). It is never fabricated client-side, so
+ * a cached entry can never claim `totalPages: 1` when more pages exist.
+ */
+/**
+ * Page 1 replaces the accumulated list; page N appends with id-deduping.
+ *
+ * Deduping matters because a mutation invalidates the month tag and RTK Query
+ * refetches every subscribed entry with its ORIGINAL args — including
+ * already-appended higher pages. Without dedup those re-appends would create
+ * duplicate rows.
+ */
+function mergeTransactions(
+  current: TransactionsEnvelope,
+  incoming: TransactionsEnvelope,
+  { arg }: {
+    arg: GetTransactionsArgs;
+    baseQueryMeta: unknown;
+    requestId: string;
+    fulfilledTimeStamp: number;
+  },
+) {
+  const existing = current.transaction ?? [];
+  const incomingItems = incoming.transaction ?? [];
+  const page = arg.page ?? 1;
+  if (page <= 1) {
+    current.transaction = incomingItems;
+  } else {
+    const seen = new Set<string>();
+    for (const t of existing) if (t.id) seen.add(t.id);
+    const additions = incomingItems.filter((t) => !t.id || !seen.has(t.id));
+    current.transaction = [...existing, ...additions];
+  }
+
+  // Always store backend-authoritative pagination metadata verbatim; it is
+  // never fabricated client-side, so cached months can't claim false
+  // `totalPages` / `hasNextPage`.
+  if (incoming.pagination) current.pagination = incoming.pagination;
+}
+
+export const api = createApi({
+  reducerPath: "api",
+  // All endpoints use `queryFn` and call the typed API layer directly (which
+  // owns axios/auth/error normalization); the base query itself is never hit.
+  baseQuery: fakeBaseQuery(),
+  tagTypes: ["Transactions", "Budgets", "Summary"],
+  /**
+   * Cold-start revalidation strategy: hydrated cache entries are seeded via
+   * `upsertQueryData` in `cachePersistence.ts` and then explicitly
+   * `invalidateTags`d for the seeded month, so the first subscription renders
+   * the seed instantly AND refetches authoritative data (legacy SWR cadence).
+   * A blanket `refetchOnMountOrArgChange: true` was rejected: it made every
+   * tag invalidation fire its refetch twice.
+   */
+  endpoints: (build) => ({
+    getTransactions: build.query<TransactionsEnvelope, GetTransactionsArgs>({
+      queryFn: async (args) => {
+        try {
+          const response = await transactionAPI.fetchAll({
+            searchQuery: args.searchQuery ?? "",
+            currentMonth: args.currentMonth,
+            currentYear: args.currentYear,
+            startDate: args.startDate ?? null,
+            endDate: args.endDate ?? null,
+            budgetId: args.budgetId ?? null,
+            minAmount: args.minAmount ?? null,
+            maxAmount: args.maxAmount ?? null,
+            page: args.page ?? 1,
+            limit: args.limit,
+          });
+          return {
+            data: {
+              transaction: response.data?.transaction ?? [],
+              pagination: response.data?.pagination,
+            },
+          };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      serializeQueryArgs: ({ endpointName, queryArgs }) => {
+        const a = queryArgs as GetTransactionsArgs;
+        return `${endpointName}(${JSON.stringify([
+          a.currentYear,
+          a.currentMonth,
+          (a.searchQuery ?? "").trim(),
+          a.budgetId ?? null,
+          a.minAmount ?? null,
+          a.maxAmount ?? null,
+          a.startDate ?? null,
+          a.endDate ?? null,
+          a.limit ?? null,
+        ])})`;
+      },
+      merge: mergeTransactions,
+      // Parity with the old thunk semantics: searches/filters always hit the
+      // network (only unfiltered month views are allowed to serve cache),
+      // and moving between pages must force a fetch since the cache key
+      // deliberately excludes `page`.
+      forceRefetch: ({ currentArg, previousArg }) => {
+        if (previousArg?.page !== currentArg?.page) return true;
+        const hasActiveFilters =
+          Boolean((currentArg?.searchQuery ?? "").trim()) ||
+          Boolean(currentArg?.budgetId) ||
+          currentArg?.minAmount != null ||
+          currentArg?.maxAmount != null;
+        return hasActiveFilters;
+      },
+      providesTags: (_result, _error, arg) => [
+        { type: "Transactions", id: monthTagId(argsMonth(arg)) },
+      ],
+    }),
+
+    getBudgets: build.query<IBudget[], MonthArgs>({
+      queryFn: async (args) => {
+        try {
+          const response = await budgetAPI.fetchAll(args);
+          return { data: response?.data ?? [] };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      providesTags: (_result, _error, arg) => [
+        { type: "Budgets", id: monthTagId(argsMonth(arg)) },
+      ],
+    }),
+
+    getFinancialSummary: build.query<IFinancialSummary, MonthArgs>({
+      queryFn: async (args) => {
+        try {
+          const response = await financialSummaryAPI.fetchSummary(args);
+          return { data: response?.data };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      providesTags: (_result, _error, arg) => [
+        { type: "Summary", id: monthTagId(argsMonth(arg)) },
+      ],
+    }),
+
+    createTransaction: build.mutation<
+      ITransactionResponse<ITransaction>,
+      Partial<ITransaction>
+    >({
+      queryFn: async (transaction) => {
+        try {
+          const response = await transactionAPI.create(transaction as ITransaction);
+          return { data: response };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      /**
+       * NOTE: transaction mutations deliberately do NOT invalidate the
+       * `Transactions` tag. An invalidation-driven refetch reuses the entry's
+       * ORIGINAL args, which after load-more is a higher page whose
+       * merge-append can resurrect rows the server already deleted ("ghosts")
+       * and can even dedupe-race a concurrent page-1 refresh. Instead,
+       * `useTransactionSearch` resets to page 1 the moment a mutation starts;
+       * the args change + `refetchOnMountOrArgChange` produce one clean,
+       * authoritative page-1 REPLACE — the legacy post-mutation behavior.
+       */
+      invalidatesTags: (_r, _e, tx) => {
+        const fromArgs = tx.month != null && tx.year != null
+          ? [{ year: tx.year, month: tx.month }]
+          : [];
+        return [
+          ...monthTags("Budgets", [...fromArgs, monthOfDate(tx.date)]),
+          ...monthTags("Summary", [...fromArgs, monthOfDate(tx.date)]),
+        ];
+      },
+    }),
+
+    updateTransaction: build.mutation<
+      ITransactionResponse<ITransaction>,
+      {
+        id: string;
+        updates: Partial<ITransaction>;
+        /** Months whose cached lists may be affected (old and/or new month). */
+        invalidateMonths?: MonthKey[];
+      }
+    >({
+      queryFn: async ({ id, updates }) => {
+        try {
+          const response = await transactionAPI.update(id, updates);
+          return { data: response };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      invalidatesTags: (_r, _e, arg) => {
+        const months = [...(arg.invalidateMonths ?? [])];
+        const dateMonth = monthOfDate(arg.updates.date);
+        if (dateMonth) months.push(dateMonth);
+        // See createTransaction — Transactions refresh is handled by the
+        // page-1 reset, not tag invalidation (ghost-row prevention).
+        return [
+          ...monthTags("Budgets", months),
+          ...monthTags("Summary", months),
+        ];
+      },
+    }),
+
+    deleteTransaction: build.mutation<
+      ITransactionResponse<null>,
+      { id: string; invalidateMonths: MonthKey[] }
+    >({
+      queryFn: async ({ id }) => {
+        try {
+          const response = await transactionAPI.delete(id);
+          return { data: response };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      invalidatesTags: (_r, _e, arg) => {
+        // See createTransaction — Transactions refresh is handled by the
+        // page-1 reset, not tag invalidation (ghost-row prevention).
+        return [
+          ...monthTags("Budgets", arg.invalidateMonths ?? []),
+          ...monthTags("Summary", arg.invalidateMonths ?? []),
+        ];
+      },
+    }),
+
+    createBudget: build.mutation<IApiResponse<IBudget>, IBudgetData>({
+      queryFn: async (budgetData) => {
+        try {
+          const response = await budgetAPI.create(budgetData);
+          return { data: response };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      invalidatesTags: (_r, _e, b) =>
+        monthTags("Budgets", [{ year: b.year, month: b.month }]),
+    }),
+
+    updateBudget: build.mutation<
+      IApiResponse<IBudget>,
+      {
+        id: string;
+        updates: Partial<IBudget>;
+        invalidateMonths?: MonthKey[];
+      }
+    >({
+      queryFn: async ({ id, updates }) => {
+        try {
+          const response = await budgetAPI.update(id, updates as any);
+          return { data: response };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      invalidatesTags: (_r, _e, arg) =>
+        monthTags("Budgets", arg.invalidateMonths ?? []),
+    }),
+
+    deleteBudget: build.mutation<
+      IApiResponse<null>,
+      { id: string; invalidateMonths: MonthKey[] }
+    >({
+      queryFn: async ({ id }) => {
+        try {
+          const response = await budgetAPI.delete(id);
+          return { data: response };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      invalidatesTags: (_r, _e, arg) =>
+        monthTags("Budgets", arg.invalidateMonths),
+    }),
+  }),
+});
+
+export const {
+  useGetTransactionsQuery,
+  useGetBudgetsQuery,
+  useGetFinancialSummaryQuery,
+  useCreateTransactionMutation,
+  useUpdateTransactionMutation,
+  useDeleteTransactionMutation,
+  useCreateBudgetMutation,
+  useUpdateBudgetMutation,
+  useDeleteBudgetMutation,
+} = api;
+
+/** Default (unfiltered, page-1) query args for the selected calendar month. */
+export const defaultTransactionArgs = (
+  month: number,
+  year: number,
+): GetTransactionsArgs => ({
+  currentMonth: month,
+  currentYear: year,
+  searchQuery: "",
+  page: 1,
+});
+
+export default api;

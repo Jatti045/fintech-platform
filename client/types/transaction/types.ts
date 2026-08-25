@@ -77,7 +77,6 @@ export interface TransactionState {
     hasPrevPage: boolean;
   };
   isLoadingMore: boolean;
-  latestRequestId?: string | null;
 }
 
 /** Minimal shape of a transaction as stored in Redux. */

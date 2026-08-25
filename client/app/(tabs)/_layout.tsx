@@ -1,13 +1,7 @@
 import {Tabs} from "expo-router";
 import {Ionicons} from "@expo/vector-icons";
 import "@/global.css";
-import {store} from "../../store";
-import {useEffect} from "react";
-import {useAppDispatch, useCalendar, useTheme} from "@/hooks/useRedux";
-import {fetchTransaction} from "@/store/slices/transactionSlice";
-import {fetchFinancialSummary} from "@/store/slices/financialSummarySlice";
-import {fetchBudgets} from "@/store/slices/budgetSlice";
-import {PAGINATION_LIMIT} from "@/constants/appConfig";
+import {useTheme} from "@/hooks/useRedux";
 import {View} from "react-native";
 import {hexToRgba, tintHex} from "@/utils/helper";
 import {useNotificationOnboarding} from "@/hooks/useNotificationOnboarding";
@@ -38,29 +32,8 @@ function TabIndicator({focused}: TabIndicatorProps) {
 
 export default function TabsLayout() {
     const TAB_ICON_SIZE = 28;
-    const dispatch = useAppDispatch();
     const {THEME} = useTheme();
-    const {month, year} = useCalendar();
     const notificationOnboarding = useNotificationOnboarding();
-
-    // Fetch transactions + financial summary + budgets for the selected month whenever calendar changes
-    useEffect(() => {
-        const state = store.getState();
-        const month = state.calendar.month;
-        const year = state.calendar.year;
-        dispatch(
-            fetchTransaction({
-                searchQuery: "",
-                currentMonth: month,
-                currentYear: year,
-                page: 1,
-                limit: PAGINATION_LIMIT,
-                useCache: false, // Disable cache to get accurate pagination
-            }),
-        );
-        dispatch(fetchFinancialSummary({currentMonth: month, currentYear: year}));
-        dispatch(fetchBudgets({currentMonth: month, currentYear: year}));
-    }, [dispatch, month, year]);
 
     return (
         <View style={{flex: 1}}>

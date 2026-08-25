@@ -24,6 +24,4 @@ export interface FinancialSummaryState {
   data: IFinancialSummary | null;
   isLoading: boolean;
   error: string | null;
-  /** Request id of the most recent summary fetch (stale-response guard). */
-  latestRequestId?: string | null;
 }

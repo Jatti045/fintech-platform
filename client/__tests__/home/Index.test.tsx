@@ -18,11 +18,9 @@ import transactionApi from "@/api/transaction";
 import financialSummaryApi from "@/api/financialSummary";
 import budgetApi from "@/api/budget";
 import Index from "@/app/(tabs)/index";
-import budgetReducer from "@/store/slices/budgetSlice";
-import transactionReducerDefault from "@/store/slices/transactionSlice";
+import api from "@/store/api/apiSlice";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
-import financialSummaryReducerDefault from "@/store/slices/financialSummarySlice";
 import themeReducer from "@/store/slices/themeSlice";
 import { ScrollView, Text, TouchableOpacity } from "react-native";
 import { TransactionType } from "@/types/transaction/types";
@@ -103,13 +101,13 @@ const makeSummary = (
 function makeStore() {
   return configureStore({
     reducer: {
-      budget: budgetReducer,
-      transaction: transactionReducerDefault,
       user: userReducer,
       calendar: calendarReducer,
-      financialSummary: financialSummaryReducerDefault,
       theme: themeReducer,
+      [api.reducerPath]: api.reducer,
     },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(api.middleware),
   });
 }
 
