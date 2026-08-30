@@ -33,8 +33,14 @@ export default function PlaidStatusBanner() {
   const dispatch = useAppDispatch();
   const { THEME } = useTheme();
   const insets = useSafeAreaInsets();
-  const { reauthItems, retryableItems, reauthingItemId, syncingItemIds, openReauth, retrySync } =
-    usePlaidHealth();
+  const {
+    reauthItems,
+    retryableItems,
+    reauthingItemId,
+    syncingItemIds,
+    openReauth,
+    retrySync,
+  } = usePlaidHealth();
 
   const needsAttention = reauthItems.length > 0 || retryableItems.length > 0;
 
@@ -110,7 +116,9 @@ export default function PlaidStatusBanner() {
         {isReauthing ? (
           <ActivityIndicator size="small" color={THEME.danger} />
         ) : (
-          <Text style={{ color: THEME.danger, fontSize: 12, fontWeight: "800" }}>
+          <Text
+            style={{ color: THEME.danger, fontSize: 12, fontWeight: "800" }}
+          >
             Reconnect
           </Text>
         )}
@@ -169,7 +177,9 @@ export default function PlaidStatusBanner() {
         {isSyncing ? (
           <ActivityIndicator size="small" color={THEME.primary} />
         ) : (
-          <Text style={{ color: THEME.primary, fontSize: 12, fontWeight: "800" }}>
+          <Text
+            style={{ color: THEME.primary, fontSize: 12, fontWeight: "800" }}
+          >
             Refresh
           </Text>
         )}
@@ -182,7 +192,7 @@ export default function PlaidStatusBanner() {
       pointerEvents="box-none"
       style={{
         position: "absolute",
-        top: 0,
+        bottom: 80,
         left: 0,
         right: 0,
         zIndex: 100,
