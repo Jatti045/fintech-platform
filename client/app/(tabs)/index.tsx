@@ -13,6 +13,7 @@ import MonthSelector from "@/components/home/MonthSelector";
 import HomePulse from "@/components/home/HomePulse";
 import SpendingRhythm from "@/components/home/SpendingRhythm";
 import BudgetPulse from "@/components/home/BudgetPulse";
+import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentFlow from "@/components/home/RecentFlow";
 import QuickActions from "@/components/home/QuickActions";
 
@@ -99,6 +100,8 @@ export default function Index() {
         />
 
               <BudgetPulse budgets={displayBudgets} currencyCode={activeCurrency} />
+
+        <MonthlyInsightCard month={month} year={year} />
 
         <UpcomingBillsCard
           bills={upcomingBills}

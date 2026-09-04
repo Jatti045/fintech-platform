@@ -3,6 +3,7 @@ import transactionAPI from "@/api/transaction";
 import budgetAPI from "@/api/budget";
 import financialSummaryAPI from "@/api/financialSummary";
 import recurringAPI from "@/api/recurring";
+import insightAPI from "@/api/insight";
 import type {
   ITransaction,
   ITransactionPagination,
@@ -11,6 +12,7 @@ import type {
 import type { IBudget, IBudgetData, IBudgetSuggestions, IApplySuggestionsResult } from "@/types/budget/types";
 import type { IFinancialSummary } from "@/types/financialSummary/types";
 import type { IRecurringPaymentsResponseData } from "@/types/recurring/types";
+import type { IMonthlyInsight } from "@/types/insight/types";
 import type { IApiResponse } from "@/types/api/types";
 
 /**
@@ -130,7 +132,7 @@ export const api = createApi({
   // All endpoints use `queryFn` and call the typed API layer directly (which
   // owns axios/auth/error normalization); the base query itself is never hit.
   baseQuery: fakeBaseQuery(),
-  tagTypes: ["Transactions", "Budgets", "Summary", "Suggestions", "Recurring"],
+  tagTypes: ["Transactions", "Budgets", "Summary", "Suggestions", "Recurring", "Insights"],
   /**
    * Cold-start revalidation strategy: hydrated cache entries are seeded via
    * `upsertQueryData` in `cachePersistence.ts` and then explicitly
@@ -294,6 +296,26 @@ export const api = createApi({
       ],
     }),
 
+    /**
+     * "Explain my month" — AI-generated explanation for a month, produced by
+     * the backend from Budgee's deterministic financial services. Fetched
+     * lazily (only when the user taps the action) and cached per month so
+     * repeated taps and month switches reuse the same explanation.
+     */
+    getMonthlyInsight: build.query<IMonthlyInsight, MonthArgs>({
+      queryFn: async (args) => {
+        try {
+          const response = await insightAPI.fetchMonthlyInsight(args);
+          return { data: response?.data };
+        } catch (e: any) {
+          return { error: toError(e) };
+        }
+      },
+      providesTags: (_result, _error, arg) => [
+        { type: "Insights", id: monthTagId(argsMonth(arg)) },
+      ],
+    }),
+
     createTransaction: build.mutation<
       ITransactionResponse<ITransaction>,
       Partial<ITransaction>
@@ -437,6 +459,8 @@ export const {
   useGetTransactionsQuery,
   useGetBudgetsQuery,
   useGetFinancialSummaryQuery,
+  useGetMonthlyInsightQuery,
+  useLazyGetMonthlyInsightQuery,
   useGetBudgetSuggestionsQuery,
   useApplyBudgetSuggestionsMutation,
   useGetRecurringPaymentsQuery,
