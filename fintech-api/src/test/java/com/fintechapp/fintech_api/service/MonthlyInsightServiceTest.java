@@ -77,17 +77,23 @@ class MonthlyInsightServiceTest {
                 recurringPaymentService, transactionRepository, userRepository);
     }
 
-    private void stubFinancialMonth(double expenses) {
-        when(financialSummaryService.resolveForMonth(user, 2026, 8)).thenReturn(
+    private void stubFinancialMonth(int monthIndex, double expenses) {
+        when(financialSummaryService.resolveForMonth(user, 2026, monthIndex)).thenReturn(
                 new FinancialSummaryData(expenses, 4200, 4000, 4200, expenses,
                         4200 - expenses, 50));
-        when(financialSummaryService.monthStart(2026, 8)).thenReturn(
-                java.time.Instant.parse("2026-09-01T00:00:00Z"));
+        java.time.Instant monthStart = java.time.LocalDate
+                .of(2026, monthIndex + 1, 1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        java.time.Instant nextMonthStart = java.time.LocalDate
+                .of(2026, monthIndex + 1, 1).plusMonths(1)
+                .atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        when(financialSummaryService.monthStart(2026, monthIndex)).thenReturn(monthStart);
+        when(financialSummaryService.monthStart(
+                2026 + (monthIndex == 11 ? 1 : 0), (monthIndex + 1) % 12)).thenReturn(nextMonthStart);
         when(transactionRepository.sumAmountByUserAndTypeGroupedByCategory(
                 eq("user-1"), any(), any(), any())).thenReturn(List.of(
                 categoryTotal("Restaurants", 320), categoryTotal("Groceries", 460)));
-        when(budgetService.getBudgets(any(), eq("8"), eq("2026"))).thenReturn(
-                new BudgetsResponse(true, "ok", List.of(new BudgetItemResponse(
+        when(budgetService.getBudgets(any(), eq(String.valueOf(monthIndex)), eq("2026")))
+                .thenReturn(new BudgetsResponse(true, "ok", List.of(new BudgetItemResponse(
                         "id", "uid", null, "Entertainment", 1000, 910, false, null, null))));
         when(recurringPaymentService.detectForAuthenticatedUser(any())).thenReturn(
                 new Data(List.of(recurringItem())));
@@ -137,7 +143,7 @@ class MonthlyInsightServiceTest {
 
     @Test
     void sendsOnlyStructuredFinancialFactsToTheProvider() {
-        stubFinancialMonth(3750);
+        stubFinancialMonth(8, 3750);
 
         service.generateForAuthenticatedUser(AUTH, 2026, 8);
 
@@ -158,9 +164,85 @@ class MonthlyInsightServiceTest {
         assertTrue(!json.contains("apiKey"));
     }
 
+    /**
+     * Regression: the AI context must carry the human-readable 1-based month
+     * matching the selected month. Budgee's API month is 0-based, and the
+     * context previously serialized the raw index — so a user viewing
+     * September 2026 (index 8) got an AI summary about "August".
+     */
+    @Test
+    void aiContextUsesHumanReadableMonthMatchingTheSelectedMonth() {
+        stubFinancialMonth(8, 3750); // zero-based 8 = September
+
+        service.generateForAuthenticatedUser(AUTH, 2026, 8);
+
+        ArgumentCaptor<String> userContent = ArgumentCaptor.forClass(String.class);
+        verify(aiClient).complete(anyString(), userContent.capture());
+
+        String json = userContent.getValue();
+        assertTrue(json.contains("\"monthName\":\"September\""));
+        assertTrue(json.contains("\"month\":9"));
+        assertTrue(!json.contains("\"month\":8"));
+    }
+
+    @Test
+    void januaryMapsToHumanReadableJanuaryInAiContext() {
+        stubFinancialMonth(0, 3750); // zero-based 0 = January
+
+        service.generateForAuthenticatedUser(AUTH, 2026, 0);
+
+        ArgumentCaptor<String> userContent = ArgumentCaptor.forClass(String.class);
+        verify(aiClient).complete(anyString(), userContent.capture());
+
+        String json = userContent.getValue();
+        assertTrue(json.contains("\"monthName\":\"January\""));
+        assertTrue(json.contains("\"month\":1"));
+        // The financial windows must be January's, not December of the prior year.
+        verify(transactionRepository).sumAmountByUserAndTypeGroupedByCategory(
+                eq("user-1"), any(),
+                eq(java.time.Instant.parse("2026-01-01T00:00:00Z")),
+                eq(java.time.Instant.parse("2026-02-01T00:00:00Z")));
+    }
+
+    @Test
+    void decemberMapsToHumanReadableDecemberInAiContext() {
+        stubFinancialMonth(11, 3750); // zero-based 11 = December
+
+        service.generateForAuthenticatedUser(AUTH, 2026, 11);
+
+        ArgumentCaptor<String> userContent = ArgumentCaptor.forClass(String.class);
+        verify(aiClient).complete(anyString(), userContent.capture());
+
+        String json = userContent.getValue();
+        assertTrue(json.contains("\"monthName\":\"December\""));
+        assertTrue(json.contains("\"month\":12"));
+        // December's window must not bleed into January of the next year.
+        verify(transactionRepository).sumAmountByUserAndTypeGroupedByCategory(
+                eq("user-1"), any(),
+                eq(java.time.Instant.parse("2026-12-01T00:00:00Z")),
+                eq(java.time.Instant.parse("2027-01-01T00:00:00Z")));
+    }
+
+    @Test
+    void navigatingFromAugustToSeptemberMovesTheAiContextToSeptember() {
+        stubFinancialMonth(7, 3750); // user views August first
+        service.generateForAuthenticatedUser(AUTH, 2026, 7);
+
+        stubFinancialMonth(8, 3750); // user navigates to September
+        service.generateForAuthenticatedUser(AUTH, 2026, 8);
+
+        ArgumentCaptor<String> userContent = ArgumentCaptor.forClass(String.class);
+        verify(aiClient, org.mockito.Mockito.times(2)).complete(anyString(), userContent.capture());
+
+        List<String> payloads = userContent.getAllValues();
+        assertTrue(payloads.get(0).contains("\"monthName\":\"August\""));
+        assertTrue(payloads.get(1).contains("\"monthName\":\"September\""));
+        assertTrue(!payloads.get(1).contains("\"monthName\":\"August\""));
+    }
+
     @Test
     void returnsGeneratedExplanationForTheRequestedMonth() {
-        stubFinancialMonth(3750);
+        stubFinancialMonth(8, 3750);
 
         MonthlyInsightResponse response = service.generateForAuthenticatedUser(AUTH, 2026, 8);
 
@@ -174,7 +256,7 @@ class MonthlyInsightServiceTest {
 
     @Test
     void mapsProviderFailureToServiceUnavailableWithoutRawDetails() {
-        stubFinancialMonth(3750);
+        stubFinancialMonth(8, 3750);
         when(aiClient.complete(anyString(), anyString()))
                 .thenThrow(new AiClientException(
                         AiClientException.Kind.PROVIDER_FAILURE, "boom"));
@@ -187,7 +269,7 @@ class MonthlyInsightServiceTest {
 
     @Test
     void mapsMalformedAiOutputToServiceUnavailable() {
-        stubFinancialMonth(3750);
+        stubFinancialMonth(8, 3750);
         when(aiClient.complete(anyString(), anyString())).thenReturn("not json at all");
 
         ResponseStatusException exception = generateExpectingFailure();
@@ -197,7 +279,7 @@ class MonthlyInsightServiceTest {
 
     @Test
     void rejectsAiOutputMissingTheSummaryField() {
-        stubFinancialMonth(3750);
+        stubFinancialMonth(8, 3750);
         when(aiClient.complete(anyString(), anyString()))
                 .thenReturn("{\"highlights\":[\"only bullets\"]}");
 

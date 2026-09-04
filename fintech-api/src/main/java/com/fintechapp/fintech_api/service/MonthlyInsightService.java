@@ -65,6 +65,8 @@ public class MonthlyInsightService {
             previous month, budget usage, and recurring-payment price changes.
 
             Rules:
+            - The context includes the month (1 = January … 12 = December) and its \
+            monthName; always refer to the month by its monthName.
             - Use ONLY the supplied facts. Never invent, estimate, or calculate new numbers.
             - Explain the month in plain language: what changed, what is unusual, what is \
             going well, where spending increased, which budgets are at risk, and any \
@@ -184,7 +186,7 @@ public class MonthlyInsightService {
                 .toList();
 
         return new MonthlyFinancialContext(
-                year, month, user.getCurrency(),
+                year, month + 1, monthName(month), user.getCurrency(),
                 round2(summary.monthlyIncome()),
                 round2(summary.expectedIncome()),
                 round2(summary.actualIncome()),
@@ -285,6 +287,16 @@ public class MonthlyInsightService {
             return null;
         }
         return round2(((current - previous) / previous) * 100);
+    }
+
+    /**
+     * The single canonical zero-based → human-readable month conversion for
+     * the AI boundary. Budgee's API month is 0-based (0 = January); the AI
+     * must see 1 = January … 12 = December, spelled out.
+     */
+    private static String monthName(int zeroBasedMonth) {
+        return java.time.Month.of(zeroBasedMonth + 1)
+                .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH);
     }
 
     private static double round2(double value) {

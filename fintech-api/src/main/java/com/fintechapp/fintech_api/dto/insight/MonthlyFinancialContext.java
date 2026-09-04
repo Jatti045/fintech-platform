@@ -7,12 +7,21 @@ import java.util.List;
  * provider for the monthly explanation. Every value here is computed by
  * Budgee's deterministic services — the AI never calculates or classifies.
  *
+ * <p>Month representation: {@code month} is the human-readable 1-based month
+ * (1 = January … 12 = December) and {@code monthName} spells it out. The API
+ * itself uses Budgee's zero-based month convention; the conversion happens
+ * exactly once, when this context is built, so the AI never sees a 0-based
+ * index and mistakes September for August.</p>
+ *
  * <p>Deliberately excluded: database/account/Plaid IDs, raw transactions, and
  * any credential material. Only aggregate facts cross the boundary.</p>
  */
 public record MonthlyFinancialContext(
                 int year,
+                /** Human-readable 1-based month: 1 = January … 12 = December. */
                 int month,
+                /** Full month name, e.g. "September" — removes all ambiguity for the AI. */
+                String monthName,
                 String currency,
                 double income,
                 double expectedIncome,

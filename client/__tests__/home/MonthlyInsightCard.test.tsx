@@ -51,6 +51,8 @@ type RenderOptions = {
   data?: any;
   error?: any;
   loading?: boolean;
+  month?: number;
+  year?: number;
 };
 
 function renderCard(options: RenderOptions = {}) {
@@ -62,7 +64,7 @@ function renderCard(options: RenderOptions = {}) {
   act(() => {
     tree = renderer.create(
       <Provider store={store}>
-        <MonthlyInsightCard month={8} year={2026} />
+        <MonthlyInsightCard month={options.month ?? 8} year={options.year ?? 2026} />
       </Provider>,
     );
   });
@@ -116,6 +118,27 @@ describe("MonthlyInsightCard", () => {
       currentYear: 2026,
     });
   });
+
+  it.each([
+    ["January", 0],
+    ["September", 8],
+    ["December", 11],
+  ])(
+    "sends the selected month verbatim for %s (no month shift at the request boundary)",
+    (_label, monthIndex) => {
+      const tree = renderCard({ month: monthIndex, year: 2026 });
+      const presses = findPressables(tree);
+
+      act(() => {
+        presses[0]();
+      });
+
+      expect(fetchInsightMock).toHaveBeenCalledWith({
+        currentMonth: monthIndex,
+        currentYear: 2026,
+      });
+    },
+  );
 
   it("shows the loading state while generating", () => {
     renderCard({ loading: true });
