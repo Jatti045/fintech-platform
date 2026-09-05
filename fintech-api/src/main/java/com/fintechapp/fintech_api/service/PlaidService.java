@@ -71,6 +71,7 @@ public class PlaidService {
     private final PlaidItemRepository plaidItemRepository;
     private final UserRepository userRepository;
     private final PlaidTransactionIngestService ingestService;
+    private final FinancialCacheInvalidator cacheInvalidator;
 
     public PlaidService(
             @Qualifier("plaidRestClient") RestClient plaidRestClient,
@@ -78,13 +79,15 @@ public class PlaidService {
             EncryptionService encryptionService,
             PlaidItemRepository plaidItemRepository,
             UserRepository userRepository,
-            PlaidTransactionIngestService ingestService) {
+            PlaidTransactionIngestService ingestService,
+            FinancialCacheInvalidator cacheInvalidator) {
         this.plaidRestClient = plaidRestClient;
         this.settings = settings;
         this.encryptionService = encryptionService;
         this.plaidItemRepository = plaidItemRepository;
         this.userRepository = userRepository;
         this.ingestService = ingestService;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     /**
@@ -225,6 +228,12 @@ public class PlaidService {
 
         logger.info("Plaid sync payload received for item_id={}: added={}, modified={}, removed={}, new_cursor={}",
                 itemId, added.size(), modified.size(), removedIds.size(), nextCursor);
+
+        // A sync page can touch any month of the user's history (initial
+        // imports span everything), so evict the user's whole summary region
+        // plus the recurring-payment detection after the successful ingest.
+        cacheInvalidator.evictFinancialSummaryRegion(userId);
+        cacheInvalidator.evictRecurringPayments(userId);
 
         registerCursorCommitMilestone(itemId, userId, cursor, item.getCursor());
 

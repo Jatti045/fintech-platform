@@ -44,14 +44,17 @@ public class TransactionService {
     private final BudgetRepository budgetRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
+    private final FinancialCacheInvalidator cacheInvalidator;
 
     public TransactionService(
             BudgetRepository budgetRepository,
             TransactionRepository transactionRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            FinancialCacheInvalidator cacheInvalidator) {
         this.budgetRepository = budgetRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     /**
@@ -220,6 +223,14 @@ public class TransactionService {
             budgetRepository.save(budget);
         }
 
+        // The month aggregate and recurring-payment detection changed —
+        // evict after the successful write (a later rollback only causes a
+        // harmless extra cache miss on the next read). Eviction is keyed by
+        // the transaction's DATE because aggregates are date-windowed; the
+        // request's month/year fields are advisory only.
+        cacheInvalidator.evictFinancialSummaryForDate(userId, saved.getDate());
+        cacheInvalidator.evictRecurringPayments(userId);
+
         return new TransactionDataResponse(
                 true,
                 "Transaction created successfully",
@@ -251,6 +262,9 @@ public class TransactionService {
         }
 
         transactionRepository.delete(existing);
+
+        cacheInvalidator.evictFinancialSummaryForDate(userId, existing.getDate());
+        cacheInvalidator.evictRecurringPayments(userId);
 
         DeleteTransactionResponse.RestoredBudget restoredBudget = budget != null
                 ? new DeleteTransactionResponse.RestoredBudget(
@@ -285,6 +299,9 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Transaction not found or doesn't belong to user"));
+        // Original date captured before any mutation: it decides which month
+        // aggregates must be evicted if the update moves the transaction.
+        Instant oldDate = existing.getDate();
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
@@ -424,6 +441,12 @@ public class TransactionService {
         existing.setBudget(newBudget);
 
         Transaction updated = transactionRepository.save(existing);
+
+        // The update can move the transaction across a month boundary — evict
+        // both the old and the new month's aggregate.
+        cacheInvalidator.evictFinancialSummaryForDate(userId, oldDate);
+        cacheInvalidator.evictFinancialSummaryForDate(userId, updated.getDate());
+        cacheInvalidator.evictRecurringPayments(userId);
 
         return new TransactionDataResponse(
                 true,

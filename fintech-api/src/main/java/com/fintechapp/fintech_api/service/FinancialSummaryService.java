@@ -4,11 +4,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.fintechapp.fintech_api.config.CacheConfig;
 
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.financialSummary.FinancialSummaryResponse.FinancialSummaryData;
@@ -48,9 +51,14 @@ public class FinancialSummaryService {
     /**
      * Resolves the authenticated user and computes the month summary.
      *
+     * <p>Cached per user/month (Redis, TTL 10 min). Eviction is handled by
+     * {@link FinancialCacheInvalidator} on every financial mutation.
+     *
      * @param month zero-based month index (0 = January)
      */
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.FINANCIAL_SUMMARY_CACHE,
+            key = "#authenticatedUser?.userId() + ':' + #year + ':' + #month")
     public FinancialSummaryData resolveForAuthenticatedUser(
             AuthenticatedUser authenticatedUser,
             int year,
@@ -62,9 +70,15 @@ public class FinancialSummaryService {
     /**
      * Computes the full month summary for the user.
      *
+     * <p>Shares the same cache keyspace as
+     * {@link #resolveForAuthenticatedUser}, so internal callers (e.g. the
+     * monthly insight assembly) reuse the cached aggregate.
+     *
      * @param month zero-based month index (0 = January)
      */
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.FINANCIAL_SUMMARY_CACHE,
+            key = "#user?.id + ':' + #year + ':' + #month")
     public FinancialSummaryData resolveForMonth(User user, int year, int month) {
         Instant from = monthStart(year, month);
         Instant to = nextMonthStart(year, month);

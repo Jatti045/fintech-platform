@@ -11,5 +11,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # Server-side cache for financial summary / recurring payments. The API
+  # degrades gracefully (falls back to PostgreSQL) when Redis is unavailable.
+  cache:
+    image: redis:7-alpine
+    container_name: fintech-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   postgres_data:
+  redis_data:

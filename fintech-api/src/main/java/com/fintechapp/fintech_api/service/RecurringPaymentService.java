@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.fintechapp.fintech_api.config.CacheConfig;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse.Item.AmountChange;
 import com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse.Data;
@@ -90,7 +92,14 @@ public class RecurringPaymentService {
     /**
      * Detects recurring payments for the authenticated user from the last
      * {@value #HISTORY_DAYS} days of expenses.
+     *
+     * <p>Cached per user (Redis, TTL 15 min) — the most expensive read in the
+     * app (a full year of expense history analyzed in memory). Because the
+     * detection depends on the wall clock, the TTL — not only explicit
+     * eviction — bounds staleness; every transaction mutation evicts via
+     * {@link FinancialCacheInvalidator}.</p>
      */
+    @Cacheable(cacheNames = CacheConfig.RECURRING_PAYMENTS_CACHE, key = "#authenticatedUser?.userId()")
     public Data detectForAuthenticatedUser(AuthenticatedUser authenticatedUser) {
         if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
             throw new IllegalStateException("Authenticated user is required");

@@ -33,6 +33,7 @@ import com.fintechapp.fintech_api.config.PlaidConfig.PlaidSettings;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.model.User;
+import com.fintechapp.fintech_api.service.FinancialCacheInvalidator;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
 import com.fintechapp.fintech_api.service.PlaidTransactionIngestService.PlaidTransaction;
@@ -71,6 +72,9 @@ class PlaidServiceTest {
     @Mock
     private PlaidTransactionIngestService ingestService;
 
+    @Mock
+    private FinancialCacheInvalidator cacheInvalidator;
+
     private PlaidService service;
     private User user;
     private PlaidItem item;
@@ -81,7 +85,8 @@ class PlaidServiceTest {
                 "client-id", "secret", "https://sandbox.plaid.com", "https://example.com/webhook",
                 List.of("US"), "en");
         service = new PlaidService(
-                plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService);
+                plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService,
+                cacheInvalidator);
 
         user = new User();
         user.setId("user-1");

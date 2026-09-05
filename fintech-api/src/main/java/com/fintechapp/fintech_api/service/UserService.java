@@ -41,6 +41,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final CloudinaryService cloudinaryService;
     private final UploadValidationService uploadValidationService;
+    private final FinancialCacheInvalidator cacheInvalidator;
 
     public UserService(
             UserRepository userRepository,
@@ -52,7 +53,8 @@ public class UserService {
             IncomeCalculationService incomeCalculationService,
             PasswordEncoder passwordEncoder,
             CloudinaryService cloudinaryService,
-            UploadValidationService uploadValidationService) {
+            UploadValidationService uploadValidationService,
+            FinancialCacheInvalidator cacheInvalidator) {
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
@@ -63,6 +65,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
         this.cloudinaryService = cloudinaryService;
         this.uploadValidationService = uploadValidationService;
+        this.cacheInvalidator = cacheInvalidator;
     }
 
     public UserDataResponse getCurrentUser(AuthenticatedUser authenticatedUser) {
@@ -100,6 +103,11 @@ public class UserService {
         plaidItemRepository.deleteByUser_Id(userId);
         monthlyIncomeService.deleteByUserId(userId);
         userRepository.delete(existingUser);
+
+        // Drop the deleted user's cached aggregates (hygiene; entries would
+        // otherwise only expire via TTL).
+        cacheInvalidator.evictFinancialSummaryRegion(userId);
+        cacheInvalidator.evictRecurringPayments(userId);
 
         return new ApiMessageResponse(true, "User account and related data deleted successfully.");
     }
@@ -206,6 +214,11 @@ public class UserService {
         }
 
         monthlyIncomeService.upsertForMonth(user, year, month, request.monthlyIncome());
+
+        // The income baseline feeds the summary of the target month and every
+        // later month ("latest monthStart <= target"), so evict the whole
+        // user's summary region rather than guessing the affected months.
+        cacheInvalidator.evictFinancialSummaryRegion(user.getId());
 
         return new UserDataResponse(true, "Monthly income updated successfully.", toUserSummary(user, year, month));
     }
