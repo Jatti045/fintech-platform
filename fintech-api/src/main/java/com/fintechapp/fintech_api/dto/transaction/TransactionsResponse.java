@@ -28,7 +28,8 @@ public record TransactionsResponse(
                         Double originalAmount,
                         String originalCurrency,
                         String description,
-                        BudgetInfo budget) {
+                        BudgetInfo budget,
+                        String budgetId) {
         }
 
         public record BudgetInfo(

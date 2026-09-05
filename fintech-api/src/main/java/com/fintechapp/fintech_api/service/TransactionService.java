@@ -389,6 +389,8 @@ public class TransactionService {
         }
         if (request.category() != null) {
             existing.setCategory(request.category().trim());
+        } else if (newBudget != null) {
+            existing.setCategory(newBudget.getCategory());
         }
         if (request.type() != null) {
             existing.setType(newType);
@@ -477,7 +479,8 @@ public class TransactionService {
                 transaction.getOriginalAmount(),
                 transaction.getOriginalCurrency(),
                 transaction.getDescription(),
-                budgetInfo);
+                budgetInfo,
+                budget != null ? budget.getId() : null);
     }
 
     private Specification<Transaction> userIdEquals(String userId) {

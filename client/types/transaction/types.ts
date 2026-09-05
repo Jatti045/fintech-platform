@@ -27,6 +27,12 @@ export interface ITransaction {
   createdAt?: string;
   updatedAt?: string;
   budgetId?: string | null;
+  budget?: {
+    id: string;
+    category?: string;
+    limit?: number;
+    spent?: number;
+  } | null;
 }
 
 export interface ITransactionPagination {
@@ -92,6 +98,12 @@ export interface TransactionItem {
   date: string;
   category: string;
   budgetId?: string;
+  budget?: {
+    id: string;
+    category?: string;
+    limit?: number;
+    spent?: number;
+  } | null;
   type?: string;
   isTransfer?: boolean;
 }

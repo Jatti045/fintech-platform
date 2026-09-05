@@ -1,8 +1,4 @@
-import {
-  useBudgets,
-  useTheme,
-  useFinancialSummary,
-} from "@/hooks/useRedux";
+import { useBudgets, useTheme, useFinancialSummary } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -118,8 +114,10 @@ function TransactionModal({
             ? new Date(editingTransaction.date)
             : new Date(),
         );
+        const initialBudgetId =
+          editingTransaction.budgetId ?? editingTransaction.budget?.id ?? "";
         setTxSelectedCategoryAndId({
-          id: editingTransaction.budgetId || "",
+          id: initialBudgetId,
           name: editingTransaction.category || "",
         });
         setType(
@@ -197,11 +195,7 @@ function TransactionModal({
   const modalHeight = getModalHeight();
 
   return (
-    <Modal
-      visible={openSheet}
-      animationType="slide"
-      transparent={true}
-    >
+    <Modal visible={openSheet} animationType="slide" transparent={true}>
       <View
         style={{
           flex: 1,
@@ -274,9 +268,7 @@ function TransactionModal({
                         paddingVertical: 10,
                         borderRadius: 9,
                         alignItems: "center",
-                        backgroundColor: active
-                          ? activeColor
-                          : "transparent",
+                        backgroundColor: active ? activeColor : "transparent",
                       }}
                     >
                       <Text
@@ -376,7 +368,8 @@ function TransactionModal({
                           <Text
                             style={{ color: THEME.textSecondary, marginTop: 4 }}
                           >
-                            After this purchase: {getCurrencySymbol(userCurrency)}
+                            After this purchase:{" "}
+                            {getCurrencySymbol(userCurrency)}
                             {projectedSpent.toFixed(2)} spent of{" "}
                             {getCurrencySymbol(userCurrency)}
                             {monthlyIncome.toFixed(2)} (

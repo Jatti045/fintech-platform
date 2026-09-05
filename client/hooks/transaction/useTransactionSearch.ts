@@ -109,13 +109,6 @@ export function useTransactionSearch({
     }
     return count;
   });
-  const prevSettledRef = useRef(0);
-  useEffect(() => {
-    if (settledMutationCount > prevSettledRef.current) {
-      setPage(1);
-    }
-    prevSettledRef.current = settledMutationCount;
-  }, [settledMutationCount]);
 
   const query = useGetTransactionsQuery({
     ...defaultTransactionArgs(currentMonth, currentYear),
@@ -126,6 +119,18 @@ export function useTransactionSearch({
     page,
     limit: PAGINATION_LIMIT,
   });
+
+  const prevSettledRef = useRef(0);
+  useEffect(() => {
+    if (settledMutationCount > prevSettledRef.current) {
+      if (page === 1) {
+        query.refetch();
+      } else {
+        setPage(1);
+      }
+    }
+    prevSettledRef.current = settledMutationCount;
+  }, [settledMutationCount, page, query]);
 
   const pagination = query.data?.pagination;
 

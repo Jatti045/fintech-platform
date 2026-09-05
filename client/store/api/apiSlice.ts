@@ -9,7 +9,12 @@ import type {
   ITransactionPagination,
   ITransactionResponse,
 } from "@/types/transaction/types";
-import type { IBudget, IBudgetData, IBudgetSuggestions, IApplySuggestionsResult } from "@/types/budget/types";
+import type {
+  IBudget,
+  IBudgetData,
+  IBudgetSuggestions,
+  IApplySuggestionsResult,
+} from "@/types/budget/types";
 import type { IFinancialSummary } from "@/types/financialSummary/types";
 import type { IRecurringPaymentsResponseData } from "@/types/recurring/types";
 import type { IMonthlyInsight } from "@/types/insight/types";
@@ -55,9 +60,14 @@ export interface MonthKey {
 /** Cache-tag id for a month (`"year-month"`), shared with cachePersistence. */
 export const monthTagId = ({ year, month }: MonthKey) => `${year}-${month}`;
 
-const argsMonth = (a: MonthArgs) => ({ year: a.currentYear, month: a.currentMonth });
+const argsMonth = (a: MonthArgs) => ({
+  year: a.currentYear,
+  month: a.currentMonth,
+});
 
-const monthTags = <T extends "Transactions" | "Budgets" | "Summary" | "Suggestions">(
+const monthTags = <
+  T extends "Transactions" | "Budgets" | "Summary" | "Suggestions",
+>(
   type: T,
   months: (MonthKey | undefined | null)[],
 ) => {
@@ -102,7 +112,9 @@ const toError = (e: any) => ({
 function mergeTransactions(
   current: TransactionsEnvelope,
   incoming: TransactionsEnvelope,
-  { arg }: {
+  {
+    arg,
+  }: {
     arg: GetTransactionsArgs;
     baseQueryMeta: unknown;
     requestId: string;
@@ -132,7 +144,14 @@ export const api = createApi({
   // All endpoints use `queryFn` and call the typed API layer directly (which
   // owns axios/auth/error normalization); the base query itself is never hit.
   baseQuery: fakeBaseQuery(),
-  tagTypes: ["Transactions", "Budgets", "Summary", "Suggestions", "Recurring", "Insights"],
+  tagTypes: [
+    "Transactions",
+    "Budgets",
+    "Summary",
+    "Suggestions",
+    "Recurring",
+    "Insights",
+  ],
   /**
    * Cold-start revalidation strategy: hydrated cache entries are seeded via
    * `upsertQueryData` in `cachePersistence.ts` and then explicitly
@@ -157,9 +176,14 @@ export const api = createApi({
             page: args.page ?? 1,
             limit: args.limit,
           });
+          const rawTransactions = response.data?.transaction ?? [];
+          const normalized = rawTransactions.map((t: any) => ({
+            ...t,
+            budgetId: t.budgetId ?? t.budget?.id ?? null,
+          }));
           return {
             data: {
-              transaction: response.data?.transaction ?? [],
+              transaction: normalized,
               pagination: response.data?.pagination,
             },
           };
@@ -225,7 +249,13 @@ export const api = createApi({
         try {
           const response = await budgetAPI.fetchSuggestions(args);
           if (!response?.data) {
-            return { data: { year: args.currentYear, month: args.currentMonth, suggestions: [] } };
+            return {
+              data: {
+                year: args.currentYear,
+                month: args.currentMonth,
+                suggestions: [],
+              },
+            };
           }
           return { data: response.data };
         } catch (e: any) {
@@ -243,7 +273,10 @@ export const api = createApi({
      * never outlive midnight; invalidated by every transaction mutation via
      * the shared `Recurring` tag (a new charge extends or confirms a series).
      */
-    getRecurringPayments: build.query<IRecurringPaymentsResponseData, { today: string }>({
+    getRecurringPayments: build.query<
+      IRecurringPaymentsResponseData,
+      { today: string }
+    >({
       queryFn: async ({ today }) => {
         try {
           const response = await recurringAPI.fetchUpcoming(today);
@@ -265,7 +298,11 @@ export const api = createApi({
      */
     applyBudgetSuggestions: build.mutation<
       IApiResponse<IApplySuggestionsResult>,
-      { month: number; year: number; items: { category: string; limit: number }[] }
+      {
+        month: number;
+        year: number;
+        items: { category: string; limit: number }[];
+      }
     >({
       queryFn: async (payload) => {
         try {
@@ -276,9 +313,18 @@ export const api = createApi({
         }
       },
       invalidatesTags: (_r, _e, arg) => [
-        { type: "Budgets", id: monthTagId({ year: arg.year, month: arg.month }) },
-        { type: "Summary", id: monthTagId({ year: arg.year, month: arg.month }) },
-        { type: "Suggestions", id: monthTagId({ year: arg.year, month: arg.month }) },
+        {
+          type: "Budgets",
+          id: monthTagId({ year: arg.year, month: arg.month }),
+        },
+        {
+          type: "Summary",
+          id: monthTagId({ year: arg.year, month: arg.month }),
+        },
+        {
+          type: "Suggestions",
+          id: monthTagId({ year: arg.year, month: arg.month }),
+        },
       ],
     }),
 
@@ -322,7 +368,13 @@ export const api = createApi({
     >({
       queryFn: async (transaction) => {
         try {
-          const response = await transactionAPI.create(transaction as ITransaction);
+          const response = await transactionAPI.create(
+            transaction as ITransaction,
+          );
+          if (response?.data?.transaction) {
+            const t = response.data.transaction as any;
+            t.budgetId = t.budgetId ?? t.budget?.id ?? null;
+          }
           return { data: response };
         } catch (e: any) {
           return { error: toError(e) };
@@ -339,10 +391,11 @@ export const api = createApi({
        * authoritative page-1 REPLACE — the legacy post-mutation behavior.
        */
       invalidatesTags: (_r, _e, tx) => {
-        const fromArgs = tx.month != null && tx.year != null
-          ? [{ year: tx.year, month: tx.month }]
-          : [];
-                return [
+        const fromArgs =
+          tx.month != null && tx.year != null
+            ? [{ year: tx.year, month: tx.month }]
+            : [];
+        return [
           ...monthTags("Budgets", [...fromArgs, monthOfDate(tx.date)]),
           ...monthTags("Summary", [...fromArgs, monthOfDate(tx.date)]),
           { type: "Recurring", id: "all" },
@@ -362,6 +415,10 @@ export const api = createApi({
       queryFn: async ({ id, updates }) => {
         try {
           const response = await transactionAPI.update(id, updates);
+          if (response?.data?.transaction) {
+            const t = response.data.transaction as any;
+            t.budgetId = t.budgetId ?? t.budget?.id ?? null;
+          }
           return { data: response };
         } catch (e: any) {
           return { error: toError(e) };

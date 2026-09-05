@@ -51,8 +51,9 @@ export function useTransactionFilters(
     return transactions.filter((t: any) => {
       // Category filter — O(1) map lookup instead of O(n) find
       if (filterCategoryId !== "all") {
-        if (t.budgetId) {
-          if (t.budgetId !== filterCategoryId) return false;
+        const txBudgetId = t.budgetId ?? t.budget?.id;
+        if (txBudgetId) {
+          if (txBudgetId !== filterCategoryId) return false;
         } else {
           const filterCat = budgetCategoryMap.get(filterCategoryId) ?? "";
           if (String(t.category).toLowerCase() !== filterCat) return false;

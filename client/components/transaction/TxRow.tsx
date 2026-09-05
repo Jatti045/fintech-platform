@@ -71,13 +71,14 @@ const TransactionRow = React.memo(function TransactionRow({
   ]);
 
   const displayCategory = useMemo(() => {
-    if (tx.budgetId) {
-      const linked = budgets.find((b) => b.id === tx.budgetId);
+    const budgetId = tx.budgetId ?? tx.budget?.id;
+    if (budgetId) {
+      const linked = budgets.find((b) => b.id === budgetId);
       if (linked) return linked.category;
     }
 
     return tx.category;
-  }, [tx.budgetId, tx.category, budgets]);
+  }, [tx.budgetId, tx.budget, tx.category, budgets]);
 
   const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE";
 
@@ -97,7 +98,11 @@ const TransactionRow = React.memo(function TransactionRow({
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text
-                style={{ color: THEME.textPrimary, fontWeight: "700", fontSize: 14 }}
+                style={{
+                  color: THEME.textPrimary,
+                  fontWeight: "700",
+                  fontSize: 14,
+                }}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
@@ -105,7 +110,11 @@ const TransactionRow = React.memo(function TransactionRow({
                 {tx.isTransfer ? "  ·  Transfer" : ""}
               </Text>
               <Text
-                style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 1 }}
+                style={{
+                  color: THEME.textSecondary,
+                  fontSize: 12,
+                  marginTop: 1,
+                }}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >

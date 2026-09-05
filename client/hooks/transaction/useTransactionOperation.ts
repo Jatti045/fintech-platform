@@ -10,10 +10,7 @@ import { formatCurrency } from "@/utils/helper";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { validateTransactionAmount } from "@/utils/validation";
 import { MAX_TRANSACTION_AMOUNT } from "@/constants/appConfig";
-import {
-  useCalendar,
-  useTransactions,
-} from "../useRedux";
+import { useCalendar, useTransactions } from "../useRedux";
 import { useTransactionForm } from "./useTransactionForm";
 import { convertCurrency } from "@/utils/currencyConverter";
 import { getCurrencySymbol } from "@/constants/Currencies";
@@ -151,7 +148,8 @@ export const useTransactionOperations = () => {
         }
         const message =
           (result.data as any)?.message ??
-          ((result.error as any)?.error ?? "Failed to create transaction");
+          (result.error as any)?.error ??
+          "Failed to create transaction";
         showAlert({ title: "Error", message });
       } catch (err: any) {
         showAlert({
@@ -198,11 +196,21 @@ export const useTransactionOperations = () => {
         editingTransaction.originalAmount ?? editingTransaction.amount,
       );
 
+      const existingBudgetId =
+        editingTransaction.budgetId ?? editingTransaction.budget?.id ?? "";
+      const selectedBudgetId = txSelectedCategoryAndId.id || "";
+      const selectedCategory = txSelectedCategoryAndId.name || "";
+
+      const budgetChanged = existingBudgetId !== selectedBudgetId;
+      const categoryChanged =
+        selectedCategory !== "" &&
+        editingTransaction.category !== selectedCategory;
+
       const noChange =
         editingTransaction.name === txName.trim() &&
         existingOriginalAmount === Number(txAmount) &&
-        (editingTransaction.budgetId || "") ===
-          (txSelectedCategoryAndId.id || "") &&
+        !budgetChanged &&
+        !categoryChanged &&
         new Date(editingTransaction.date).toISOString() ===
           txDate.toISOString() &&
         existingOriginalCurrency === txCurrency &&
@@ -246,13 +254,9 @@ export const useTransactionOperations = () => {
         updates.name = txName.trim();
       if (Number(editingTransaction.amount) !== finalAmount)
         updates.amount = finalAmount;
-      if ((editingTransaction.type || "EXPENSE") !== type)
-        updates.type = type;
-      if (
-        (editingTransaction.budgetId || "") !==
-        (txSelectedCategoryAndId.id || "")
-      )
-        updates.budgetId = txSelectedCategoryAndId.id || null;
+      if ((editingTransaction.type || "EXPENSE") !== type) updates.type = type;
+      if (budgetChanged) updates.budgetId = selectedBudgetId || null;
+      if (categoryChanged) updates.category = selectedCategory;
       if (
         new Date(editingTransaction.date).toISOString() !== txDate.toISOString()
       )
@@ -285,9 +289,6 @@ export const useTransactionOperations = () => {
         monthOfDate(updates.date),
       ]);
 
-      // Close modal first so any loader overlay is visible
-      setOpenSheet(false);
-
       try {
         const result = await updateTransactionMutation({
           id: editingTransaction.id,
@@ -296,16 +297,19 @@ export const useTransactionOperations = () => {
         });
         if (!result.error && result.data?.success) {
           hapticSuccess();
+          setOpenSheet(false);
           return;
         }
         const message =
           (result.data as any)?.message ??
-          ((result.error as any)?.error ?? "Failed to update transaction");
+          (result.error as any)?.error ??
+          "Couldn't update transaction. Please try again.";
         showAlert({ title: "Error", message });
       } catch (err: any) {
         showAlert({
           title: "Error",
-          message: err.message || "Failed to update transaction",
+          message:
+            err.message || "Couldn't update transaction. Please try again.",
         });
       }
     },
@@ -356,7 +360,8 @@ export const useTransactionOperations = () => {
                 const success = !result.error && !!result.data?.success;
                 const message =
                   (result.data as any)?.message ??
-                  ((result.error as any)?.error ?? "");
+                  (result.error as any)?.error ??
+                  "";
                 // Small delay so the confirmation alert fully dismisses first
                 setTimeout(() => {
                   if (success) {
@@ -381,12 +386,7 @@ export const useTransactionOperations = () => {
         ],
       });
     },
-    [
-      transactions,
-      showAlert,
-      calendar,
-      deleteTransactionMutation,
-    ],
+    [transactions, showAlert, calendar, deleteTransactionMutation],
   );
 
   return {
