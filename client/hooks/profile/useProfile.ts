@@ -22,7 +22,6 @@ import {
     changePassword,
     updateUserCurrency,
     updateUserMonthlyIncome,
-    loadUserFromStorage,
 } from "@/store/slices/userSlice";
 import {setTheme} from "@/store/slices/themeSlice";
 import {
@@ -295,13 +294,19 @@ export function useProfile(): UseProfileReturn {
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            await dispatch(loadUserFromStorage());
+            // Revalidate the Profile's server-backed data only. Do NOT re-run
+            // the boot-time session restoration (loadUserFromStorage): that
+            // thunk flips the global auth `isLoading` flag, which the root
+            // layout otherwise treats as an app-restore moment and swaps the
+            // navigator for the splash screen — remounting the tab stack
+            // lands the user back on Home. The stored session is already in
+            // Redux; a refresh only re-fetches data that can go stale.
             await loadMonthlyIncomeForSelectedMonth();
             await loadPlaidItems();
         } finally {
             setRefreshing(false);
         }
-    }, [dispatch, loadMonthlyIncomeForSelectedMonth, loadPlaidItems]);
+    }, [loadMonthlyIncomeForSelectedMonth, loadPlaidItems]);
 
     // ── bank connection (Plaid Link) flow ─────────────────────────────────────
     const handleLinkBank = async () => {

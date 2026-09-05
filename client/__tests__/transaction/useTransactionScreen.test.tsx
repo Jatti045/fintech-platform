@@ -322,27 +322,145 @@ describe("useTransactionScreen", () => {
     await until(() => txSettled(store));
   });
 
-  it("shows the filtering loader and clears it after the fetch completes", async () => {
+  it("switches All → Category → All repeatedly without a stuck loader", async () => {
+    // Stage filtered vs unfiltered responses up front so the initial All
+    // cache entry is seeded and the category entry always refetches (RTKQ
+    // forceRefetch only forces fetches for args WITH active filters).
+    mockedTxFetch.mockImplementation(async (args: any) =>
+      args?.budgetId
+        ? txEnvelope([
+            makeTx({ id: "budget-row", name: "Bacon", category: "Food", budgetId: "b-1" }),
+          ])
+        : txEnvelope([
+            makeTx({ id: "all-row", name: "Coffee", category: "Food", budgetId: "b-1" }),
+          ]),
+    );
     const { captured, store } = await setup();
 
+    const rowIds = () =>
+      captured.current!.sectionsWithTotals[0]?.data?.map((t) => t.id) ?? [];
+
+    // All → Category
     renderer.act(() => {
       captured.current!.setFilterCategoryId("b-1");
     });
-    expect(captured.current!.isFiltering).toBe(true);
-    expect(captured.current!.loaderMessage).toBe("Filtering transactions…");
-    expect(captured.current!.isLoaderVisible).toBe(true);
-
-    // The filter change refetches through RTKQ; once it lands, rAF clears
-    // the loader.
     await until(() => txSettled(store));
-    await renderer.act(async () => {
-      await flush();
-      await flush();
+    refresh();
+    expect(rowIds()).toEqual(["budget-row"]);
+    expect(captured.current!.loaderMessage).toBe("");
+    expect(captured.current!.isLoaderVisible).toBe(false);
+
+    // Category → All — the previously-broken transition. The unfiltered
+    // args are served from the existing RTKQ cache entry, so isFetching
+    // never flips; the screen must still reach a terminal state instantly.
+    renderer.act(() => {
+      captured.current!.setFilterCategoryId("all");
     });
+    await until(() => txSettled(store));
+    refresh();
+    expect(rowIds()).toEqual(["all-row"]);
+    expect(captured.current!.loaderMessage).toBe("");
+    expect(captured.current!.isLoaderVisible).toBe(false);
+
+    // Repeat the toggle cycle twice more: every transition must settle.
+    for (const target of ["b-1", "all", "b-1", "all"]) {
+      renderer.act(() => {
+        captured.current!.setFilterCategoryId(target);
+      });
+      await until(() => txSettled(store));
+      refresh();
+      expect(rowIds()).toEqual(target === "b-1" ? ["budget-row"] : ["all-row"]);
+      expect(captured.current!.loaderMessage).toBe("");
+      expect(captured.current!.isLoaderVisible).toBe(false);
+    }
+  });
+
+  it("shows the standard screen loader for a new filter fetch and never a Filtering overlay", async () => {
+    const { captured, store } = await setup();
+
+    const gate = gatedResponse(
+      txEnvelope([makeTx({ id: "t-f", name: "Salad", category: "Food", budgetId: "b-9" })]),
+    );
+    mockedTxFetch.mockReturnValue(gate.promise);
+
+    renderer.act(() => {
+      captured.current!.setFilterCategoryId("b-9");
+    });
+    // The new cache entry has no data yet and the request is in flight, so
+    // the standard loader (isInitialLoading) must render — not an overlay.
+    await until(() => txQueries(store).some((q: any) => q.status === "pending"));
+    renderer.act(() => {
+      renderer.create(captured.current!.listEmpty);
+    });
+    expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
+    expect(renderedText("Filtering transactions…")).toBe(false);
+    expect(captured.current!.loaderMessage).toBe("");
+    expect(captured.current!.isLoaderVisible).toBe(false);
+
+    renderer.act(() => {
+      gate.resolve(
+        txEnvelope([makeTx({ id: "t-f", name: "Salad", category: "Food", budgetId: "b-9" })]),
+      );
+    });
+    await until(() => txSettled(store));
+    refresh();
+    expect(captured.current!.sectionsWithTotals[0].data[0].id).toBe("t-f");
+    expect(captured.current!.loaderMessage).toBe("");
+    expect(captured.current!.isLoaderVisible).toBe(false);
+
+    // Settled: the standard loader is no longer rendered.
+    activityIndicatorMock.mockClear();
+    renderer.act(() => {
+      renderer.create(captured.current!.listEmpty);
+    });
+    expect(activityIndicatorMock.mock.calls.length).toBe(0);
+  });
+
+  it("clears loading when a filter fetch lands on empty results", async () => {
+    const { captured, store } = await setup();
+
+    // beforeEach default serves an empty envelope; forceRefetch makes the
+    // category args always hit the network.
+    renderer.act(() => {
+      captured.current!.setFilterCategoryId("b-empty");
+    });
+    await until(() => txSettled(store));
     refresh();
 
-    expect(captured.current!.isFiltering).toBe(false);
+    expect(captured.current!.sectionsWithTotals).toHaveLength(0);
     expect(captured.current!.loaderMessage).toBe("");
+    expect(captured.current!.isLoaderVisible).toBe(false);
+    renderer.act(() => {
+      renderer.create(captured.current!.listEmpty);
+    });
+    expect(renderedText("No transactions match filters.")).toBe(true);
+  });
+
+  it("serves a previously-fetched filter set from cache without refetching", async () => {
+    mockedTxFetch.mockImplementation(async (args: any) =>
+      args?.budgetId
+        ? txEnvelope([makeTx({ id: "budget-row", name: "Bacon", budgetId: "b-1" })])
+        : txEnvelope([makeTx({ id: "all-row", name: "Coffee" })]),
+    );
+    const { captured } = await setup();
+    mockedTxFetch.mockClear();
+
+    // All → Category refetches (active filters always hit the network).
+    renderer.act(() => {
+      captured.current!.setFilterCategoryId("b-1");
+    });
+    await until(() => mockedTxFetch.mock.calls.length === 1);
+    const callsAfterCategory = mockedTxFetch.mock.calls.length;
+
+    // Category → All reuses the cached unfiltered entry: no network request.
+    renderer.act(() => {
+      captured.current!.setFilterCategoryId("all");
+    });
+    await renderer.act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    });
+    expect(mockedTxFetch.mock.calls.length).toBe(callsAfterCategory);
+    expect(captured.current!.sectionsWithTotals[0].data[0].id).toBe("all-row");
   });
 
   it("normalizes selected budget/min/max and passes them to the refresh fetch", async () => {

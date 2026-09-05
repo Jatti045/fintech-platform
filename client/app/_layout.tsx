@@ -1,4 +1,5 @@
 import "../global.css";
+import React from "react";
 import { Stack } from "expo-router";
 import { Provider } from "react-redux";
 import { store, loadUserFromStorage, useAuth } from "../store";
@@ -12,7 +13,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AppErrorBoundary from "@/components/global/AppErrorBoundary";
 import { useNotifications } from "@/hooks/useNotifications";
 
-function AppRoutes() {
+export function AppRoutes() {
   const dispatch = useAppDispatch();
   const { THEME } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
@@ -43,7 +44,13 @@ function AppRoutes() {
     void hydrateApiCache(store);
   }, [dispatch]);
 
-  if (isLoading) {
+  // Only a loading session RESTORE (the user is not yet authenticated) may
+  // swap the navigator for the splash screen. Once a user is authenticated, a
+  // temporary loading/refetch state (e.g. Profile pull-to-refresh) must never
+  // tear down the Stack — remounting a fresh navigator resets the active
+  // tab/route (e.g. back to Home). Genuinely unauthenticated / session-invalid
+  // users still land on the auth flow via the Stack.Screen redirect flags.
+  if (isLoading && !isAuthenticated) {
     return SplashScreen();
   }
 

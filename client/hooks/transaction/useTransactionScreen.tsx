@@ -101,17 +101,6 @@ export const useTransactionScreen = () => {
   const clearSearchWaitingForLoadRef = useRef(false);
   const clearSearchSawLoadingRef = useRef(false);
 
-  // ── Filtering loader coordination ───────────────────────────────────────
-  const [isFiltering, setIsFiltering] = useState(false);
-  const filterWaitingForLoadRef = useRef(false);
-  const filterSawLoadingRef = useRef(false);
-  const previousFiltersRef = useRef({
-    query: "",
-    budgetId: selectedBudgetId,
-    minAmount: selectedMinAmount,
-    maxAmount: selectedMaxAmount,
-  });
-
   /** Forwards query changes; arms the skeleton-suppression refs when clearing. */
   const handleSearchQueryChange = useCallback(
     (nextQuery: string) => {
@@ -144,56 +133,6 @@ export const useTransactionScreen = () => {
     }
   }, [isLoading]);
 
-  // Track filter changes and show loader while filtering is in progress
-  useEffect(() => {
-    const filtersChanged =
-      normalizedQuery !== previousFiltersRef.current.query ||
-      selectedBudgetId !== previousFiltersRef.current.budgetId ||
-      selectedMinAmount !== previousFiltersRef.current.minAmount ||
-      selectedMaxAmount !== previousFiltersRef.current.maxAmount;
-
-    if (filtersChanged) {
-      setIsFiltering(true);
-      filterWaitingForLoadRef.current = true;
-      filterSawLoadingRef.current = isLoading;
-    }
-
-    previousFiltersRef.current = {
-      query: normalizedQuery,
-      budgetId: selectedBudgetId,
-      minAmount: selectedMinAmount,
-      maxAmount: selectedMaxAmount,
-    };
-  }, [
-    normalizedQuery,
-    selectedBudgetId,
-    selectedMinAmount,
-    selectedMaxAmount,
-    isLoading,
-  ]);
-
-  // Keep filtering loader visible until fetch starts and the filtered
-  // response has been applied to the UI.
-  useEffect(() => {
-    if (!filterWaitingForLoadRef.current) return;
-
-    if (isLoading) {
-      filterSawLoadingRef.current = true;
-      return;
-    }
-
-    if (!filterSawLoadingRef.current) return;
-
-    const frame = requestAnimationFrame(() => {
-      filterWaitingForLoadRef.current = false;
-      filterSawLoadingRef.current = false;
-      setIsFiltering(false);
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [isLoading, sectionsWithTotals]);
-
-
   // ── Pull-to-refresh: transactions (respecting the query) + budgets ─────
   const { refreshing, onRefresh } = useRefresh(() =>
     Promise.all([refreshTransactions(), budgetsQuery.refetch()]),
@@ -220,6 +159,12 @@ export const useTransactionScreen = () => {
   }, []);
 
   // ── Loader message / visibility ─────────────────────────────────────────
+  // Only mutation operations drive the full-screen overlay. Filter changes
+  // intentionally do not: genuinely-new filter combos are covered by the
+  // standard screen loader (isInitialLoading below), and cache-served
+  // transitions (e.g. back to "All") resolve instantly. A hand-rolled filter
+  // overlay previously stayed visible forever because it waited for an
+  // isFetching transition that RTK Query never produces for cached args.
   const { isAdding, isEditing, isDeleting } = useTransactionMutationStatus();
   const loaderMessage = isAdding
     ? "Adding transaction…"
@@ -227,10 +172,8 @@ export const useTransactionScreen = () => {
       ? "Updating transaction…"
       : isDeleting
         ? "Deleting transaction…"
-        : isFiltering
-          ? "Filtering transactions…"
-          : "";
-  const isLoaderVisible = isAdding || isEditing || isDeleting || isFiltering;
+        : "";
+  const isLoaderVisible = isAdding || isEditing || isDeleting;
 
   // ── SectionList render callbacks ───────────────────────────────────────
   const renderSectionHeader = useCallback(
@@ -308,7 +251,6 @@ export const useTransactionScreen = () => {
     setMaxAmount,
     clearFilters,
     sectionsWithTotals,
-    isFiltering,
     keyExtractor,
     renderSectionHeader,
     renderItem,

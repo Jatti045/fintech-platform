@@ -22,11 +22,13 @@ import transactionApi from "@/api/transaction";
 import budgetApi from "@/api/budget";
 import financialSummaryApi from "@/api/financialSummary";
 import TransactionScreen from "@/app/(tabs)/transaction";
+import TransactionHeader from "@/components/transaction/TransactionHeader";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import api from "@/store/api/apiSlice";
 import {
+  ActivityIndicator,
   SectionList,
   Text,
   TextInput,
@@ -38,6 +40,7 @@ import type { TransactionItem } from "@/types/transaction/types";
 const textMock = Text as unknown as jest.Mock;
 const textInputMock = TextInput as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
+const activityIndicatorMock = ActivityIndicator as unknown as jest.Mock;
 
 jest.mock("@/api/transaction", () => ({
   __esModule: true,
@@ -147,6 +150,22 @@ async function setup(options?: { transactions?: TransactionItem[] }) {
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+/**
+ * Resolves on demand, with a safety timeout so an unresolved gate can never
+ * wedge the suite.
+ */
+function gatedResponse(value: any, safetyMs = 500) {
+  let resolveNow!: (v: any) => void;
+  const timer = setTimeout(() => resolveNow(value), safetyMs);
+  const promise = new Promise<any>((res) => {
+    resolveNow = (v: any) => {
+      clearTimeout(timer);
+      res(v);
+    };
+  });
+  return { promise, resolve: resolveNow };
+}
+
 /** Repeatedly act-flushes until the predicate holds (RTKQ fulfillment is async). */
 async function until(pred: () => boolean, tries = 300) {
   for (let i = 0; i < tries; i++) {
@@ -226,6 +245,7 @@ beforeEach(async () => {
   textMock.mockClear();
   textInputMock.mockClear();
   touchableOpacityMock.mockClear();
+  activityIndicatorMock.mockClear();
 });
 
 describe("TransactionScreen", () => {
@@ -315,5 +335,118 @@ describe("TransactionScreen", () => {
 
     expect(mockedTxFetch).toHaveBeenCalledTimes(1);
     expect(mockedBudgetFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the standard initial loader and never shows the Filtering overlay", async () => {
+    mockedBudgetFetch.mockResolvedValue({
+      success: true,
+      data: [{ id: "b-1", category: "Food" }],
+    });
+    const gate = gatedResponse(
+      txEnvelope([makeTx({ id: "t1", name: "Coffee", category: "Food" })]),
+    );
+    mockedTxFetch.mockReturnValue(gate.promise);
+
+    const store = makeStore();
+    store.dispatch(setMonthYear({ month: 1, year: 2026 }));
+    const element = (
+      <Provider store={store}>
+        <AlertProvider>
+          <TransactionScreen />
+        </AlertProvider>
+      </Provider>
+    );
+    let tree!: renderer.ReactTestRenderer;
+    renderer.act(() => {
+      tree = renderer.create(element);
+    });
+
+    // No data yet: the existing standard loader renders, and no
+    // "Filtering transactions…" overlay is ever mounted.
+    expect(renderedText("Filtering transactions…")).toBe(false);
+    expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
+
+    renderer.act(() => {
+      gate.resolve(
+        txEnvelope([makeTx({ id: "t1", name: "Coffee", category: "Food" })]),
+      );
+    });
+    await until(() => renderedText("Coffee"));
+    expect(renderedText("Filtering transactions…")).toBe(false);
+
+    // Drive All → Category → All through the real header; every transition
+    // settles and the overlay never appears.
+    const header = tree.root.findByType(TransactionHeader);
+    await renderer.act(async () => {
+      header.props.onFilterCategoryChange("b-1");
+      await flush();
+    });
+    await until(() => txSettled(store));
+    expect(renderedText("Filtering transactions…")).toBe(false);
+
+    await renderer.act(async () => {
+      header.props.onFilterCategoryChange("all");
+      await flush();
+    });
+    await until(() => txSettled(store));
+    expect(renderedText("Coffee")).toBe(true);
+    expect(renderedText("Filtering transactions…")).toBe(false);
+
+    // Settled: no lingering spinner anywhere in the tree.
+    expect(tree.root.findAllByType(ActivityIndicator).length).toBe(0);
+  });
+
+  it("toggles All → Category → All repeatedly without getting stuck", async () => {
+    mockedBudgetFetch.mockResolvedValue({
+      success: true,
+      data: [{ id: "b-1", category: "Food" }],
+    });
+    const { tree } = await setup({
+      transactions: [makeTx({ id: "t1", name: "Coffee", category: "Food" })],
+    });
+    // Category fetches return only the budgeted row; the All entry stays
+    // cached and is served without a network request on return.
+    mockedTxFetch.mockImplementation(async (args: any) =>
+      args?.budgetId
+        ? txEnvelope([makeTx({ id: "t2", name: "Bacon", category: "Food" })])
+        : txEnvelope([makeTx({ id: "t1", name: "Coffee", category: "Food" })]),
+    );
+
+    const header = tree.root.findByType(TransactionHeader);
+
+    // All → Category
+    await renderer.act(async () => {
+      header.props.onFilterCategoryChange("b-1");
+      await flush();
+    });
+    await until(() => renderedText("Bacon"));
+    expect(renderedText("Filtering transactions…")).toBe(false);
+    textMock.mockClear();
+
+    // Category → All — the previously-broken transition.
+    await renderer.act(async () => {
+      header.props.onFilterCategoryChange("all");
+      await flush();
+    });
+    await until(() => renderedText("Coffee"));
+    expect(renderedText("Bacon")).toBe(false);
+    expect(renderedText("Filtering transactions…")).toBe(false);
+    textMock.mockClear();
+
+    // Full cycle again.
+    await renderer.act(async () => {
+      header.props.onFilterCategoryChange("b-1");
+      await flush();
+    });
+    await until(() => renderedText("Bacon"));
+    expect(renderedText("Filtering transactions…")).toBe(false);
+    textMock.mockClear();
+
+    await renderer.act(async () => {
+      header.props.onFilterCategoryChange("all");
+      await flush();
+    });
+    await until(() => renderedText("Coffee"));
+    expect(renderedText("Filtering transactions…")).toBe(false);
   });
 });

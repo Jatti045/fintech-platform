@@ -35,6 +35,9 @@ module.exports = {
       "<rootDir>/node_modules/@react-native-async-storage/async-storage/jest/async-storage-mock",
     "^@react-native-community/datetimepicker$":
       "<rootDir>/__mocks__/react-native-datetimepicker.ts",
+    // In-memory stand-in for static CSS assets (e.g. app/global.css) so
+    // app-layout modules can be imported by the test suite.
+    "\\.css$": "<rootDir>/__mocks__/styleMock.js",
   },
   // Silence console noise from slices
   silent: true,
