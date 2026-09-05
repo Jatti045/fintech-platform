@@ -6,8 +6,8 @@
  */
 
 // Re-export the canonical safeAmount so existing imports don't break
-export { safeAmount } from "@/utils/transaction/helpers";
 import { safeAmount } from "@/utils/transaction/helpers";
+export { safeAmount };
 
 /**
  * Computes the overspend delta using **integer-cent math** to prevent
@@ -75,7 +75,9 @@ export function buildMonthSpendSeries(
 
     const matches = opts.budgetId
       ? String(tx.budgetId || "") === opts.budgetId
-      : String(tx.category || "").trim().toLowerCase() === cat;
+      : String(tx.category || "")
+          .trim()
+          .toLowerCase() === cat;
     if (!matches) continue;
 
     const cents = Math.round(safeAmount(tx.amount) * 100);

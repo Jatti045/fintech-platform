@@ -1,9 +1,8 @@
 import "../global.css";
-import React from "react";
+import React, { useEffect } from "react";
 import { Stack } from "expo-router";
 import { Provider } from "react-redux";
 import { store, loadUserFromStorage, useAuth } from "../store";
-import { useEffect } from "react";
 import { useAppDispatch, useTheme } from "@/hooks/useRedux";
 import { ActivityIndicator, View } from "react-native";
 import { loadThemeFromStorage } from "@/store/slices/themeSlice";

@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -94,8 +95,9 @@ public class TransactionService {
         }
 
         PageRequest pageRequest = PageRequest.of(pageNum - 1, limitNum, Sort.by(Sort.Direction.DESC, "date"));
-        List<Transaction> transactions = transactionRepository.findAll(spec, pageRequest).getContent();
-        long totalCount = transactionRepository.count(spec);
+        Page<Transaction> page = transactionRepository.findAll(spec, pageRequest);
+        List<Transaction> transactions = page.getContent();
+        long totalCount = page.getTotalElements();
 
         int totalPages = (int) Math.ceil(totalCount / (double) limitNum);
 

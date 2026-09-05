@@ -470,8 +470,10 @@ export const api = createApi({
           return { error: toError(e) };
         }
       },
-      invalidatesTags: (_r, _e, b) =>
-        monthTags("Budgets", [{ year: b.year, month: b.month }]),
+      invalidatesTags: (_r, _e, b) => [
+        ...monthTags("Budgets", [{ year: b.year, month: b.month }]),
+        ...monthTags("Suggestions", [{ year: b.year, month: b.month }]),
+      ],
     }),
 
     updateBudget: build.mutation<
@@ -490,8 +492,10 @@ export const api = createApi({
           return { error: toError(e) };
         }
       },
-      invalidatesTags: (_r, _e, arg) =>
-        monthTags("Budgets", arg.invalidateMonths ?? []),
+      invalidatesTags: (_r, _e, arg) => [
+        ...monthTags("Budgets", arg.invalidateMonths ?? []),
+        ...monthTags("Suggestions", arg.invalidateMonths ?? []),
+      ],
     }),
 
     deleteBudget: build.mutation<
@@ -506,8 +510,10 @@ export const api = createApi({
           return { error: toError(e) };
         }
       },
-      invalidatesTags: (_r, _e, arg) =>
-        monthTags("Budgets", arg.invalidateMonths),
+      invalidatesTags: (_r, _e, arg) => [
+        ...monthTags("Budgets", arg.invalidateMonths ?? []),
+        ...monthTags("Suggestions", arg.invalidateMonths ?? []),
+      ],
     }),
   }),
 });

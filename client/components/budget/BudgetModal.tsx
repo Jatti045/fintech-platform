@@ -50,7 +50,7 @@ function BudgetModal({
       try {
         setCategory("");
         setLimit("");
-      } catch (e) {
+      } catch {
         // ignore
       }
       if (onClose) onClose();
@@ -68,11 +68,7 @@ function BudgetModal({
   const modalHeight = getModalHeight();
 
   return (
-    <Modal
-      visible={openSheet}
-      animationType="slide"
-      transparent={true}
-    >
+    <Modal visible={openSheet} animationType="slide" transparent={true}>
       <View
         style={{
           flex: 1,
@@ -129,7 +125,8 @@ function BudgetModal({
                 style={{ color: THEME.textSecondary, marginTop: 6 }}
                 className="text-sm"
               >
-                Tip: Pick a short category name like 'Groceries' or 'Transport'.
+                Tip: Pick a short category name like &apos;Groceries&apos; or
+                &apos;Transport&apos;.
               </Text>
             </View>
 

@@ -171,7 +171,7 @@ export default function PlaidStatusBanner() {
           <Text
             style={{ color: THEME.textSecondary, fontSize: 11, marginTop: 2 }}
           >
-            We'll retry automatically, or you can tap to refresh.
+            We&apos;ll retry automatically, or you can tap to refresh.
           </Text>
         </View>
         {isSyncing ? (

@@ -53,6 +53,7 @@ const mockedBudgetFetch = budgetApi.fetchAll as jest.Mock;
 const mockedSummaryFetch = financialSummaryApi.fetchSummary as jest.Mock;
 const mockedSuggestionsFetch = budgetApi.fetchSuggestions as jest.Mock;
 const mockedApplySuggestions = budgetApi.applySuggestions as jest.Mock;
+const mockedBudgetCreate = budgetApi.create as jest.Mock;
 
 const makeTx = (id: string) => ({
   id,
@@ -91,7 +92,9 @@ function makeStore() {
   });
 }
 
-const args = (overrides: Partial<GetTransactionsArgs> = {}): GetTransactionsArgs => ({
+const args = (
+  overrides: Partial<GetTransactionsArgs> = {},
+): GetTransactionsArgs => ({
   currentMonth: 4,
   currentYear: 2026,
   searchQuery: "",
@@ -135,7 +138,11 @@ describe("getTransactions – merge & pagination", () => {
 
   it("replaces the list on page 1 and appends on later pages without duplicates", async () => {
     mockedTxFetch.mockImplementation(async ({ page }: any) =>
-      txResponse(page === 1 ? [makeTx("t-1"), makeTx("t-2")] : [makeTx("t-3")], page ?? 1, 45),
+      txResponse(
+        page === 1 ? [makeTx("t-1"), makeTx("t-2")] : [makeTx("t-3")],
+        page ?? 1,
+        45,
+      ),
     );
 
     const store = makeStore();
@@ -221,7 +228,9 @@ describe("getTransactions – merge & pagination", () => {
     mockedTxFetch.mockResolvedValue(txResponse([], 1));
     const store = makeStore();
 
-    await store.dispatch(api.endpoints.getTransactions.initiate(args())).unwrap();
+    await store
+      .dispatch(api.endpoints.getTransactions.initiate(args()))
+      .unwrap();
     await store
       .dispatch(api.endpoints.getTransactions.initiate(args({ page: 2 })))
       .unwrap();
@@ -246,19 +255,25 @@ describe("mutation invalidation scoping", () => {
     });
 
     const store = makeStore();
-    await store.dispatch(api.endpoints.getTransactions.initiate(args())).unwrap();
-    await store.dispatch(
-      api.endpoints.getBudgets.initiate({
-        currentMonth: 4,
-        currentYear: 2026,
-      }),
-    ).unwrap();
-    await store.dispatch(
-      api.endpoints.getFinancialSummary.initiate({
-        currentMonth: 4,
-        currentYear: 2026,
-      }),
-    ).unwrap();
+    await store
+      .dispatch(api.endpoints.getTransactions.initiate(args()))
+      .unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getBudgets.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getFinancialSummary.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
     // A different month must stay untouched.
     const otherMonth = store.dispatch(
       api.endpoints.getTransactions.initiate(
@@ -332,9 +347,7 @@ describe("mutation invalidation scoping", () => {
 describe("month race safety", () => {
   it("keeps per-month entries independent — no cross-month clobbering", async () => {
     mockedTxFetch.mockImplementation(async ({ currentMonth }: any) =>
-      txResponse([
-        makeTx(`tx-${currentMonth}`),
-      ]),
+      txResponse([makeTx(`tx-${currentMonth}`)]),
     );
 
     const store = makeStore();
@@ -365,20 +378,35 @@ describe("Smart Month Setup", () => {
     mockedSuggestionsFetch.mockResolvedValue(suggestionsPayload);
     const store = makeStore();
 
-    await store.dispatch(
-      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 4, currentYear: 2026 }),
-    ).unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getBudgetSuggestions.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
 
     // Second subscription to the SAME month is served from cache.
-    await store.dispatch(
-      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 4, currentYear: 2026 }),
-    ).unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getBudgetSuggestions.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
     expect(mockedSuggestionsFetch).toHaveBeenCalledTimes(1);
 
     // A different month hits the network again (distinct cache entry).
-    await store.dispatch(
-      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 5, currentYear: 2026 }),
-    ).unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getBudgetSuggestions.initiate({
+          currentMonth: 5,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
     expect(mockedSuggestionsFetch).toHaveBeenCalledTimes(2);
   });
 
@@ -402,15 +430,30 @@ describe("Smart Month Setup", () => {
     const store = makeStore();
 
     // Prime the caches for April and May.
-    await store.dispatch(
-      api.endpoints.getBudgets.initiate({ currentMonth: 4, currentYear: 2026 }),
-    ).unwrap();
-    await store.dispatch(
-      api.endpoints.getFinancialSummary.initiate({ currentMonth: 4, currentYear: 2026 }),
-    ).unwrap();
-    await store.dispatch(
-      api.endpoints.getBudgetSuggestions.initiate({ currentMonth: 4, currentYear: 2026 }),
-    ).unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getBudgets.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getFinancialSummary.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getBudgetSuggestions.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
     const mayBudgets = store.dispatch(
       api.endpoints.getBudgets.initiate({ currentMonth: 5, currentYear: 2026 }),
     );
@@ -421,21 +464,94 @@ describe("Smart Month Setup", () => {
     mockedSummaryFetch.mockClear();
     mockedSuggestionsFetch.mockClear();
 
-    await store.dispatch(
-      api.endpoints.applyBudgetSuggestions.initiate({
-        month: 4,
-        year: 2026,
-        items: [{ category: "Food", limit: 250 }],
-      }),
-    ).unwrap();
+    await store
+      .dispatch(
+        api.endpoints.applyBudgetSuggestions.initiate({
+          month: 4,
+          year: 2026,
+          items: [{ category: "Food", limit: 250 }],
+        }),
+      )
+      .unwrap();
 
     // The applied month's budgets, summary, AND suggestions all refresh…
-    expect(mockedBudgetFetch).toHaveBeenCalledWith({ currentMonth: 4, currentYear: 2026 });
-    expect(mockedSummaryFetch).toHaveBeenCalledWith({ currentMonth: 4, currentYear: 2026 });
-    expect(mockedSuggestionsFetch).toHaveBeenCalledWith({ currentMonth: 4, currentYear: 2026 });
+    expect(mockedBudgetFetch).toHaveBeenCalledWith({
+      currentMonth: 4,
+      currentYear: 2026,
+    });
+    expect(mockedSummaryFetch).toHaveBeenCalledWith({
+      currentMonth: 4,
+      currentYear: 2026,
+    });
+    expect(mockedSuggestionsFetch).toHaveBeenCalledWith({
+      currentMonth: 4,
+      currentYear: 2026,
+    });
     // …exactly once each.
     expect(mockedBudgetFetch).toHaveBeenCalledTimes(1);
     // …while May's cached budgets stay untouched.
-    expect(mockedBudgetFetch).not.toHaveBeenCalledWith({ currentMonth: 5, currentYear: 2026 });
+    expect(mockedBudgetFetch).not.toHaveBeenCalledWith({
+      currentMonth: 5,
+      currentYear: 2026,
+    });
+  });
+
+  it("createBudget invalidates Budgets and Suggestions for the target month", async () => {
+    mockedSuggestionsFetch.mockResolvedValue(suggestionsPayload);
+    mockedBudgetCreate.mockResolvedValue({
+      success: true,
+      data: {
+        id: "b-new",
+        category: "Entertainment",
+        limit: 100,
+        month: 4,
+        year: 2026,
+      },
+    });
+    mockedBudgetFetch.mockResolvedValue({ success: true, data: [] });
+
+    const store = makeStore();
+
+    // Prime the suggestions and budgets cache for April.
+    await store
+      .dispatch(
+        api.endpoints.getBudgets.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
+    await store
+      .dispatch(
+        api.endpoints.getBudgetSuggestions.initiate({
+          currentMonth: 4,
+          currentYear: 2026,
+        }),
+      )
+      .unwrap();
+
+    mockedBudgetFetch.mockClear();
+    mockedSuggestionsFetch.mockClear();
+
+    await store
+      .dispatch(
+        api.endpoints.createBudget.initiate({
+          category: "Entertainment",
+          limit: 100,
+          month: 4,
+          year: 2026,
+        }),
+      )
+      .unwrap();
+
+    // Both budgets AND suggestions must be invalidated and refetched.
+    expect(mockedBudgetFetch).toHaveBeenCalledWith({
+      currentMonth: 4,
+      currentYear: 2026,
+    });
+    expect(mockedSuggestionsFetch).toHaveBeenCalledWith({
+      currentMonth: 4,
+      currentYear: 2026,
+    });
   });
 });
