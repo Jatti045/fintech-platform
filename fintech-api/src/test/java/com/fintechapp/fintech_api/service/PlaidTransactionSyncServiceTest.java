@@ -63,7 +63,51 @@ class PlaidTransactionSyncServiceTest {
         when(syncLockService.acquireWithTimeout(any(), any(), any(), any())).thenReturn(true);
     }
 
-    // ── Missing item ─────────────────────────────────────────────────────────
+    // ── Regression: injected lock service must be used, never `new
+    // PlaidSyncLockService(...)` ─
+
+    /**
+     * Regression test for the production TransactionRequiredException.
+     *
+     * <p>
+     * The original bug: {@link PlaidTransactionSyncService} had a two-arg
+     * constructor that delegated to
+     * {@code new PlaidSyncLockService(plaidItemRepository)}, creating a raw POJO
+     * instead of the Spring-managed proxy. Spring's {@code @Transactional}
+     * advice is applied only by the proxy, so the
+     * {@code @Transactional(REQUIRES_NEW)}
+     * on {@code PlaidSyncLockService.tryAcquire} was silently skipped, and
+     * Hibernate
+     * threw {@code TransactionRequiredException} on the {@code @Modifying} JPQL
+     * update the moment {@code syncItemAsync} ran on the async thread.
+     *
+     * <p>
+     * The fix removes the two-arg constructor entirely, leaving only the
+     * three-arg {@code @Autowired} constructor so Spring always injects the proxy.
+     *
+     * <p>
+     * This test verifies the invariant: the {@link PlaidSyncLockService} instance
+     * that was passed in during construction is the <em>exact same object</em> that
+     * {@code syncItemAsync} invokes when acquiring the lock. If the two-arg
+     * constructor were to return, it would create a different (raw) instance, and
+     * the mock's {@code acquireWithTimeout} stub would never fire — causing the
+     * test to hang or fail with a timeout.
+     */
+    @Test
+    void syncItemAsync_usesInjectedLockService_notRawNewInstance() {
+        stubItem();
+        when(plaidService.fetchAndApplySyncPage("item-1"))
+                .thenReturn(new SyncPageResult("cursor-1", false));
+
+        service.syncItemAsync("item-1");
+
+        // If the fix is absent (two-arg constructor re-instantiating via `new`),
+        // the injected mock's acquireWithTimeout would never be called and
+        // fetchAndApplySyncPage would not be reached at all because the raw
+        // instance's tryAcquire would throw TransactionRequiredException first.
+        verify(syncLockService).acquireWithTimeout(eq("item-1"), any(), any(), any());
+        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+    }
 
     @Test
     void syncItemAsync_itemNotFound_skipsSync() {

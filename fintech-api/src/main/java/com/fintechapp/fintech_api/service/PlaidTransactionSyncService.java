@@ -67,12 +67,6 @@ public class PlaidTransactionSyncService {
     private final PlaidService plaidService;
     private final PlaidSyncLockService syncLockService;
 
-    public PlaidTransactionSyncService(
-            PlaidItemRepository plaidItemRepository,
-            PlaidService plaidService) {
-        this(plaidItemRepository, plaidService, new PlaidSyncLockService(plaidItemRepository));
-    }
-
     @Autowired
     public PlaidTransactionSyncService(
             PlaidItemRepository plaidItemRepository,
