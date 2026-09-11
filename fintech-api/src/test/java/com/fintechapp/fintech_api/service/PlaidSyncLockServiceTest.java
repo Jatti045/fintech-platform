@@ -30,7 +30,11 @@ class PlaidSyncLockServiceTest {
 
     @BeforeEach
     void setUp() {
-        lockService = new PlaidSyncLockService(plaidItemRepository);
+        // In production Spring injects a transactional PlaidSyncLeaseStore
+        // proxy; here the raw store is sufficient because the repository is a
+        // mock and the transaction boundary itself is covered by
+        // PlaidSyncDistributedLockIntegrationTest against the real database.
+        lockService = new PlaidSyncLockService(new PlaidSyncLeaseStore(plaidItemRepository));
     }
 
     @Test
@@ -78,12 +82,19 @@ class PlaidSyncLockServiceTest {
     /**
      * Regression test for the production failure.
      *
-     * The original bug was that {@link PlaidTransactionSyncService} constructed
-     * {@link PlaidSyncLockService} via {@code new} instead of Spring injection,
-     * producing a raw POJO instead of a Spring proxy. The
-     * {@code @Transactional(REQUIRES_NEW)} on {@code tryAcquire} was therefore
-     * ignored, and Hibernate threw {@code TransactionRequiredException} when the
-     * {@code @Modifying} JPQL update ran without an active transaction.
+     * The production root cause was self-invocation:
+     * {@link PlaidSyncLockService#acquireWithTimeout} called its own
+     * {@code @Transactional(REQUIRES_NEW) tryAcquire} via {@code this}, which
+     * bypassed the Spring CGLIB proxy (the proxy only intercepts calls made
+     * <em>into</em> the bean, not calls made inside it). The {@code @Modifying}
+     * JPQL update in {@code PlaidItemRepository.acquireSyncLock} then executed
+     * with no active transaction, and Hibernate threw
+     * {@code TransactionRequiredException}.
+     *
+     * <p>
+     * The fix moves the transactional mutations into a dedicated bean
+     * ({@link PlaidSyncLeaseStore}) that {@code PlaidSyncLockService} calls
+     * across a bean boundary, so the proxy advice always applies.
      *
      * <p>
      * This test verifies that {@code tryAcquire} calls through to the
@@ -92,14 +103,14 @@ class PlaidSyncLockServiceTest {
      * {@code TransactionRequiredException} can arise from the mock itself; the
      * valuable signal here is that the call path does NOT blow up on its own,
      * and that the repository method is invoked exactly once with the right
-     * arguments — proving the service is wired correctly and delegates rather
-     * than failing before even reaching the repository.
+     * arguments — proving the service delegates to the store and the store
+     * delegates to the repository.
      *
      * <p>
      * The complementary integration test
      * {@code PlaidSyncDistributedLockIntegrationTest} exercises the real
-     * transaction boundary against a live PostgreSQL container and will fail
-     * with {@code TransactionRequiredException} if the proxy is absent.
+     * transaction boundary against a live PostgreSQL instance and fails with
+     * {@code TransactionRequiredException} if the boundary is bypassed again.
      */
     @Test
     void tryAcquire_doesNotThrowTransactionRequiredException_repositoryIsInvoked() {

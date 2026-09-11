@@ -171,4 +171,145 @@ class PlaidSyncDistributedLockIntegrationTest extends BaseIntegrationTest {
             cleanup(user);
         }
     }
+
+    // ── Regression: acquireWithTimeout must run the lease update inside a tx ──
+
+    /**
+     * Regression for the production {@code TransactionRequiredException: No
+     * active transaction for update or delete query} raised from
+     * {@code PlaidItemRepository.acquireSyncLock}.
+     *
+     * <p>
+     * The production failure path is exactly
+     * {@code syncItemAsync() -> acquireItemLock() -> acquireWithTimeout() ->
+     * tryAcquire() -> acquireSyncLock()}. The existing integration tests call
+     * {@code tryAcquire}/{@code release} directly through the Spring proxy, so
+     * the {@code @Transactional} advice applies and they pass. But
+     * {@code acquireWithTimeout} invoked {@code tryAcquire} through
+     * {@code this} — self-invocation — which bypasses the CGLIB proxy and its
+     * {@code @Transactional(REQUIRES_NEW)} advice. The {@code @Modifying} JPQL
+     * update then executed with no active transaction.
+     *
+     * <p>
+     * This test follows the production entry point
+     * {@link PlaidSyncLockService#acquireWithTimeout} against the real
+     * PostgreSQL datasource and fails with {@code TransactionRequiredException}
+     * if the transaction boundary is bypassed again.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void acquireWithTimeout_executesLeaseUpdateInsideActiveTransaction() {
+        User user = createUser("timeout-tx@example.com", "Password123!", "TimeoutTxUser");
+        String itemId = "item-acquire-timeout-tx";
+        createTestItem(itemId, user);
+
+        try {
+            // Production call path: the polling loop's first attempt.
+            boolean acquired = lockService.acquireWithTimeout(itemId, "timeout-tx-token",
+                    Duration.ofSeconds(2), Duration.ofSeconds(30));
+
+            assertTrue(acquired, "acquireWithTimeout must acquire the lease "
+                    + "with the lease update running inside an active transaction");
+        } finally {
+            lockService.release(itemId, "timeout-tx-token");
+            cleanup(user);
+        }
+    }
+
+    /**
+     * The polling path of {@code acquireWithTimeout} must also survive real
+     * transactions: when the lease is held by another owner, every retry runs
+     * its own short transaction, and the run must give up cleanly at the
+     * deadline (each failed attempt is a {@code @Modifying} query that needs an
+     * active transaction).
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void acquireWithTimeout_pollingRetries_runInOwnTransactionsAndTimeOutCleanly() {
+        User user = createUser("polling-tx@example.com", "Password123!", "PollingTxUser");
+        String itemId = "item-polling-tx";
+        createTestItem(itemId, user);
+
+        try {
+            assertTrue(lockService.tryAcquire(itemId, "holder-token", Duration.ofSeconds(30)));
+
+            // Another owner holds the lease: acquisition must poll (each poll
+            // executing the modifying query in its own transaction) and then
+            // time out instead of throwing TransactionRequiredException.
+            boolean acquired = lockService.acquireWithTimeout(itemId, "contender-token",
+                    Duration.ofMillis(600), Duration.ofSeconds(30));
+
+            assertFalse(acquired, "Acquisition must time out while another token holds the lease");
+        } finally {
+            lockService.release(itemId, "holder-token");
+            cleanup(user);
+        }
+    }
+
+    /**
+     * The async sync path runs on a bare executor thread: no HTTP request, no
+     * {@code OpenSessionInView} (it is disabled), no inherited transaction. The
+     * lease update must succeed purely on its own {@code REQUIRES_NEW}
+     * transaction, exactly like on the {@code plaid-sync-*} threads.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void acquireWithTimeout_fromAsyncThreadWithoutInheritedTransaction_acquiresLease() throws Exception {
+        User user = createUser("async-tx@example.com", "Password123!", "AsyncTxUser");
+        String itemId = "item-async-tx";
+        createTestItem(itemId, user);
+
+        ExecutorService bareThread = Executors.newSingleThreadExecutor();
+        try {
+            // A raw pool thread has NO ambient transaction — the same
+            // conditions as the plaidTaskExecutor sync threads.
+            Future<Boolean> acquired = bareThread.submit(() ->
+                    lockService.acquireWithTimeout(itemId, "async-token",
+                            Duration.ofSeconds(2), Duration.ofSeconds(30)));
+
+            assertTrue(acquired.get(10, TimeUnit.SECONDS),
+                    "Lease acquisition must succeed on an async thread with no inherited transaction");
+        } finally {
+            bareThread.shutdownNow();
+            lockService.release(itemId, "async-token");
+            cleanup(user);
+        }
+    }
+
+    /**
+     * Verifies the {@code REQUIRES_NEW} semantics end-to-end: the lease update
+     * must commit in its own transaction even when the surrounding transaction
+     * rolls back.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Test
+    void tryAcquire_commitsInItsOwnTransaction_independentOfOuterRollback() {
+        User user = createUser("requires-new@example.com", "Password123!", "RequiresNewUser");
+        String itemId = "item-requires-new";
+        createTestItem(itemId, user);
+
+        try {
+            new TransactionTemplate(transactionManager).execute(status -> {
+                // Outer transaction active but rolled back at the end. The
+                // lease update must NOT join it.
+                boolean acquired = lockService.tryAcquire(itemId, "requires-new-token",
+                        Duration.ofSeconds(30));
+                assertTrue(acquired);
+                status.setRollbackOnly();
+                return null;
+            });
+
+            // In a fresh transaction the lease must still be held by our
+            // token: REQUIRES_NEW committed independently of the rollback.
+            new TransactionTemplate(transactionManager).execute(status -> {
+                PlaidItem fresh = plaidItemRepository.findByItemId(itemId).orElseThrow();
+                assertEquals("requires-new-token", fresh.getSyncLockToken(),
+                        "Lease must persist after the surrounding transaction rolled back");
+                return null;
+            });
+        } finally {
+            lockService.release(itemId, "requires-new-token");
+            cleanup(user);
+        }
+    }
 }

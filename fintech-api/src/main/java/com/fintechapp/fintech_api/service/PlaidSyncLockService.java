@@ -1,32 +1,38 @@
 package com.fintechapp.fintech_api.service;
 
 import java.time.Duration;
-import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
-
-import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 
 /**
- * Manages distributed synchronization leases for Plaid items across application
- * instances.
+ * Facade for distributed synchronization leases for Plaid items across
+ * application instances.
  *
  * <p>
  * Uses atomic, conditional updates against the {@code plaid_items} table in
- * PostgreSQL.
- * Each lease is bounded by an expiration timestamp so that if an instance
- * crashes or is killed
- * mid-sync, the lease automatically expires without permanent deadlocks. All
- * lock operations
- * (acquire, release, extend) execute inside short, independent transactions
- * (~1ms), ensuring
- * database connections are never held while waiting on locks or external HTTP
- * calls.
+ * PostgreSQL. Each lease is bounded by an expiration timestamp so that if an
+ * instance crashes or is killed mid-sync, the lease automatically expires
+ * without permanent deadlocks. All lease mutations ({@link #tryAcquire},
+ * {@link #release}, {@link #extend}) are delegated to
+ * {@link PlaidSyncLeaseStore}, a dedicated Spring bean whose methods each run
+ * inside a short, independent {@code REQUIRES_NEW} transaction (~1ms).
+ *
+ * <p>
+ * <strong>Why the delegation matters:</strong> Spring's proxy-based
+ * {@code @Transactional} does not apply to self-invocation. This class used to
+ * carry the transactional methods itself and {@link #acquireWithTimeout} called
+ * its own {@code tryAcquire} via {@code this}, silently bypassing the CGLIB
+ * proxy — so the {@code @Modifying} lease update ran with no active transaction
+ * and production failed with {@code TransactionRequiredException}. Delegating
+ * to a separate bean guarantees every database mutation crosses a transactional
+ * proxy boundary.
+ * </p>
+ *
+ * <p>
+ * Sleep pauses in {@link #acquireWithTimeout} occur outside any database
+ * transaction, so zero database connections are checked out while waiting.
  * </p>
  */
 @Service
@@ -35,10 +41,10 @@ public class PlaidSyncLockService {
     private static final Logger logger = LoggerFactory.getLogger(PlaidSyncLockService.class);
     private static final long POLL_INTERVAL_MS = 200L;
 
-    private final PlaidItemRepository plaidItemRepository;
+    private final PlaidSyncLeaseStore leaseStore;
 
-    public PlaidSyncLockService(PlaidItemRepository plaidItemRepository) {
-        this.plaidItemRepository = plaidItemRepository;
+    public PlaidSyncLockService(PlaidSyncLeaseStore leaseStore) {
+        this.leaseStore = leaseStore;
     }
 
     /**
@@ -51,26 +57,15 @@ public class PlaidSyncLockService {
      * @return {@code true} if acquired or renewed; {@code false} if held by another
      *         active token
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean tryAcquire(String itemId, String token, Duration leaseDuration) {
-        if (!StringUtils.hasText(itemId) || !StringUtils.hasText(token) || leaseDuration == null) {
-            return false;
-        }
-        Instant now = Instant.now();
-        Instant expiresAt = now.plus(leaseDuration);
-        int updated = plaidItemRepository.acquireSyncLock(itemId, token, expiresAt, now);
-        return updated > 0;
+        return leaseStore.tryAcquire(itemId, token, leaseDuration);
     }
 
     /**
      * Polls with backoff until the distributed lease is acquired or the timeout
-     * expires.
-     *
-     * <p>
-     * Sleep pauses occur outside any database transaction, so zero database
-     * connections
-     * are checked out while waiting.
-     * </p>
+     * expires. Each polling attempt runs in its own short transaction inside
+     * {@link PlaidSyncLeaseStore}; the sleeps in between run with no
+     * transaction or connection held.
      *
      * @param itemId        the Plaid item id to lock
      * @param token         unique token identifying the caller/instance
@@ -122,19 +117,8 @@ public class PlaidSyncLockService {
      * @return {@code true} if released; {@code false} if not owned or already
      *         cleared
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean release(String itemId, String token) {
-        if (!StringUtils.hasText(itemId) || !StringUtils.hasText(token)) {
-            return false;
-        }
-        int updated = plaidItemRepository.releaseSyncLock(itemId, token);
-        if (updated > 0) {
-            logger.info("Released distributed sync lease for item_id={} token={}", itemId, token);
-            return true;
-        }
-        logger.debug("Did not release distributed sync lease for item_id={} token={} (already released or expired)",
-                itemId, token);
-        return false;
+        return leaseStore.release(itemId, token);
     }
 
     /**
@@ -146,13 +130,7 @@ public class PlaidSyncLockService {
      * @param leaseDuration additional lease duration from now
      * @return {@code true} if extended; {@code false} if not owned
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean extend(String itemId, String token, Duration leaseDuration) {
-        if (!StringUtils.hasText(itemId) || !StringUtils.hasText(token) || leaseDuration == null) {
-            return false;
-        }
-        Instant expiresAt = Instant.now().plus(leaseDuration);
-        int updated = plaidItemRepository.extendSyncLock(itemId, token, expiresAt);
-        return updated > 0;
+        return leaseStore.extend(itemId, token, leaseDuration);
     }
 }
