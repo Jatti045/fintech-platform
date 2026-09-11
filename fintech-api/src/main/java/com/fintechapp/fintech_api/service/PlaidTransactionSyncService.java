@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
@@ -48,9 +47,12 @@ public class PlaidTransactionSyncService {
     private static final ConcurrentMap<String, ReentrantLock> ITEM_LOCKS = new ConcurrentHashMap<>();
 
     /**
-     * How long a run waits for another sync of the same item before giving up.
-     * A timed-out run is skipped; Plaid re-fires {@code SYNC_UPDATES_AVAILABLE}
-     * on the next change, so no update is permanently lost.
+     * How long a run waits for the <em>distributed</em> sync lease held by
+     * another application instance before giving up. Same-JVM contention on
+     * the local lock is resolved instantly with a non-blocking
+     * {@link ReentrantLock#tryLock()}: a skipped run is safe because Plaid
+     * re-fires {@code SYNC_UPDATES_AVAILABLE} on the next change, so no
+     * update is permanently lost.
      */
     @Value("${app.plaid.sync.item-lock-timeout-ms:30000}")
     private long itemLockTimeoutMs = 30_000L;
@@ -83,6 +85,10 @@ public class PlaidTransactionSyncService {
      */
     @Async("plaidTaskExecutor")
     public void syncItemAsync(String itemId) {
+        long runStart = System.currentTimeMillis();
+        logger.info("Plaid transaction sync starting for item_id={} (thread={})",
+                itemId, Thread.currentThread().getName());
+
         PlaidItem item = plaidItemRepository.findByItemId(itemId).orElse(null);
         if (item == null) {
             logger.warn("Plaid sync skipped: no item registered for item_id={}", itemId);
@@ -97,6 +103,7 @@ public class PlaidTransactionSyncService {
         if (!acquireItemLock(itemId, lockToken, timeout, leaseDuration)) {
             return;
         }
+        long lockHeldSince = System.currentTimeMillis();
         try {
             boolean hasMore = true;
             int page = 0;
@@ -113,7 +120,9 @@ public class PlaidTransactionSyncService {
                     syncLockService.extend(itemId, lockToken, leaseDuration);
                 }
             }
-            logger.debug("Plaid sync finished for item_id={} pages={} hasMore={}", itemId, page, hasMore);
+            logger.info("Plaid sync finished for item_id={} pages={} hasMore={} durationMs={} (thread={})",
+                    itemId, page, hasMore, System.currentTimeMillis() - runStart,
+                    Thread.currentThread().getName());
             // The full run completed without an exception — surface health for
             // the clients (per-page commits already stamped lastSyncedAt).
             clearSyncError(itemId);
@@ -126,6 +135,8 @@ public class PlaidTransactionSyncService {
         } finally {
             // Step F — release the distributed lease and local lock.
             releaseItemLock(itemId, lockToken);
+            logger.info("Released Plaid item locks for item_id={} after holding them {}ms (thread={})",
+                    itemId, System.currentTimeMillis() - lockHeldSince, Thread.currentThread().getName());
         }
     }
 
@@ -173,29 +184,36 @@ public class PlaidTransactionSyncService {
      */
     private boolean acquireItemLock(String itemId, String lockToken, Duration timeout, Duration leaseDuration) {
         ReentrantLock localLock = ITEM_LOCKS.computeIfAbsent(itemId, k -> new ReentrantLock());
-        long start = System.currentTimeMillis();
-        boolean localAcquired;
-        try {
-            localAcquired = localLock.tryLock(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            logger.warn("Interrupted while waiting for local Plaid item lock for item_id={}", itemId);
-            return false;
-        }
+        long localStart = System.currentTimeMillis();
 
+        // The local mutex only prevents duplicate syncs within this JVM. If
+        // another thread here is already syncing this item, that run is
+        // processing every available update, so there is nothing to gain by
+        // waiting — fail fast instead of parking an executor thread for the
+        // full timeout. Cross-instance coordination is the distributed
+        // lease's job, handled below with its own bounded wait.
+        boolean localAcquired = localLock.tryLock();
         if (!localAcquired) {
-            logger.warn("Timed out waiting {}ms for local Plaid item lock for item_id={}; skipping this sync run",
-                    timeout.toMillis(), itemId);
+            // ReentrantLock.toString() reports the owning thread
+            // ("[Locked by thread plaid-sync-1]"), so operators can see who
+            // currently holds the lock and reason about what it is doing.
+            logger.info("Local Plaid item lock for item_id={} already held ({}); skipping this sync run",
+                    itemId, localLock);
             return false;
         }
+        logger.info("Acquired local Plaid item lock for item_id={} in {}ms (thread={})",
+                itemId, System.currentTimeMillis() - localStart, Thread.currentThread().getName());
 
-        long elapsed = System.currentTimeMillis() - start;
-        long remaining = Math.max(0, timeout.toMillis() - elapsed);
-
-        boolean distAcquired = syncLockService.acquireWithTimeout(itemId, lockToken, Duration.ofMillis(remaining),
-                leaseDuration);
+        // Bounded wait for the distributed lease so another JVM instance that
+        // is mid-sync gets a chance to finish before this run gives up.
+        boolean distAcquired = syncLockService.acquireWithTimeout(itemId, lockToken, timeout, leaseDuration);
         if (!distAcquired) {
+            // Release the local lock we just took — otherwise this skipped
+            // run would block every later same-JVM run for this item until
+            // something else cleared it.
             localLock.unlock();
+            logger.info("Distributed sync lease unavailable for item_id={}; released local lock and skipped run",
+                    itemId);
             return false;
         }
         return true;
