@@ -1,11 +1,13 @@
 import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
+import { hexToRgba } from "@/utils/colorUtils";
 import type { ITheme } from "@/types/theme/types";
 
 export interface MonthlyIncomeProps {
-  THEME: ITheme;
+  THEME?: ITheme;
   input: string;
   setInput: (value: string) => void;
   monthLabel: string;
@@ -17,18 +19,23 @@ export interface MonthlyIncomeProps {
 
 /**
  * MonthlyIncome — card matching the approved mockup:
- * - Gold trend icon, "Monthly Income", "Set your expected monthly income as a planning baseline."
+ * - Theme trend icon, "Monthly Income", "Set your expected monthly income as a planning baseline."
  * - Subtle dark green container showing "Earned this month" and actual amount.
  * - Dark numeric input with hairline border.
- * - Gold "Save Monthly Income" button.
+ * - Solid theme "Save Monthly Income" button.
  */
 export default function MonthlyIncome({
+  THEME: propTheme,
   input,
   setInput,
   saving,
   onSave,
   actualIncome = 0,
 }: MonthlyIncomeProps) {
+  const { selectedTheme, THEME: reduxTheme } = useTheme();
+  const theme = propTheme || reduxTheme;
+  const saveBtnTextColor = selectedTheme === "Light" ? "#FFFFFF" : "#0B0B0D";
+
   const expected = Number(input) || 0;
   const actual = Number(actualIncome) || 0;
 
@@ -40,10 +47,10 @@ export default function MonthlyIncome({
   return (
     <View
       style={{
-        backgroundColor: "#141416",
+        backgroundColor: theme.surface,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#1F1F23",
+        borderColor: theme.border,
         padding: 16,
         marginBottom: 8,
       }}
@@ -55,28 +62,30 @@ export default function MonthlyIncome({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: "rgba(212, 175, 106, 0.12)",
+            backgroundColor: hexToRgba(theme.primary, 0.12),
             borderWidth: 1,
-            borderColor: "rgba(212, 175, 106, 0.25)",
+            borderColor: hexToRgba(theme.primary, 0.25),
             alignItems: "center",
             justifyContent: "center",
             marginRight: 12,
           }}
         >
-          <Feather name="trending-up" size={17} color="#D4AF6A" />
+          <Feather name="trending-up" size={17} color={theme.primary} />
         </View>
 
         <View style={{ flex: 1 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: theme.textPrimary,
               fontSize: 15,
               fontWeight: "700",
             }}
           >
             Monthly Income
           </Text>
-          <Text style={{ color: "#8E8E93", fontSize: 12, marginTop: 2 }}>
+          <Text
+            style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}
+          >
             Set your expected monthly income as a planning baseline.
           </Text>
         </View>
@@ -85,9 +94,9 @@ export default function MonthlyIncome({
       {/* Subtle green information container */}
       <View
         style={{
-          backgroundColor: "rgba(52, 211, 153, 0.08)",
+          backgroundColor: hexToRgba(theme.success, 0.12),
           borderWidth: 1,
-          borderColor: "rgba(52, 211, 153, 0.2)",
+          borderColor: hexToRgba(theme.success, 0.25),
           borderRadius: 12,
           paddingHorizontal: 14,
           paddingVertical: 10,
@@ -98,12 +107,18 @@ export default function MonthlyIncome({
           justifyContent: "space-between",
         }}
       >
-        <Text style={{ color: "#8E8E93", fontSize: 12.5, fontWeight: "500" }}>
+        <Text
+          style={{
+            color: theme.textSecondary,
+            fontSize: 12.5,
+            fontWeight: "500",
+          }}
+        >
           Earned this month
         </Text>
         <Text
           style={{
-            color: "#34D399",
+            color: theme.success,
             fontSize: 13,
             fontWeight: "700",
             letterSpacing: -0.1,
@@ -119,12 +134,12 @@ export default function MonthlyIncome({
         onChangeText={setInput}
         keyboardType="decimal-pad"
         placeholder="0.00"
-        placeholderTextColor="#636366"
+        placeholderTextColor={theme.placeholderText}
         style={{
-          backgroundColor: "#101012",
-          borderColor: "#222226",
+          backgroundColor: theme.inputBackground,
+          borderColor: theme.border,
           borderWidth: 1,
-          color: "#FFFFFF",
+          color: theme.textPrimary,
           borderRadius: 12,
           paddingHorizontal: 14,
           paddingVertical: 12,
@@ -143,7 +158,7 @@ export default function MonthlyIncome({
         accessibilityRole="button"
         accessibilityLabel="Save monthly income"
         style={{
-          backgroundColor: saving ? "#262629" : "#D4AF6A",
+          backgroundColor: saving ? theme.surfaceHover : theme.primary,
           borderRadius: 12,
           paddingVertical: 13,
           alignItems: "center",
@@ -151,7 +166,7 @@ export default function MonthlyIncome({
       >
         <Text
           style={{
-            color: saving ? "#8E8E93" : "#0B0B0D",
+            color: saving ? theme.textSecondary : saveBtnTextColor,
             fontWeight: "800",
             fontSize: 14,
           }}

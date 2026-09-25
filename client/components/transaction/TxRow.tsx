@@ -128,12 +128,12 @@ const TransactionRow = React.memo(function TransactionRow({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          backgroundColor: "#141416",
+          backgroundColor: THEME.surface,
           borderLeftWidth: 1,
           borderRightWidth: 1,
-          borderColor: "#212124",
+          borderColor: THEME.border,
           borderBottomWidth: isLast ? 1 : StyleSheet.hairlineWidth,
-          borderBottomColor: isLast ? "#212124" : "#1F1F24",
+          borderBottomColor: THEME.border,
           borderBottomLeftRadius: isLast ? 20 : 0,
           borderBottomRightRadius: isLast ? 20 : 0,
           paddingHorizontal: 16,
@@ -144,7 +144,7 @@ const TransactionRow = React.memo(function TransactionRow({
         <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontWeight: "600",
               fontSize: 14.5,
               letterSpacing: -0.1,
@@ -157,7 +157,7 @@ const TransactionRow = React.memo(function TransactionRow({
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 13,
               marginTop: 2,
             }}
@@ -168,7 +168,11 @@ const TransactionRow = React.memo(function TransactionRow({
           </Text>
           {originalReference ? (
             <Text
-              style={{ color: "#71717A", fontSize: 11, marginTop: 1 }}
+              style={{
+                color: THEME.placeholderText,
+                fontSize: 11,
+                marginTop: 1,
+              }}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -182,7 +186,7 @@ const TransactionRow = React.memo(function TransactionRow({
           {rowDate ? (
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 13,
                 marginRight: 14,
                 fontWeight: "400",
@@ -194,7 +198,7 @@ const TransactionRow = React.memo(function TransactionRow({
 
           <Text
             style={{
-              color: isExpense ? "#F87171" : "#34D399",
+              color: isExpense ? THEME.danger : THEME.success,
               fontWeight: "700",
               fontSize: 14.5,
               letterSpacing: -0.2,
@@ -209,7 +213,7 @@ const TransactionRow = React.memo(function TransactionRow({
           <Feather
             name="chevron-right"
             size={14}
-            color="#636366"
+            color={THEME.textSecondary}
             style={{ marginLeft: 8 }}
           />
         </View>

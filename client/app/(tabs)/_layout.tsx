@@ -9,9 +9,10 @@ import PlaidStatusBanner from "@/components/plaid/PlaidStatusBanner";
 
 interface TabIndicatorProps {
   focused: boolean;
+  color?: string;
 }
 
-function TabIndicator({ focused }: TabIndicatorProps) {
+function TabIndicator({ focused, color = "#D4AF6A" }: TabIndicatorProps) {
   if (!focused) return <View style={{ height: 4, marginTop: 2 }} />;
 
   return (
@@ -20,7 +21,7 @@ function TabIndicator({ focused }: TabIndicatorProps) {
         width: 3.5,
         height: 3.5,
         borderRadius: 2,
-        backgroundColor: "#D4AF6A",
+        backgroundColor: color,
         marginTop: 2,
       }}
     />
@@ -33,14 +34,14 @@ export default function TabsLayout() {
   const notificationOnboarding = useNotificationOnboarding();
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0B0B0D" }}>
+    <View style={{ flex: 1, backgroundColor: THEME.background }}>
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
           tabBarStyle: {
-            backgroundColor: "#111113",
-            borderTopColor: "#1A1A1D",
+            backgroundColor: THEME.surface,
+            borderTopColor: THEME.border,
             borderTopWidth: 1,
             height: 72,
             paddingBottom: 6,
@@ -48,8 +49,8 @@ export default function TabsLayout() {
             elevation: 0,
             shadowOpacity: 0,
           },
-          tabBarActiveTintColor: "#D4AF6A",
-          tabBarInactiveTintColor: "#8E8E93",
+          tabBarActiveTintColor: THEME.primary,
+          tabBarInactiveTintColor: THEME.textSecondary,
         }}
       >
         <Tabs.Screen
@@ -73,7 +74,7 @@ export default function TabsLayout() {
                 >
                   Home
                 </Text>
-                <TabIndicator focused={focused} />
+                <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),
           }}
@@ -101,7 +102,7 @@ export default function TabsLayout() {
                 >
                   Transactions
                 </Text>
-                <TabIndicator focused={focused} />
+                <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),
           }}
@@ -129,7 +130,7 @@ export default function TabsLayout() {
                 >
                   Budgets
                 </Text>
-                <TabIndicator focused={focused} />
+                <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),
           }}
@@ -157,7 +158,7 @@ export default function TabsLayout() {
                 >
                   Profile
                 </Text>
-                <TabIndicator focused={focused} />
+                <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),
           }}

@@ -11,20 +11,25 @@ import {
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useTheme } from "@/hooks/useRedux";
 import ModalCloseButton from "@/components/global/modalCloseButton";
 import type { ChangePasswordModalProps } from "@/types/profile/types";
 
 /**
- * Clean dark modal for changing the user's password.
+ * Clean modal for changing the user's password.
  * Matches the minimal, premium design system.
  */
 export default function ChangePasswordModal({
-  THEME,
+  THEME: propTheme,
   visible,
   onClose,
   onSubmit,
   saving,
 }: ChangePasswordModalProps) {
+  const { selectedTheme, THEME: reduxTheme } = useTheme();
+  const theme = propTheme || reduxTheme;
+  const ctaTextColor = selectedTheme === "Light" ? "#FFFFFF" : "#0B0B0D";
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -56,14 +61,14 @@ export default function ChangePasswordModal({
         <SafeAreaView
           style={{
             height: modalHeight,
-            backgroundColor: "#0B0B0D",
+            backgroundColor: theme.background,
             padding: 18,
             position: "relative",
             borderTopLeftRadius: MODAL_BORDER_RADIUS,
             borderTopRightRadius: MODAL_BORDER_RADIUS,
             overflow: "hidden",
             borderWidth: 1,
-            borderColor: "#1F1F23",
+            borderColor: theme.border,
           }}
         >
           <View className="relative mb-2">
@@ -73,7 +78,7 @@ export default function ChangePasswordModal({
           <View style={{ alignItems: "center", marginTop: 8 }}>
             <Text
               style={{
-                color: "#FFFFFF",
+                color: theme.textPrimary,
                 fontSize: 18,
                 fontWeight: "700",
               }}
@@ -90,7 +95,7 @@ export default function ChangePasswordModal({
             <View style={{ marginBottom: 14 }}>
               <Text
                 style={{
-                  color: "#8E8E93",
+                  color: theme.textSecondary,
                   fontSize: 13,
                   fontWeight: "500",
                   marginBottom: 6,
@@ -103,12 +108,12 @@ export default function ChangePasswordModal({
                 value={currentPassword}
                 onChangeText={setCurrentPassword}
                 placeholder="Current password"
-                placeholderTextColor="#636366"
+                placeholderTextColor={theme.placeholderText}
                 style={{
-                  backgroundColor: "#101012",
-                  borderColor: "#222226",
+                  backgroundColor: theme.inputBackground,
+                  borderColor: theme.border,
                   borderWidth: 1,
-                  color: "#FFFFFF",
+                  color: theme.textPrimary,
                   padding: 13,
                   borderRadius: 12,
                   fontSize: 15,
@@ -120,7 +125,7 @@ export default function ChangePasswordModal({
             <View style={{ marginBottom: 14 }}>
               <Text
                 style={{
-                  color: "#8E8E93",
+                  color: theme.textSecondary,
                   fontSize: 13,
                   fontWeight: "500",
                   marginBottom: 6,
@@ -133,12 +138,12 @@ export default function ChangePasswordModal({
                 value={newPassword}
                 onChangeText={setNewPassword}
                 placeholder="New password"
-                placeholderTextColor="#636366"
+                placeholderTextColor={theme.placeholderText}
                 style={{
-                  backgroundColor: "#101012",
-                  borderColor: "#222226",
+                  backgroundColor: theme.inputBackground,
+                  borderColor: theme.border,
                   borderWidth: 1,
-                  color: "#FFFFFF",
+                  color: theme.textPrimary,
                   padding: 13,
                   borderRadius: 12,
                   fontSize: 15,
@@ -150,7 +155,7 @@ export default function ChangePasswordModal({
             <View style={{ marginBottom: 18 }}>
               <Text
                 style={{
-                  color: "#8E8E93",
+                  color: theme.textSecondary,
                   fontSize: 13,
                   fontWeight: "500",
                   marginBottom: 6,
@@ -163,12 +168,12 @@ export default function ChangePasswordModal({
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 placeholder="Confirm new password"
-                placeholderTextColor="#636366"
+                placeholderTextColor={theme.placeholderText}
                 style={{
-                  backgroundColor: "#101012",
-                  borderColor: "#222226",
+                  backgroundColor: theme.inputBackground,
+                  borderColor: theme.border,
                   borderWidth: 1,
-                  color: "#FFFFFF",
+                  color: theme.textPrimary,
                   padding: 13,
                   borderRadius: 12,
                   fontSize: 15,
@@ -183,18 +188,18 @@ export default function ChangePasswordModal({
                 onPress={handleSubmit}
                 disabled={saving}
                 style={{
-                  backgroundColor: saving ? "#262629" : "#D4AF6A",
+                  backgroundColor: saving ? theme.surfaceHover : theme.primary,
                   borderRadius: 12,
                   paddingVertical: 14,
                   alignItems: "center",
                 }}
               >
                 {saving ? (
-                  <ActivityIndicator color="#0B0B0D" />
+                  <ActivityIndicator color={ctaTextColor} />
                 ) : (
                   <Text
                     style={{
-                      color: "#0B0B0D",
+                      color: ctaTextColor,
                       fontWeight: "800",
                       fontSize: 15,
                     }}

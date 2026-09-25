@@ -1,18 +1,23 @@
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/colorUtils";
 
 /**
  * Minimal, quiet empty state for the Budget screen matching the Budgee design system:
- * - Clean dark icon container
- * - Off-white title and muted subtitle
- * - Solid Budgee gold CTA button
+ * - Clean icon container with theme tint
+ * - Primary title and muted subtitle
+ * - Solid theme CTA button with high-contrast text
  */
 const EmptyBudgetState = React.memo(function EmptyBudgetState({
   onSetup,
 }: {
   onSetup?: () => void;
 }) {
+  const { selectedTheme, THEME } = useTheme();
+  const ctaTextColor = selectedTheme === "Light" ? "#FFFFFF" : "#111113";
+
   return (
     <View
       style={{
@@ -26,20 +31,20 @@ const EmptyBudgetState = React.memo(function EmptyBudgetState({
           width: 50,
           height: 50,
           borderRadius: 16,
-          backgroundColor: "#241E15",
+          backgroundColor: hexToRgba(THEME.primary, 0.15),
           borderWidth: 1,
-          borderColor: "#3D321F",
+          borderColor: hexToRgba(THEME.primary, 0.3),
           alignItems: "center",
           justifyContent: "center",
           marginBottom: 16,
         }}
       >
-        <Feather name="droplet" size={22} color="#D4AF6A" />
+        <Feather name="droplet" size={22} color={THEME.primary} />
       </View>
 
       <Text
         style={{
-          color: "#FFFFFF",
+          color: THEME.textPrimary,
           fontSize: 18,
           fontWeight: "800",
           letterSpacing: -0.3,
@@ -51,7 +56,7 @@ const EmptyBudgetState = React.memo(function EmptyBudgetState({
 
       <Text
         style={{
-          color: "#8E8E93",
+          color: THEME.textSecondary,
           fontSize: 13.5,
           lineHeight: 20,
           textAlign: "center",
@@ -67,7 +72,7 @@ const EmptyBudgetState = React.memo(function EmptyBudgetState({
           onPress={onSetup}
           activeOpacity={0.85}
           style={{
-            backgroundColor: "#E8D595",
+            backgroundColor: THEME.primary,
             paddingVertical: 12,
             paddingHorizontal: 28,
             borderRadius: 12,
@@ -76,7 +81,7 @@ const EmptyBudgetState = React.memo(function EmptyBudgetState({
         >
           <Text
             style={{
-              color: "#111111",
+              color: ctaTextColor,
               fontSize: 14.5,
               fontWeight: "700",
             }}
@@ -85,7 +90,9 @@ const EmptyBudgetState = React.memo(function EmptyBudgetState({
           </Text>
         </TouchableOpacity>
       ) : (
-        <Text style={{ color: "#8E8E93", fontSize: 13, marginTop: 12 }}>
+        <Text
+          style={{ color: THEME.textSecondary, fontSize: 13, marginTop: 12 }}
+        >
           Tap “New Budget” to get started.
         </Text>
       )}

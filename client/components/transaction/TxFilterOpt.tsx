@@ -9,7 +9,8 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { capitalizeFirst } from "@/utils/helper";
+import { capitalizeFirst, hexToRgba } from "@/utils/helper";
+import { useTheme } from "@/hooks/useRedux";
 
 interface FilterTransactionProps {
   budgets: any[];
@@ -34,14 +35,15 @@ export default function FilterTransaction({
   clearFilters,
   onCalendarPress,
 }: FilterTransactionProps) {
+  const { THEME } = useTheme();
   const [showMoreModal, setShowMoreModal] = useState(false);
 
   const selectedBudget = budgets.find((b) => b.id === filterCategoryId);
   const isBudgetSelected = Boolean(selectedBudget);
 
   const chipStyle = (active: boolean) => ({
-    backgroundColor: active ? "rgba(212, 175, 106, 0.12)" : "#161618",
-    borderColor: active ? "#D4AF6A" : "#262629",
+    backgroundColor: active ? hexToRgba(THEME.primary, 0.12) : THEME.surface,
+    borderColor: active ? THEME.primary : THEME.border,
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 16,
@@ -53,7 +55,7 @@ export default function FilterTransaction({
   });
 
   const chipTextStyle = (active: boolean) => ({
-    color: active ? "#FFFFFF" : "#8E8E93",
+    color: active ? THEME.textPrimary : THEME.textSecondary,
     fontSize: 13,
     fontWeight: (active ? "600" : "500") as "600" | "500",
   });
@@ -131,7 +133,7 @@ export default function FilterTransaction({
           <Feather
             name="chevron-down"
             size={13}
-            color={isBudgetSelected ? "#D4AF6A" : "#8E8E93"}
+            color={isBudgetSelected ? THEME.primary : THEME.textSecondary}
             style={{ marginLeft: 4 }}
           />
         </TouchableOpacity>
@@ -167,7 +169,7 @@ export default function FilterTransaction({
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 13,
               fontWeight: "500",
               marginRight: 10,
@@ -184,21 +186,21 @@ export default function FilterTransaction({
             style={{
               width: 80,
               height: 36,
-              backgroundColor: "#161618",
-              borderColor: "#262629",
+              backgroundColor: THEME.inputBackground,
+              borderColor: THEME.border,
               borderWidth: 1,
               borderRadius: 8,
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 13,
               paddingHorizontal: 10,
               paddingVertical: 0,
             }}
-            placeholderTextColor="#636366"
+            placeholderTextColor={THEME.placeholderText}
           />
 
           <Text
             style={{
-              color: "#636366",
+              color: THEME.placeholderText,
               marginHorizontal: 8,
               fontSize: 14,
             }}
@@ -214,16 +216,16 @@ export default function FilterTransaction({
             style={{
               width: 80,
               height: 36,
-              backgroundColor: "#161618",
-              borderColor: "#262629",
+              backgroundColor: THEME.inputBackground,
+              borderColor: THEME.border,
               borderWidth: 1,
               borderRadius: 8,
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 13,
               paddingHorizontal: 10,
               paddingVertical: 0,
             }}
-            placeholderTextColor="#636366"
+            placeholderTextColor={THEME.placeholderText}
           />
         </View>
 
@@ -237,14 +239,14 @@ export default function FilterTransaction({
             width: 36,
             height: 36,
             borderRadius: 8,
-            backgroundColor: "#161618",
+            backgroundColor: THEME.surface,
             borderWidth: 1,
-            borderColor: "#262629",
+            borderColor: THEME.border,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Feather name="calendar" size={16} color="#C7C7CC" />
+          <Feather name="calendar" size={16} color={THEME.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -270,10 +272,10 @@ export default function FilterTransaction({
                 style={{
                   width: "100%",
                   maxHeight: 380,
-                  backgroundColor: "#161618",
+                  backgroundColor: THEME.surface,
                   borderRadius: 18,
                   borderWidth: 1,
-                  borderColor: "#262629",
+                  borderColor: THEME.border,
                   padding: 18,
                 }}
               >
@@ -287,7 +289,7 @@ export default function FilterTransaction({
                 >
                   <Text
                     style={{
-                      color: "#FFFFFF",
+                      color: THEME.textPrimary,
                       fontSize: 16,
                       fontWeight: "700",
                     }}
@@ -298,7 +300,7 @@ export default function FilterTransaction({
                     onPress={() => setShowMoreModal(false)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Feather name="x" size={18} color="#8E8E93" />
+                    <Feather name="x" size={18} color={THEME.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
@@ -314,13 +316,15 @@ export default function FilterTransaction({
                       justifyContent: "space-between",
                       paddingVertical: 12,
                       borderBottomWidth: 1,
-                      borderBottomColor: "#222225",
+                      borderBottomColor: THEME.border,
                     }}
                   >
                     <Text
                       style={{
                         color:
-                          filterCategoryId === "all" ? "#D4AF6A" : "#FFFFFF",
+                          filterCategoryId === "all"
+                            ? THEME.primary
+                            : THEME.textPrimary,
                         fontSize: 14.5,
                         fontWeight: filterCategoryId === "all" ? "600" : "400",
                       }}
@@ -328,7 +332,7 @@ export default function FilterTransaction({
                       All Categories
                     </Text>
                     {filterCategoryId === "all" && (
-                      <Feather name="check" size={16} color="#D4AF6A" />
+                      <Feather name="check" size={16} color={THEME.primary} />
                     )}
                   </TouchableOpacity>
 
@@ -347,12 +351,12 @@ export default function FilterTransaction({
                           justifyContent: "space-between",
                           paddingVertical: 12,
                           borderBottomWidth: 1,
-                          borderBottomColor: "#222225",
+                          borderBottomColor: THEME.border,
                         }}
                       >
                         <Text
                           style={{
-                            color: active ? "#D4AF6A" : "#FFFFFF",
+                            color: active ? THEME.primary : THEME.textPrimary,
                             fontSize: 14.5,
                             fontWeight: active ? "600" : "400",
                           }}
@@ -360,7 +364,11 @@ export default function FilterTransaction({
                           {capitalizeFirst(b.category)}
                         </Text>
                         {active && (
-                          <Feather name="check" size={16} color="#D4AF6A" />
+                          <Feather
+                            name="check"
+                            size={16}
+                            color={THEME.primary}
+                          />
                         )}
                       </TouchableOpacity>
                     );

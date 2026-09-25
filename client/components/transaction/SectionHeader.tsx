@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
 
 /**
@@ -17,18 +18,20 @@ const SectionHeader = React.memo(function SectionHeader({
   total: number;
   currencyCode?: string;
 }) {
+  const { THEME } = useTheme();
+
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        backgroundColor: "#141416",
+        backgroundColor: THEME.surface,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         borderWidth: 1,
         borderBottomWidth: 0,
-        borderColor: "#212124",
+        borderColor: THEME.border,
         paddingHorizontal: 16,
         paddingTop: 16,
         paddingBottom: 12,
@@ -37,7 +40,7 @@ const SectionHeader = React.memo(function SectionHeader({
     >
       <Text
         style={{
-          color: "#FFFFFF",
+          color: THEME.textPrimary,
           fontSize: 16,
           fontWeight: "600",
           letterSpacing: -0.2,
@@ -48,13 +51,13 @@ const SectionHeader = React.memo(function SectionHeader({
       </Text>
 
       <View style={{ flexDirection: "row", alignItems: "center" }}>
-        {/* Budgee Gold Dot Indicator */}
+        {/* Primary Accent Dot Indicator */}
         <View
           style={{
             width: 6,
             height: 6,
             borderRadius: 3,
-            backgroundColor: "#D4AF6A",
+            backgroundColor: THEME.primary,
             marginRight: 8,
           }}
         />
@@ -62,7 +65,7 @@ const SectionHeader = React.memo(function SectionHeader({
         {/* Total Spend */}
         <Text
           style={{
-            color: "#FFFFFF",
+            color: THEME.textPrimary,
             fontSize: 15,
             fontWeight: "700",
           }}
@@ -74,7 +77,7 @@ const SectionHeader = React.memo(function SectionHeader({
         <Feather
           name="chevron-down"
           size={16}
-          color="#8E8E93"
+          color={THEME.textSecondary}
           style={{ marginLeft: 6 }}
         />
       </View>

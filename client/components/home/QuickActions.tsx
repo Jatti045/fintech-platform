@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import DashboardCard from "./DashboardCard";
 
 type Props = {
@@ -13,10 +14,13 @@ type Props = {
  * Quick Actions section:
  * QUICK ACTIONS
  * 2 actions filling available width side-by-side:
- * - New Transaction (amber/gold accent)
- * - New Budget (indigo/purple accent)
+ * - New Transaction (primary accent)
+ * - New Budget (secondary accent)
  */
 export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
+  const { THEME, selectedTheme } = useTheme();
+  const iconColor = selectedTheme === "Light" ? "#FFFFFF" : "#111113";
+
   return (
     <View style={{ marginBottom: 20 }}>
       {/* Test-accessible hidden fallback */}
@@ -30,7 +34,7 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
       {/* Section Header */}
       <Text
         style={{
-          color: "#8E8E93",
+          color: THEME.textSecondary,
           fontSize: 12,
           fontWeight: "700",
           letterSpacing: 0.8,
@@ -61,17 +65,17 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                backgroundColor: "#E8D595",
+                backgroundColor: THEME.primary,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Feather name="plus" size={18} color="#161618" />
+              <Feather name="plus" size={18} color={iconColor} />
             </View>
 
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.textPrimary,
                 fontSize: 13,
                 fontWeight: "600",
                 lineHeight: 17,
@@ -102,17 +106,17 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                backgroundColor: "#5B51D8",
+                backgroundColor: THEME.secondary,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="disc-outline" size={18} color="#FFFFFF" />
+              <Ionicons name="disc-outline" size={18} color={iconColor} />
             </View>
 
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.textPrimary,
                 fontSize: 13,
                 fontWeight: "600",
                 lineHeight: 17,

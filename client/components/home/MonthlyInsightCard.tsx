@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useLazyGetMonthlyInsightQuery } from "@/store/api/apiSlice";
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/helper";
 import DashboardCard from "./DashboardCard";
 
 type Props = {
@@ -17,13 +19,14 @@ const GENERATION_ERROR =
 /**
  * "✨ Explain my month" feature panel.
  * Matches the reference design:
- * - Subtle dark surface with muted olive corner tint
- * - Gold/warm icon badge with sparkles
+ * - Subtle surface with muted corner tint
+ * - Primary/warm icon badge with sparkles
  * - Two-line description
- * - Pale champagne gold circular action button with right arrow
+ * - Primary circular action button with right arrow
  * - Clean expand/collapse for AI summary & highlights
  */
 export default function MonthlyInsightCard({ month, year }: Props) {
+  const { THEME, selectedTheme } = useTheme();
   const [fetchInsight, { data, isLoading, isFetching, error }] =
     useLazyGetMonthlyInsightQuery();
   const [collapsed, setCollapsed] = useState(false);
@@ -37,17 +40,17 @@ export default function MonthlyInsightCard({ month, year }: Props) {
   const showResult = Boolean(data?.summary) && !collapsed;
   const showError = Boolean(error) && !showResult;
 
+  const actionIconColor = selectedTheme === "Light" ? "#FFFFFF" : "#111113";
+
   return (
     <DashboardCard
       radius={20}
       padding={16}
       style={{
         marginBottom: 16,
-        backgroundColor: "#161618",
-        borderColor: "#232326",
       }}
     >
-      {/* Subtle organic green tint in the background corner */}
+      {/* Subtle organic tint in the background corner */}
       <View
         pointerEvents="none"
         style={{
@@ -57,7 +60,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
           width: 140,
           height: 100,
           borderRadius: 50,
-          backgroundColor: "#16281e",
+          backgroundColor: hexToRgba(THEME.success, 0.1),
           opacity: 0.45,
         }}
       />
@@ -80,13 +83,13 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               width: 42,
               height: 42,
               borderRadius: 12,
-              backgroundColor: "#24231b",
+              backgroundColor: hexToRgba(THEME.primary, 0.15),
               alignItems: "center",
               justifyContent: "center",
             }}
           >
             {showLoading ? (
-              <ActivityIndicator size="small" color="#D4AF6A" />
+              <ActivityIndicator size="small" color={THEME.primary} />
             ) : (
               <Text style={{ fontSize: 18 }}>✨</Text>
             )}
@@ -96,7 +99,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
           <View style={{ flex: 1, paddingHorizontal: 12 }}>
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.textPrimary,
                 fontSize: 15,
                 fontWeight: "700",
                 letterSpacing: -0.2,
@@ -108,7 +111,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
             </Text>
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 12,
                 lineHeight: 16.5,
                 marginTop: 2,
@@ -124,12 +127,12 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               width: 36,
               height: 36,
               borderRadius: 18,
-              backgroundColor: "#E8D595",
+              backgroundColor: THEME.primary,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Feather name="arrow-right" size={17} color="#161618" />
+            <Feather name="arrow-right" size={17} color={actionIconColor} />
           </View>
         </TouchableOpacity>
       ) : (
@@ -147,7 +150,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               <Text style={{ fontSize: 16, marginRight: 8 }}>✨</Text>
               <Text
                 style={{
-                  color: "#FFFFFF",
+                  color: THEME.textPrimary,
                   fontSize: 15,
                   fontWeight: "700",
                 }}
@@ -162,13 +165,17 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               accessibilityLabel="Close explanation"
               style={{ padding: 4 }}
             >
-              <Feather name="chevron-up" size={16} color="#8E8E93" />
+              <Feather
+                name="chevron-up"
+                size={16}
+                color={THEME.textSecondary}
+              />
             </TouchableOpacity>
           </View>
 
           <Text
             style={{
-              color: "#F4F4F5",
+              color: THEME.textPrimary,
               fontSize: 13.5,
               lineHeight: 20,
             }}
@@ -188,7 +195,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
                 >
                   <Text
                     style={{
-                      color: "#4ADE80",
+                      color: THEME.success,
                       fontSize: 13,
                       lineHeight: 19,
                       marginRight: 8,
@@ -198,7 +205,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
                   </Text>
                   <Text
                     style={{
-                      color: "#A1A1AA",
+                      color: THEME.textSecondary,
                       fontSize: 12.5,
                       lineHeight: 18,
                       flex: 1,
@@ -221,16 +228,16 @@ export default function MonthlyInsightCard({ month, year }: Props) {
             marginTop: 10,
             paddingTop: 8,
             borderTopWidth: 1,
-            borderTopColor: "#262629",
+            borderTopColor: THEME.border,
           }}
         >
           <Feather
             name="alert-circle"
             size={13}
-            color="#8E8E93"
+            color={THEME.textSecondary}
             style={{ marginRight: 6 }}
           />
-          <Text style={{ color: "#8E8E93", fontSize: 11, flex: 1 }}>
+          <Text style={{ color: THEME.textSecondary, fontSize: 11, flex: 1 }}>
             {GENERATION_ERROR}
           </Text>
           <TouchableOpacity
@@ -238,7 +245,9 @@ export default function MonthlyInsightCard({ month, year }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Try again"
           >
-            <Text style={{ color: "#D4AF6A", fontSize: 12, fontWeight: "700" }}>
+            <Text
+              style={{ color: THEME.primary, fontSize: 12, fontWeight: "700" }}
+            >
               Try again
             </Text>
           </TouchableOpacity>

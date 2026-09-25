@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { useTheme } from "@/hooks/useRedux";
 import { getCurrencyByCode, DEFAULT_CURRENCY } from "@/constants/Currencies";
 import type { CurrencySelectorProps } from "@/types/profile/types";
 
@@ -13,6 +14,7 @@ export default function CurrencySelector({
   userCurrency,
   onPress,
 }: CurrencySelectorProps) {
+  const { THEME } = useTheme();
   const code = userCurrency || DEFAULT_CURRENCY;
   const currency = getCurrencyByCode(code);
 
@@ -29,9 +31,9 @@ export default function CurrencySelector({
           width: 38,
           height: 38,
           borderRadius: 12,
-          backgroundColor: "#1A1A1D",
+          backgroundColor: THEME.surfaceHover,
           borderWidth: 1,
-          borderColor: "#26262A",
+          borderColor: THEME.border,
           alignItems: "center",
           justifyContent: "center",
           marginRight: 12,
@@ -43,7 +45,7 @@ export default function CurrencySelector({
       <View style={{ flex: 1 }}>
         <Text
           style={{
-            color: "#FFFFFF",
+            color: THEME.textPrimary,
             fontSize: 15,
             fontWeight: "700",
           }}
@@ -52,7 +54,7 @@ export default function CurrencySelector({
         </Text>
         <Text
           style={{
-            color: "#8E8E93",
+            color: THEME.textSecondary,
             fontSize: 12,
             marginTop: 2,
           }}
@@ -61,7 +63,7 @@ export default function CurrencySelector({
         </Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color="#636366" />
+      <Ionicons name="chevron-forward" size={18} color={THEME.textSecondary} />
     </TouchableOpacity>
   );
 }

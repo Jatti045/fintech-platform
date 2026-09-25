@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useFinancialSummary } from "@/hooks/useRedux";
+import { useFinancialSummary, useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
 import BudgetHalo from "./BudgetHalo";
@@ -61,12 +61,13 @@ export default function BudgetContent({
 }: BudgetContentProps) {
   const [showAllCategories, setShowAllCategories] = useState(false);
   const financialSummary = useFinancialSummary();
+  const { THEME } = useTheme();
   const isSearching = searchQuery.trim().length > 0;
 
   if (isInitialLoading) {
     return (
       <View style={{ paddingVertical: 80, alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#D4AF6A" />
+        <ActivityIndicator size="large" color={THEME.primary} />
       </View>
     );
   }
@@ -78,7 +79,7 @@ export default function BudgetContent({
   if (filteredBudgets.length === 0) {
     return (
       <View style={{ paddingVertical: 48, alignItems: "center" }}>
-        <Text style={{ color: "#8E8E93", fontSize: 14 }}>
+        <Text style={{ color: THEME.textSecondary, fontSize: 14 }}>
           No budgets match “{searchQuery}”
         </Text>
       </View>
@@ -144,13 +145,13 @@ export default function BudgetContent({
               width: 18,
               height: 3,
               borderRadius: 1.5,
-              backgroundColor: "#D4AF6A",
+              backgroundColor: THEME.primary,
               marginRight: 8,
             }}
           />
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 14.5,
               fontWeight: "700",
               letterSpacing: 0.5,
@@ -161,9 +162,9 @@ export default function BudgetContent({
           </Text>
         </View>
 
-        <Text style={{ color: "#8E8E93", fontSize: 13 }}>
+        <Text style={{ color: THEME.textSecondary, fontSize: 13 }}>
           Total spent{" "}
-          <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>
+          <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>
             {formatCurrency(totalSpent, activeCurrency)}
           </Text>
         </Text>
@@ -172,10 +173,10 @@ export default function BudgetContent({
       {/* ── Unified Categories List Container ───────────────────────────── */}
       <View
         style={{
-          backgroundColor: "#141416",
+          backgroundColor: THEME.surface,
           borderRadius: 20,
           borderWidth: 1,
-          borderColor: "#212124",
+          borderColor: THEME.border,
           overflow: "hidden",
           marginBottom: 14,
         }}
@@ -213,19 +214,19 @@ export default function BudgetContent({
               paddingHorizontal: 16,
               paddingVertical: 14,
               borderTopWidth: 1,
-              borderTopColor: "#1F1F24",
+              borderTopColor: THEME.border,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Feather
                 name="list"
                 size={16}
-                color="#8E8E93"
+                color={THEME.textSecondary}
                 style={{ marginRight: 10 }}
               />
               <Text
                 style={{
-                  color: "#8E8E93",
+                  color: THEME.textSecondary,
                   fontSize: 13.5,
                   fontWeight: "500",
                 }}
@@ -239,7 +240,7 @@ export default function BudgetContent({
             <Feather
               name={showAllCategories ? "chevron-up" : "chevron-right"}
               size={14}
-              color="#8E8E93"
+              color={THEME.textSecondary}
             />
           </TouchableOpacity>
         )}

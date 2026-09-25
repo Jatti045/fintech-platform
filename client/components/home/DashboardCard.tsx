@@ -1,5 +1,6 @@
 import React from "react";
 import { View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { useTheme } from "@/hooks/useRedux";
 
 export interface DashboardCardProps {
   children: React.ReactNode;
@@ -11,8 +12,8 @@ export interface DashboardCardProps {
 }
 
 /**
- * Minimal, premium dark surface container.
- * Replaces glassmorphism with a tactile, restrained, physical dark surface.
+ * Minimal, premium surface container.
+ * Dynamically binds to the active theme's surface and border tokens.
  */
 export default function DashboardCard({
   children,
@@ -22,11 +23,15 @@ export default function DashboardCard({
   paddingHorizontal,
   paddingVertical,
 }: DashboardCardProps) {
+  const { THEME } = useTheme();
+
   return (
     <View
       style={[
         styles.card,
         {
+          backgroundColor: THEME.surface,
+          borderColor: THEME.border,
           borderRadius: radius,
           padding: padding !== undefined ? padding : undefined,
           paddingHorizontal:
@@ -44,9 +49,7 @@ export default function DashboardCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#161618",
     borderWidth: 1,
-    borderColor: "#232326",
     overflow: "hidden",
   },
 });

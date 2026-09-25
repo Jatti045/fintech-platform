@@ -57,7 +57,7 @@ export default function BudgetScreen() {
     <SafeAreaView
       edges={["top", "left", "right"]}
       className="flex-1"
-      style={{ backgroundColor: "#0B0B0D" }}
+      style={{ backgroundColor: THEME.background }}
     >
       <BudgetHeader
         monthLabel={monthLabel}

@@ -61,7 +61,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      style={{ flex: 1, backgroundColor: "#0B0B0D" }}
+      style={{ flex: 1, backgroundColor: THEME.background }}
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -74,9 +74,9 @@ export default function ProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            progressBackgroundColor="#141416"
-            colors={["#D4AF6A"]}
-            tintColor="#D4AF6A"
+            progressBackgroundColor={THEME.surface}
+            colors={[THEME.primary]}
+            tintColor={THEME.primary}
           />
         }
       >
@@ -84,7 +84,7 @@ export default function ProfileScreen() {
         <View style={{ paddingTop: 8, marginBottom: 16 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 28,
               fontWeight: "800",
               letterSpacing: -0.5,
@@ -94,7 +94,7 @@ export default function ProfileScreen() {
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 13.5,
               fontWeight: "400",
               marginTop: 2,
@@ -133,10 +133,10 @@ export default function ProfileScreen() {
         />
         <View
           style={{
-            backgroundColor: "#141416",
+            backgroundColor: THEME.surface,
             borderRadius: 20,
             borderWidth: 1,
-            borderColor: "#1F1F23",
+            borderColor: THEME.border,
             padding: 16,
             marginBottom: 8,
           }}
@@ -150,7 +150,7 @@ export default function ProfileScreen() {
           <View
             style={{
               height: 1,
-              backgroundColor: "#1F1F23",
+              backgroundColor: THEME.border,
               marginVertical: 14,
             }}
           />

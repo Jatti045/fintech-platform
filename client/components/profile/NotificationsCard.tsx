@@ -2,6 +2,9 @@ import React from "react";
 import { View, Text, Switch, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/colorUtils";
+
 interface NotificationsCardProps {
   purchaseRemindersEnabled: boolean;
   billRemindersEnabled: boolean;
@@ -26,13 +29,15 @@ export default function NotificationsCard({
   onToggleBillReminders,
   onOpenSettings,
 }: NotificationsCardProps) {
+  const { THEME } = useTheme();
+
   return (
     <View
       style={{
-        backgroundColor: "#141416",
+        backgroundColor: THEME.surface,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#1F1F23",
+        borderColor: THEME.border,
         padding: 16,
         marginBottom: 8,
       }}
@@ -44,21 +49,21 @@ export default function NotificationsCard({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: "rgba(212, 175, 106, 0.12)",
+            backgroundColor: hexToRgba(THEME.primary, 0.12),
             borderWidth: 1,
-            borderColor: "rgba(212, 175, 106, 0.25)",
+            borderColor: hexToRgba(THEME.primary, 0.25),
             alignItems: "center",
             justifyContent: "center",
             marginRight: 12,
           }}
         >
-          <Feather name="bell" size={17} color="#D4AF6A" />
+          <Feather name="bell" size={17} color={THEME.primary} />
         </View>
 
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 15,
               fontWeight: "700",
             }}
@@ -67,7 +72,7 @@ export default function NotificationsCard({
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               marginTop: 2,
               lineHeight: 16,
@@ -85,7 +90,7 @@ export default function NotificationsCard({
           }
           disabled={notificationPermissionDenied}
           onValueChange={onTogglePurchaseReminders}
-          trackColor={{ false: "#262629", true: "#D4AF6A" }}
+          trackColor={{ false: THEME.border, true: THEME.primary }}
           thumbColor="#FFFFFF"
         />
       </View>
@@ -94,7 +99,7 @@ export default function NotificationsCard({
       <View
         style={{
           height: 1,
-          backgroundColor: "#1F1F23",
+          backgroundColor: THEME.border,
           marginVertical: 14,
         }}
       />
@@ -106,21 +111,21 @@ export default function NotificationsCard({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: "rgba(212, 175, 106, 0.12)",
+            backgroundColor: hexToRgba(THEME.primary, 0.12),
             borderWidth: 1,
-            borderColor: "rgba(212, 175, 106, 0.25)",
+            borderColor: hexToRgba(THEME.primary, 0.25),
             alignItems: "center",
             justifyContent: "center",
             marginRight: 12,
           }}
         >
-          <Feather name="calendar" size={17} color="#D4AF6A" />
+          <Feather name="calendar" size={17} color={THEME.primary} />
         </View>
 
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 15,
               fontWeight: "700",
             }}
@@ -129,7 +134,7 @@ export default function NotificationsCard({
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               marginTop: 2,
               lineHeight: 16,
@@ -145,7 +150,7 @@ export default function NotificationsCard({
           value={notificationPermissionDenied ? false : billRemindersEnabled}
           disabled={notificationPermissionDenied}
           onValueChange={onToggleBillReminders}
-          trackColor={{ false: "#262629", true: "#D4AF6A" }}
+          trackColor={{ false: THEME.border, true: THEME.primary }}
           thumbColor="#FFFFFF"
         />
       </View>
@@ -163,18 +168,18 @@ export default function NotificationsCard({
           justifyContent: "center",
           paddingVertical: 11,
           borderRadius: 12,
-          backgroundColor: "#1A1A1E",
+          backgroundColor: THEME.surfaceHover,
           borderWidth: 1,
-          borderColor: "#26262A",
+          borderColor: THEME.border,
         }}
       >
         <Feather
           name="settings"
           size={14}
-          color="#D4AF6A"
+          color={THEME.primary}
           style={{ marginRight: 8 }}
         />
-        <Text style={{ color: "#D4AF6A", fontWeight: "700", fontSize: 13 }}>
+        <Text style={{ color: THEME.primary, fontWeight: "700", fontSize: 13 }}>
           Open Settings
         </Text>
       </TouchableOpacity>

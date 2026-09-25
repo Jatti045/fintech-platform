@@ -64,7 +64,7 @@ export default function TransactionScreen() {
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      style={{ backgroundColor: "#0B0B0D", flex: 1 }}
+      style={{ backgroundColor: THEME.background, flex: 1 }}
       className="px-4"
     >
       <TransactionHeader

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import type { IRecurringPayment } from "@/types/recurring/types";
 import DashboardCard from "./DashboardCard";
 
@@ -42,6 +43,7 @@ export default function UpcomingBillsCard({
   onDismiss,
   onSeeAll,
 }: UpcomingBillsCardProps) {
+  const { THEME } = useTheme();
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   if (!bills || bills.length === 0) {
@@ -63,7 +65,7 @@ export default function UpcomingBillsCard({
       >
         <Text
           style={{
-            color: "#8E8E93",
+            color: THEME.textSecondary,
             fontSize: 12,
             fontWeight: "700",
             letterSpacing: 0.8,
@@ -82,7 +84,7 @@ export default function UpcomingBillsCard({
           >
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 12,
                 fontWeight: "500",
               }}
@@ -93,7 +95,7 @@ export default function UpcomingBillsCard({
         ) : (
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               fontWeight: "500",
             }}
@@ -129,7 +131,7 @@ export default function UpcomingBillsCard({
                 style={{
                   minHeight: 112,
                   justifyContent: "space-between",
-                  borderColor: isExpanded ? "#34D399" : "#232326",
+                  borderColor: isExpanded ? THEME.primary : THEME.border,
                 }}
               >
                 {/* Accessible test-friendly metadata element */}
@@ -154,7 +156,7 @@ export default function UpcomingBillsCard({
                 <View>
                   <Text
                     style={{
-                      color: "#FFFFFF",
+                      color: THEME.textPrimary,
                       fontSize: 13.5,
                       fontWeight: "600",
                     }}
@@ -164,7 +166,7 @@ export default function UpcomingBillsCard({
                   </Text>
                   <Text
                     style={{
-                      color: "#8E8E93",
+                      color: THEME.textSecondary,
                       fontSize: 11.5,
                       fontWeight: "400",
                       marginTop: 3,
@@ -178,7 +180,7 @@ export default function UpcomingBillsCard({
                 <View style={{ marginTop: 10 }}>
                   <Text
                     style={{
-                      color: "#FFFFFF",
+                      color: THEME.textPrimary,
                       fontSize: 15.5,
                       fontWeight: "700",
                       letterSpacing: -0.3,
@@ -201,8 +203,8 @@ export default function UpcomingBillsCard({
           padding={14}
           style={{
             marginTop: 10,
-            borderColor: "#28282C",
-            backgroundColor: "#131315",
+            borderColor: THEME.border,
+            backgroundColor: THEME.surfaceHover,
           }}
         >
           <View
@@ -217,21 +219,25 @@ export default function UpcomingBillsCard({
               style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
             >
               <Text
-                style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}
+                style={{
+                  color: THEME.textPrimary,
+                  fontSize: 13,
+                  fontWeight: "700",
+                }}
               >
                 {expandedBill.name}
               </Text>
               {expandedBill.confidence === "MEDIUM" && (
                 <Text
                   style={{
-                    color: "#A1A1AA",
+                    color: THEME.textSecondary,
                     fontSize: 9,
                     fontWeight: "800",
                     letterSpacing: 0.5,
                     paddingHorizontal: 5,
                     paddingVertical: 1,
                     borderRadius: 4,
-                    backgroundColor: "#27272A",
+                    backgroundColor: THEME.inputBackground,
                   }}
                 >
                   LOW CERTAINTY
@@ -244,13 +250,13 @@ export default function UpcomingBillsCard({
               accessibilityRole="button"
               accessibilityLabel="Close bill details"
             >
-              <Feather name="x" size={14} color="#8E8E93" />
+              <Feather name="x" size={14} color={THEME.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 11.5,
               lineHeight: 16,
               marginBottom: 6,
@@ -263,7 +269,9 @@ export default function UpcomingBillsCard({
           </Text>
 
           {expandedBill.amountChange && (
-            <Text style={{ color: "#E0A458", fontSize: 11, marginBottom: 6 }}>
+            <Text
+              style={{ color: THEME.warning, fontSize: 11, marginBottom: 6 }}
+            >
               was {expandedBill.amountChange.previousAmount.toFixed(2)}
             </Text>
           )}
@@ -283,8 +291,8 @@ export default function UpcomingBillsCard({
               gap: 4,
             }}
           >
-            <Feather name="trash-2" size={12} color="#8E8E93" />
-            <Text style={{ color: "#8E8E93", fontSize: 11 }}>
+            <Feather name="trash-2" size={12} color={THEME.textSecondary} />
+            <Text style={{ color: THEME.textSecondary, fontSize: 11 }}>
               Not a recurring bill
             </Text>
           </TouchableOpacity>

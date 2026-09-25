@@ -1,7 +1,9 @@
 import React, { useMemo } from "react";
 import { Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
+import { hexToRgba } from "@/utils/colorUtils";
 import { safeAmount } from "@/utils/transaction/helpers";
 import RingGauge, { type RingSegmentSpec } from "@/components/global/RingGauge";
 
@@ -32,6 +34,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
   year,
   currencyCode,
 }: BudgetHaloProps) {
+  const { THEME } = useTheme();
   const displayYear = year ?? new Date().getFullYear();
   const formattedHeaderMonth = monthLabel.includes(String(displayYear))
     ? monthLabel.toUpperCase()
@@ -81,7 +84,13 @@ const BudgetHalo = React.memo(function BudgetHalo({
 
   const segments: RingSegmentSpec[] = useMemo(() => {
     if (stats.totalSpent <= 0) return [];
-    const colors = ["#60A5FA", "#34D399", "#E5C468", "#F87171", "#A78BFA"];
+    const colors = [
+      THEME.chart1,
+      THEME.chart2,
+      THEME.chart3,
+      THEME.chart4,
+      THEME.primary,
+    ];
     let colorIdx = 0;
 
     return budgets
@@ -93,17 +102,17 @@ const BudgetHalo = React.memo(function BudgetHalo({
         colorIdx++;
         return { fraction, color };
       });
-  }, [budgets, stats.totalSpent]);
+  }, [budgets, stats.totalSpent, THEME]);
 
   const overspent = stats.totalSpent > stats.totalLimit && stats.totalLimit > 0;
 
   return (
     <View
       style={{
-        backgroundColor: "#121214",
+        backgroundColor: THEME.surface,
         borderRadius: 24,
         borderWidth: 1,
-        borderColor: "#1F1F23",
+        borderColor: THEME.border,
         padding: 18,
         marginBottom: 14,
       }}
@@ -123,17 +132,17 @@ const BudgetHalo = React.memo(function BudgetHalo({
               width: 26,
               height: 26,
               borderRadius: 8,
-              backgroundColor: "#241E15",
+              backgroundColor: hexToRgba(THEME.primary, 0.15),
               alignItems: "center",
               justifyContent: "center",
               marginRight: 8,
             }}
           >
-            <Feather name="droplet" size={13} color="#D4AF6A" />
+            <Feather name="droplet" size={13} color={THEME.primary} />
           </View>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 12.5,
               fontWeight: "700",
               letterSpacing: 0.8,
@@ -149,11 +158,17 @@ const BudgetHalo = React.memo(function BudgetHalo({
               width: 6,
               height: 6,
               borderRadius: 3,
-              backgroundColor: "#34D399",
+              backgroundColor: THEME.success,
               marginRight: 6,
             }}
           />
-          <Text style={{ color: "#8E8E93", fontSize: 12.5, fontWeight: "500" }}>
+          <Text
+            style={{
+              color: THEME.textSecondary,
+              fontSize: 12.5,
+              fontWeight: "500",
+            }}
+          >
             {stats.budgetCount} categories
           </Text>
         </View>
@@ -173,15 +188,15 @@ const BudgetHalo = React.memo(function BudgetHalo({
             size={142}
             strokeWidth={10}
             progress={stats.utilization}
-            color="#34D399"
+            color={THEME.success}
             segments={segments}
             segmentsStrokeWidth={7}
-            trackColor="#202024"
+            trackColor={THEME.surfaceHover}
           >
             <View style={{ alignItems: "center", justifyContent: "center" }}>
               <Text
                 style={{
-                  color: "#8E8E93",
+                  color: THEME.textSecondary,
                   fontSize: 10,
                   fontWeight: "700",
                   letterSpacing: 0.8,
@@ -192,7 +207,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
               </Text>
               <Text
                 style={{
-                  color: "#FFFFFF",
+                  color: THEME.textPrimary,
                   fontSize: 20,
                   fontWeight: "800",
                   letterSpacing: -0.5,
@@ -204,7 +219,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
               </Text>
               <Text
                 style={{
-                  color: overspent ? "#F87171" : "#34D399",
+                  color: overspent ? THEME.danger : THEME.success,
                   fontSize: 12,
                   fontWeight: "600",
                   marginTop: 2,
@@ -223,7 +238,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
         <View style={{ flex: 1, paddingLeft: 20 }}>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 11,
               fontWeight: "700",
               letterSpacing: 0.6,
@@ -240,7 +255,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
           >
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.textPrimary,
                 fontSize: 24,
                 fontWeight: "800",
                 letterSpacing: -0.5,
@@ -250,7 +265,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
             </Text>
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 18,
                 fontWeight: "600",
                 marginHorizontal: 4,
@@ -260,7 +275,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
             </Text>
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.textPrimary,
                 fontSize: 20,
                 fontWeight: "700",
               }}
@@ -270,7 +285,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
           </View>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               marginTop: 2,
               marginBottom: 12,
@@ -281,14 +296,18 @@ const BudgetHalo = React.memo(function BudgetHalo({
 
           {/* Status Breakdown items */}
           <View style={{ gap: 6 }}>
-            <StatusRow color="#34D399" label="On track" count={stats.onTrack} />
             <StatusRow
-              color="#F59E0B"
+              color={THEME.success}
+              label="On track"
+              count={stats.onTrack}
+            />
+            <StatusRow
+              color={THEME.warning}
               label="Near limit"
               count={stats.nearLimit}
             />
             <StatusRow
-              color="#F87171"
+              color={THEME.danger}
               label="Over limit"
               count={stats.overLimit}
             />
@@ -316,6 +335,7 @@ function StatusRow({
   label: string;
   count: number;
 }) {
+  const { THEME } = useTheme();
   return (
     <View
       style={{
@@ -334,11 +354,19 @@ function StatusRow({
             marginRight: 8,
           }}
         />
-        <Text style={{ color: "#8E8E93", fontSize: 12.5, fontWeight: "500" }}>
+        <Text
+          style={{
+            color: THEME.textSecondary,
+            fontSize: 12.5,
+            fontWeight: "500",
+          }}
+        >
           {label}
         </Text>
       </View>
-      <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "600" }}>
+      <Text
+        style={{ color: THEME.textPrimary, fontSize: 13, fontWeight: "600" }}
+      >
         {count}
       </Text>
     </View>

@@ -2,7 +2,9 @@ import React from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { formatDate, hexToRgba } from "@/utils/helper";
+import { useTheme } from "@/hooks/useRedux";
+import { formatDate } from "@/utils/helper";
+import { hexToRgba } from "@/utils/colorUtils";
 import { formatRelativeTime } from "@/utils/plaidTime";
 import { usePlaidHealth } from "@/hooks/plaid/usePlaidHealth";
 import type { BankConnectionsProps } from "@/types/profile/types";
@@ -10,12 +12,12 @@ import type { IPlaidItem } from "@/types/plaid/types";
 
 /**
  * Bank Connections — card matching the approved mockup:
- * First row: Gold bank icon, "Bank Connections", "Auto-sync your transactions securely", chevron.
+ * First row: Theme bank icon, "Bank Connections", "Auto-sync your transactions securely", chevron.
  * Divider.
  * Second row: Connected bank item with subtle red "Disconnect" button.
  */
 export default function BankConnections({
-  THEME,
+  THEME: propTheme,
   linking,
   onLinkBank,
   items,
@@ -23,6 +25,8 @@ export default function BankConnections({
   disconnectingId,
   onDisconnect,
 }: BankConnectionsProps) {
+  const { THEME: reduxTheme } = useTheme();
+  const theme = propTheme || reduxTheme;
   const displayName = (name: string | null) => name || "Bank account";
   const { reauthingItemId, syncingItemIds, openReauth, retrySync } =
     usePlaidHealth();
@@ -38,8 +42,8 @@ export default function BankConnections({
         accessibilityRole="button"
         accessibilityLabel={`Reconnect ${name}`}
         style={{
-          backgroundColor: "rgba(248, 113, 113, 0.12)",
-          borderColor: "rgba(248, 113, 113, 0.35)",
+          backgroundColor: hexToRgba(theme.danger, 0.12),
+          borderColor: hexToRgba(theme.danger, 0.35),
           borderWidth: 1,
           borderRadius: 10,
           paddingHorizontal: 10,
@@ -49,10 +53,10 @@ export default function BankConnections({
           alignItems: "center",
         }}
       >
-        <Ionicons name="alert-circle" size={15} color="#F87171" />
+        <Ionicons name="alert-circle" size={15} color={theme.danger} />
         <Text
           style={{
-            color: "#F87171",
+            color: theme.danger,
             fontSize: 12,
             fontWeight: "700",
             marginLeft: 6,
@@ -62,9 +66,11 @@ export default function BankConnections({
           {name} needs re-authentication — tap to reconnect
         </Text>
         {isReauthing ? (
-          <ActivityIndicator size="small" color="#F87171" />
+          <ActivityIndicator size="small" color={theme.danger} />
         ) : (
-          <Text style={{ color: "#F87171", fontSize: 12, fontWeight: "800" }}>
+          <Text
+            style={{ color: theme.danger, fontSize: 12, fontWeight: "800" }}
+          >
             Reconnect
           </Text>
         )}
@@ -83,8 +89,8 @@ export default function BankConnections({
         accessibilityRole="button"
         accessibilityLabel={`Refresh sync for ${name}`}
         style={{
-          backgroundColor: "rgba(212, 175, 106, 0.1)",
-          borderColor: "rgba(212, 175, 106, 0.3)",
+          backgroundColor: hexToRgba(theme.primary, 0.1),
+          borderColor: hexToRgba(theme.primary, 0.3),
           borderWidth: 1,
           borderRadius: 10,
           paddingHorizontal: 10,
@@ -94,10 +100,10 @@ export default function BankConnections({
           alignItems: "center",
         }}
       >
-        <Ionicons name="refresh" size={15} color="#D4AF6A" />
+        <Ionicons name="refresh" size={15} color={theme.primary} />
         <Text
           style={{
-            color: "#D4AF6A",
+            color: theme.primary,
             fontSize: 12,
             fontWeight: "700",
             marginLeft: 6,
@@ -107,9 +113,11 @@ export default function BankConnections({
           Trouble syncing {name} transactions — tap to refresh
         </Text>
         {isSyncing ? (
-          <ActivityIndicator size="small" color="#D4AF6A" />
+          <ActivityIndicator size="small" color={theme.primary} />
         ) : (
-          <Text style={{ color: "#D4AF6A", fontSize: 12, fontWeight: "800" }}>
+          <Text
+            style={{ color: theme.primary, fontSize: 12, fontWeight: "800" }}
+          >
             Refresh
           </Text>
         )}
@@ -120,10 +128,10 @@ export default function BankConnections({
   return (
     <View
       style={{
-        backgroundColor: "#141416",
+        backgroundColor: theme.surface,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#1F1F23",
+        borderColor: theme.border,
         padding: 16,
         marginBottom: 8,
       }}
@@ -142,36 +150,42 @@ export default function BankConnections({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: "rgba(212, 175, 106, 0.12)",
+            backgroundColor: hexToRgba(theme.primary, 0.12),
             borderWidth: 1,
-            borderColor: "rgba(212, 175, 106, 0.25)",
+            borderColor: hexToRgba(theme.primary, 0.25),
             alignItems: "center",
             justifyContent: "center",
             marginRight: 12,
           }}
         >
-          <Ionicons name="business" size={18} color="#D4AF6A" />
+          <Ionicons name="business" size={18} color={theme.primary} />
         </View>
 
         <View style={{ flex: 1 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: theme.textPrimary,
               fontSize: 15,
               fontWeight: "700",
             }}
           >
             Bank Connections
           </Text>
-          <Text style={{ color: "#8E8E93", fontSize: 12, marginTop: 2 }}>
+          <Text
+            style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}
+          >
             Auto-sync your transactions securely
           </Text>
         </View>
 
         {linking ? (
-          <ActivityIndicator size="small" color="#D4AF6A" />
+          <ActivityIndicator size="small" color={theme.primary} />
         ) : (
-          <Ionicons name="chevron-forward" size={18} color="#636366" />
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={theme.textSecondary}
+          />
         )}
       </TouchableOpacity>
 
@@ -182,12 +196,12 @@ export default function BankConnections({
             marginTop: 12,
             paddingTop: 12,
             borderTopWidth: 1,
-            borderTopColor: "#1F1F23",
+            borderTopColor: theme.border,
           }}
         >
           <ActivityIndicator
             size="small"
-            color="#D4AF6A"
+            color={theme.primary}
             style={{ paddingVertical: 6 }}
           />
         </View>
@@ -197,7 +211,7 @@ export default function BankConnections({
             marginTop: 14,
             paddingTop: 12,
             borderTopWidth: 1,
-            borderTopColor: "#1F1F23",
+            borderTopColor: theme.border,
           }}
         >
           {items.map((item, index) => {
@@ -210,7 +224,7 @@ export default function BankConnections({
                   marginTop: index > 0 ? 10 : 0,
                   paddingTop: index > 0 ? 10 : 0,
                   borderTopWidth: index > 0 ? 1 : 0,
-                  borderTopColor: "#1F1F23",
+                  borderTopColor: theme.border,
                 }}
               >
                 <View
@@ -224,20 +238,20 @@ export default function BankConnections({
                       width: 34,
                       height: 34,
                       borderRadius: 10,
-                      backgroundColor: "rgba(212, 175, 106, 0.1)",
+                      backgroundColor: hexToRgba(theme.primary, 0.1),
                       alignItems: "center",
                       justifyContent: "center",
                       marginRight: 10,
                     }}
                   >
-                    <Ionicons name="business" size={16} color="#D4AF6A" />
+                    <Ionicons name="business" size={16} color={theme.primary} />
                   </View>
 
                   <View style={{ flex: 1, paddingRight: 6 }}>
                     <Text
                       numberOfLines={1}
                       style={{
-                        color: "#FFFFFF",
+                        color: theme.textPrimary,
                         fontSize: 14,
                         fontWeight: "700",
                       }}
@@ -247,7 +261,7 @@ export default function BankConnections({
                     <Text
                       numberOfLines={1}
                       style={{
-                        color: "#8E8E93",
+                        color: theme.textSecondary,
                         fontSize: 11.5,
                         marginTop: 1,
                       }}
@@ -266,9 +280,9 @@ export default function BankConnections({
                     accessibilityLabel={`Disconnect ${name}`}
                     activeOpacity={0.7}
                     style={{
-                      backgroundColor: "rgba(248, 113, 113, 0.12)",
+                      backgroundColor: hexToRgba(theme.danger, 0.12),
                       borderWidth: 1,
-                      borderColor: "rgba(248, 113, 113, 0.25)",
+                      borderColor: hexToRgba(theme.danger, 0.25),
                       borderRadius: 8,
                       paddingHorizontal: 12,
                       paddingVertical: 6,
@@ -276,11 +290,11 @@ export default function BankConnections({
                     }}
                   >
                     {isDisconnecting ? (
-                      <ActivityIndicator size="small" color="#F87171" />
+                      <ActivityIndicator size="small" color={theme.danger} />
                     ) : (
                       <Text
                         style={{
-                          color: "#F87171",
+                          color: theme.danger,
                           fontSize: 12,
                           fontWeight: "700",
                         }}
@@ -303,12 +317,12 @@ export default function BankConnections({
             marginTop: 12,
             paddingTop: 10,
             borderTopWidth: 1,
-            borderTopColor: "#1F1F23",
+            borderTopColor: theme.border,
           }}
         >
           <Text
             style={{
-              color: "#8E8E93",
+              color: theme.textSecondary,
               fontSize: 12,
               lineHeight: 16,
             }}

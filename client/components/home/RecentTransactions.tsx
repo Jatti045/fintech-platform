@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Text, View, TouchableOpacity } from "react-native";
-import { useBudgets } from "@/hooks/useRedux";
+import { useBudgets, useTheme } from "@/hooks/useRedux";
 import { capitalizeFirst, formatCurrency } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type { ITransaction } from "@/types/transaction/types";
@@ -30,6 +30,7 @@ export default function RecentTransactions({
   currencyCode,
   onSeeAll,
 }: RecentTransactionsProps) {
+  const { THEME } = useTheme();
   const budgets = useBudgets();
 
   const budgetMap = useMemo(() => {
@@ -70,7 +71,7 @@ export default function RecentTransactions({
       >
         <Text
           style={{
-            color: "#8E8E93",
+            color: THEME.textSecondary,
             fontSize: 12,
             fontWeight: "700",
             letterSpacing: 0.8,
@@ -89,7 +90,7 @@ export default function RecentTransactions({
           >
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 12,
                 fontWeight: "500",
               }}
@@ -100,7 +101,7 @@ export default function RecentTransactions({
         ) : (
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               fontWeight: "500",
             }}
@@ -111,12 +112,7 @@ export default function RecentTransactions({
       </View>
 
       {/* Unified Surface Container */}
-      <DashboardCard
-        radius={22}
-        paddingHorizontal={16}
-        paddingVertical={4}
-        style={{ backgroundColor: "#161618", borderColor: "#232326" }}
-      >
+      <DashboardCard radius={22} paddingHorizontal={16} paddingVertical={4}>
         {recent.map((tx, i) => {
           const meta = tx.budgetId ? budgetMap.get(tx.budgetId) : undefined;
           const category = meta?.category ?? tx.category ?? "General";
@@ -139,14 +135,14 @@ export default function RecentTransactions({
                 alignItems: "center",
                 paddingVertical: 12,
                 borderBottomWidth: isLast ? 0 : 1,
-                borderBottomColor: "#212124",
+                borderBottomColor: THEME.border,
               }}
             >
               {/* Left: Category & Merchant */}
               <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
                 <Text
                   style={{
-                    color: "#F4F4F5",
+                    color: THEME.textPrimary,
                     fontSize: 14,
                     fontWeight: "600",
                     letterSpacing: -0.2,
@@ -157,7 +153,7 @@ export default function RecentTransactions({
                 </Text>
                 <Text
                   style={{
-                    color: "#8E8E93",
+                    color: THEME.textSecondary,
                     fontSize: 12,
                     fontWeight: "400",
                     marginTop: 2,
@@ -172,7 +168,7 @@ export default function RecentTransactions({
               <View style={{ alignItems: "flex-end" }}>
                 <Text
                   style={{
-                    color: "#FFFFFF",
+                    color: THEME.textPrimary,
                     fontSize: 14.5,
                     fontWeight: "700",
                     letterSpacing: -0.2,
@@ -184,7 +180,7 @@ export default function RecentTransactions({
                 </Text>
                 <Text
                   style={{
-                    color: "#8E8E93",
+                    color: THEME.textSecondary,
                     fontSize: 12,
                     fontWeight: "400",
                     marginTop: 2,

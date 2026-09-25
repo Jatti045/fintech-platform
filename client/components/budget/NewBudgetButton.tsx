@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 
 export interface NewBudgetButtonProps {
   onPress: () => void;
@@ -11,13 +12,16 @@ export interface NewBudgetButtonProps {
 
 /**
  * Floating action button to create a new budget matching the Budgee design system:
- * - Solid warm gold pill
- * - Black icon and black text
+ * - Solid theme pill
+ * - High-contrast icon and text
  * - Natural soft shadow, no glow or gradients
  */
 const NewBudgetButton = React.memo(function NewBudgetButton({
   onPress,
 }: NewBudgetButtonProps) {
+  const { selectedTheme, THEME } = useTheme();
+  const ctaColor = selectedTheme === "Light" ? "#FFFFFF" : "#111113";
+
   return (
     <View
       style={{
@@ -35,7 +39,7 @@ const NewBudgetButton = React.memo(function NewBudgetButton({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          backgroundColor: "#E8D595",
+          backgroundColor: THEME.primary,
           paddingVertical: 12,
           paddingHorizontal: 18,
           borderRadius: 24,
@@ -49,12 +53,12 @@ const NewBudgetButton = React.memo(function NewBudgetButton({
         <Feather
           name="plus"
           size={18}
-          color="#111111"
+          color={ctaColor}
           style={{ marginRight: 6 }}
         />
         <Text
           style={{
-            color: "#111111",
+            color: ctaColor,
             fontSize: 14.5,
             fontWeight: "700",
             letterSpacing: -0.2,

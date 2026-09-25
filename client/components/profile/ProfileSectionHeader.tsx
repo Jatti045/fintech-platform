@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text } from "react-native";
+import { useTheme } from "@/hooks/useRedux";
 
 interface ProfileSectionHeaderProps {
   title: string;
@@ -10,12 +11,14 @@ interface ProfileSectionHeaderProps {
  * Reusable Section Header for the Profile screen matching the approved mockup:
  * —  TITLE  ──────────────────────  Subtitle
  *
- * Short gold dash, uppercase bold title, thin hairline divider, and subtle muted subtitle.
+ * Short theme accent dash, uppercase bold title, thin hairline divider, and subtle muted subtitle.
  */
 export default function ProfileSectionHeader({
   title,
   subtitle,
 }: ProfileSectionHeaderProps) {
+  const { THEME } = useTheme();
+
   return (
     <View
       style={{
@@ -25,12 +28,12 @@ export default function ProfileSectionHeader({
         marginBottom: 10,
       }}
     >
-      {/* Gold indicator dash */}
+      {/* Accent indicator dash */}
       <View
         style={{
           width: 14,
           height: 2.5,
-          backgroundColor: "#D4AF6A",
+          backgroundColor: THEME.primary,
           borderRadius: 2,
           marginRight: 8,
         }}
@@ -39,7 +42,7 @@ export default function ProfileSectionHeader({
       {/* Bold uppercase title */}
       <Text
         style={{
-          color: "#FFFFFF",
+          color: THEME.textPrimary,
           fontSize: 12.5,
           fontWeight: "800",
           letterSpacing: 0.8,
@@ -54,7 +57,7 @@ export default function ProfileSectionHeader({
         style={{
           flex: 1,
           height: 1,
-          backgroundColor: "#1F1F23",
+          backgroundColor: THEME.border,
           marginHorizontal: 10,
         }}
       />
@@ -63,7 +66,7 @@ export default function ProfileSectionHeader({
       {subtitle ? (
         <Text
           style={{
-            color: "#8E8E93",
+            color: THEME.textSecondary,
             fontSize: 11.5,
             fontWeight: "500",
           }}

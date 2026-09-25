@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useUser } from "@/hooks/useRedux";
+import { useTheme, useUser } from "@/hooks/useRedux";
 import { capitalizeFirst } from "@/utils/helper";
 
 type Props = {
@@ -13,13 +13,14 @@ type Props = {
 /**
  * Dashboard Header matching the reference design:
  * Left: "Budgee" title and secondary muted greeting with emoji.
- * Right: Two understated, dark circular utility buttons:
+ * Right: Two understated, circular utility buttons:
  *   [ Information ] [ Settings ]
  *   - Information: opens the Help & Usage modal
  *   - Settings: navigates to the Profile screen
  */
 export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
   const user = useUser();
+  const { THEME } = useTheme();
 
   const rawName = user?.username ? String(user.username) : "James";
   const name = capitalizeFirst(rawName.trim());
@@ -50,7 +51,7 @@ export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
       <View>
         <Text
           style={{
-            color: "#FFFFFF",
+            color: THEME.textPrimary,
             fontSize: 26,
             fontWeight: "800",
             letterSpacing: -0.5,
@@ -60,7 +61,7 @@ export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
         </Text>
         <Text
           style={{
-            color: "#8E8E93",
+            color: THEME.textSecondary,
             fontSize: 13.5,
             fontWeight: "400",
             marginTop: 2,
@@ -81,14 +82,14 @@ export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
             width: 38,
             height: 38,
             borderRadius: 19,
-            backgroundColor: "#1C1C1F",
+            backgroundColor: THEME.surface,
             borderWidth: 1,
-            borderColor: "#28282C",
+            borderColor: THEME.border,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Feather name="info" size={17} color="#E5E5EA" />
+          <Feather name="info" size={17} color={THEME.textPrimary} />
         </TouchableOpacity>
 
         {/* Settings button -> Profile */}
@@ -101,14 +102,14 @@ export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
             width: 38,
             height: 38,
             borderRadius: 19,
-            backgroundColor: "#1C1C1F",
+            backgroundColor: THEME.surface,
             borderWidth: 1,
-            borderColor: "#28282C",
+            borderColor: THEME.border,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Feather name="settings" size={17} color="#E5E5EA" />
+          <Feather name="settings" size={17} color={THEME.textPrimary} />
         </TouchableOpacity>
       </View>
     </View>

@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import FilterTransaction from "./TxFilterOpt";
 import type { ITransaction } from "@/types/transaction/types";
 import type { IBudget } from "@/types/budget/types";
@@ -32,7 +33,7 @@ export interface TransactionHeaderProps {
  * Redesigned Transactions Header matching the reference design:
  * - Prominent "Transactions" title with "Manage and track your spending" subtitle
  * - Circular, restrained utility controls for Search & Filters on the top right
- * - Clean dark search bar: "Search transactions, merchants, or categories..."
+ * - Clean search bar: "Search transactions, merchants, or categories..."
  * - Refined filter chips row (All, Income, Transfer out, Transfer in, More ⌵)
  * - Compact Amount range row: Amount [ Min ] – [ Max ] [ 📅 ]
  * - Hidden fallbacks for test suite compatibility
@@ -52,6 +53,8 @@ export default function TransactionHeader({
   onFilterPress,
   onCalendarPress,
 }: TransactionHeaderProps) {
+  const { THEME } = useTheme();
+
   return (
     <View style={{ paddingTop: 8 }}>
       {/* ── Top Header Row ──────────────────────────────────────────────── */}
@@ -66,7 +69,7 @@ export default function TransactionHeader({
         <View style={{ flex: 1, paddingRight: 12 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 28,
               fontWeight: "800",
               letterSpacing: -0.5,
@@ -76,7 +79,7 @@ export default function TransactionHeader({
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 13.5,
               fontWeight: "400",
               marginTop: 2,
@@ -97,14 +100,14 @@ export default function TransactionHeader({
               width: 38,
               height: 38,
               borderRadius: 19,
-              backgroundColor: "#161618",
+              backgroundColor: THEME.surface,
               borderWidth: 1,
-              borderColor: "#262629",
+              borderColor: THEME.border,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Feather name="search" size={17} color="#E5E5EA" />
+            <Feather name="search" size={17} color={THEME.textPrimary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -116,14 +119,14 @@ export default function TransactionHeader({
               width: 38,
               height: 38,
               borderRadius: 19,
-              backgroundColor: "#161618",
+              backgroundColor: THEME.surface,
               borderWidth: 1,
-              borderColor: "#262629",
+              borderColor: THEME.border,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Feather name="sliders" size={17} color="#E5E5EA" />
+            <Feather name="sliders" size={17} color={THEME.textPrimary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -132,10 +135,10 @@ export default function TransactionHeader({
       <View
         style={{
           height: 48,
-          backgroundColor: "#161618",
+          backgroundColor: THEME.inputBackground,
           borderRadius: 14,
           borderWidth: 1,
-          borderColor: "#262629",
+          borderColor: THEME.border,
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: 14,
@@ -145,17 +148,17 @@ export default function TransactionHeader({
         <Feather
           name="search"
           size={18}
-          color="#636366"
+          color={THEME.placeholderText}
           style={{ marginRight: 10 }}
         />
         <TextInput
           value={searchQuery}
           onChangeText={onSearchChange}
           placeholder="Search transactions, merchants, or categories..."
-          placeholderTextColor="#636366"
+          placeholderTextColor={THEME.placeholderText}
           style={{
             flex: 1,
-            color: "#FFFFFF",
+            color: THEME.textPrimary,
             fontSize: 14,
             paddingVertical: 0,
           }}
@@ -166,7 +169,7 @@ export default function TransactionHeader({
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={{ marginLeft: 6 }}
           >
-            <Feather name="x-circle" size={16} color="#8E8E93" />
+            <Feather name="x-circle" size={16} color={THEME.textSecondary} />
           </TouchableOpacity>
         )}
       </View>

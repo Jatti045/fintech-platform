@@ -1,6 +1,8 @@
 import React from "react";
 import { View } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/colorUtils";
 
 export interface BudgetCategoryIconProps {
   category: string;
@@ -10,17 +12,22 @@ export interface BudgetCategoryIconProps {
 /**
  * BudgetCategoryIcon — provides the restrained category icons with tinted
  * surfaces matching the Budgee design system and reference mockup:
- * - Food & Drink: dark amber with fork/knife
- * - General Services: dark charcoal with settings cog
- * - General Merchandise: dark charcoal with shopping bag
- * - Entertainment: dark crimson with game controller
- * - Travel: dark slate with airplane
- * - Transportation: dark blue with car
+ * - Food & Drink: amber with fork/knife
+ * - General Services: neutral surface with settings cog
+ * - General Merchandise: neutral surface with shopping bag
+ * - Entertainment: crimson with game controller
+ * - Travel: sky blue with airplane
+ * - Transportation: blue with car
+ * - Housing: purple with home
+ * - Health: rose with heart
+ * - Personal Care: violet with sparkles
+ * - Education: blue with book
  */
 export default function BudgetCategoryIcon({
   category = "",
   size = 38,
 }: BudgetCategoryIconProps) {
+  const { THEME } = useTheme();
   const norm = category.toLowerCase().trim();
   const iconSize = Math.round(size * 0.48);
 
@@ -38,7 +45,7 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#332119",
+          backgroundColor: hexToRgba("#F59E0B", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -61,12 +68,16 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#222226",
+          backgroundColor: THEME.surfaceHover,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="settings-sharp" size={iconSize} color="#C7C7CC" />
+        <Ionicons
+          name="settings-sharp"
+          size={iconSize}
+          color={THEME.textSecondary}
+        />
       </View>
     );
   }
@@ -84,12 +95,16 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#222226",
+          backgroundColor: THEME.surfaceHover,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Feather name="shopping-bag" size={iconSize} color="#C7C7CC" />
+        <Feather
+          name="shopping-bag"
+          size={iconSize}
+          color={THEME.textSecondary}
+        />
       </View>
     );
   }
@@ -108,7 +123,7 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#331821",
+          backgroundColor: hexToRgba("#F87171", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -132,12 +147,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#1A2433",
+          backgroundColor: hexToRgba("#60A5FA", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="airplane" size={iconSize} color="#93C5FD" />
+        <Ionicons name="airplane" size={iconSize} color="#60A5FA" />
       </View>
     );
   }
@@ -157,7 +172,7 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#16253B",
+          backgroundColor: hexToRgba("#60A5FA", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -181,7 +196,7 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#241B36",
+          backgroundColor: hexToRgba("#A78BFA", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -205,7 +220,7 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#2D1D24",
+          backgroundColor: hexToRgba("#F43F5E", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -227,7 +242,7 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#261C2C",
+          backgroundColor: hexToRgba("#C084FC", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -250,7 +265,7 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: "#1E2638",
+          backgroundColor: hexToRgba("#60A5FA", 0.16),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -267,12 +282,12 @@ export default function BudgetCategoryIcon({
         width: size,
         height: size,
         borderRadius: 10,
-        backgroundColor: "#222226",
+        backgroundColor: THEME.surfaceHover,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Feather name="tag" size={iconSize} color="#9CA3AF" />
+      <Feather name="tag" size={iconSize} color={THEME.textSecondary} />
     </View>
   );
 }

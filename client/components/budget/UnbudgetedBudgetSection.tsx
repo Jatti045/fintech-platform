@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
+import { hexToRgba } from "@/utils/colorUtils";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type { DisplayBudget, IBudget } from "@/types/budget/types";
 
@@ -23,6 +25,7 @@ export default function UnbudgetedBudgetSection({
   onSetLimit,
   onUseSuggestions,
 }: UnbudgetedBudgetSectionProps) {
+  const { THEME } = useTheme();
   const [expanded, setExpanded] = useState(true);
 
   const totalSpent = budgets.reduce(
@@ -54,13 +57,13 @@ export default function UnbudgetedBudgetSection({
                 width: 18,
                 height: 3,
                 borderRadius: 1.5,
-                backgroundColor: "#D4AF6A",
+                backgroundColor: THEME.primary,
                 marginRight: 8,
               }}
             />
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.textPrimary,
                 fontSize: 13.5,
                 fontWeight: "700",
                 letterSpacing: 0.5,
@@ -74,7 +77,7 @@ export default function UnbudgetedBudgetSection({
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 13,
                 fontWeight: "600",
                 marginRight: 4,
@@ -85,14 +88,14 @@ export default function UnbudgetedBudgetSection({
             <Feather
               name={expanded ? "chevron-down" : "chevron-right"}
               size={14}
-              color="#8E8E93"
+              color={THEME.textSecondary}
             />
           </View>
         </View>
 
         <Text
           style={{
-            color: "#8E8E93",
+            color: THEME.textSecondary,
             fontSize: 12.5,
             marginTop: 2,
             marginLeft: 26,
@@ -106,10 +109,10 @@ export default function UnbudgetedBudgetSection({
       {expanded && (
         <View
           style={{
-            backgroundColor: "#141416",
+            backgroundColor: THEME.surface,
             borderRadius: 18,
             borderWidth: 1,
-            borderColor: "#212124",
+            borderColor: THEME.border,
             padding: 12,
             marginTop: 8,
           }}
@@ -120,8 +123,8 @@ export default function UnbudgetedBudgetSection({
               activeOpacity={0.8}
               accessibilityRole="button"
               style={{
-                backgroundColor: "rgba(212, 175, 106, 0.12)",
-                borderColor: "#D4AF6A",
+                backgroundColor: hexToRgba(THEME.primary, 0.12),
+                borderColor: THEME.primary,
                 borderWidth: 1,
                 borderRadius: 10,
                 paddingVertical: 9,
@@ -131,7 +134,7 @@ export default function UnbudgetedBudgetSection({
             >
               <Text
                 style={{
-                  color: "#D4AF6A",
+                  color: THEME.primary,
                   fontSize: 12.5,
                   fontWeight: "700",
                 }}
@@ -150,13 +153,13 @@ export default function UnbudgetedBudgetSection({
                 justifyContent: "space-between",
                 paddingVertical: 10,
                 borderTopWidth: index === 0 ? 0 : 1,
-                borderTopColor: "#1F1F24",
+                borderTopColor: THEME.border,
               }}
             >
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text
                   style={{
-                    color: "#FFFFFF",
+                    color: THEME.textPrimary,
                     fontSize: 13.5,
                     fontWeight: "600",
                   }}
@@ -166,7 +169,7 @@ export default function UnbudgetedBudgetSection({
                 </Text>
                 <Text
                   style={{
-                    color: "#8E8E93",
+                    color: THEME.textSecondary,
                     fontSize: 12,
                     marginTop: 2,
                   }}
@@ -185,8 +188,8 @@ export default function UnbudgetedBudgetSection({
                 accessibilityRole="button"
                 accessibilityLabel={`Set limit for ${budget.category}`}
                 style={{
-                  backgroundColor: "rgba(212, 175, 106, 0.14)",
-                  borderColor: "rgba(212, 175, 106, 0.4)",
+                  backgroundColor: hexToRgba(THEME.primary, 0.14),
+                  borderColor: hexToRgba(THEME.primary, 0.4),
                   borderWidth: 1,
                   borderRadius: 8,
                   paddingHorizontal: 12,
@@ -195,7 +198,7 @@ export default function UnbudgetedBudgetSection({
               >
                 <Text
                   style={{
-                    color: "#D4AF6A",
+                    color: THEME.primary,
                     fontSize: 12,
                     fontWeight: "700",
                   }}

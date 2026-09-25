@@ -1,7 +1,8 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { formatCurrency } from "@/utils/helper";
+import { formatCurrency, hexToRgba } from "@/utils/helper";
+import { useTheme } from "@/hooks/useRedux";
 import DashboardCard from "./DashboardCard";
 
 export interface FinancialMetricsProps {
@@ -20,6 +21,8 @@ export default function FinancialMetrics({
   totalSpent,
   currencyCode,
 }: FinancialMetricsProps) {
+  const { THEME } = useTheme();
+
   const income = Math.max(0, monthlyIncome || 0);
   const spent = Math.max(0, totalSpent || 0);
   const net = income - spent;
@@ -44,17 +47,17 @@ export default function FinancialMetrics({
               width: 24,
               height: 24,
               borderRadius: 12,
-              backgroundColor: "#162E20",
+              backgroundColor: hexToRgba(THEME.success, 0.15),
               alignItems: "center",
               justifyContent: "center",
               marginRight: 6,
             }}
           >
-            <Feather name="arrow-up" size={13} color="#4ADE80" />
+            <Feather name="arrow-up" size={13} color={THEME.success} />
           </View>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               fontWeight: "500",
             }}
@@ -66,7 +69,7 @@ export default function FinancialMetrics({
 
         <Text
           style={{
-            color: "#FFFFFF",
+            color: THEME.textPrimary,
             fontSize: 15,
             fontWeight: "700",
             marginVertical: 6,
@@ -87,7 +90,7 @@ export default function FinancialMetrics({
         >
           <Text
             style={{
-              color: "#4ADE80",
+              color: THEME.success,
               fontSize: 10.5,
               fontWeight: "600",
             }}
@@ -96,7 +99,7 @@ export default function FinancialMetrics({
           </Text>
           <Text
             style={{
-              color: "#71717A",
+              color: THEME.placeholderText,
               fontSize: 10.5,
               fontWeight: "400",
               marginLeft: 2,
@@ -117,17 +120,17 @@ export default function FinancialMetrics({
               width: 24,
               height: 24,
               borderRadius: 12,
-              backgroundColor: "#2E181C",
+              backgroundColor: hexToRgba(THEME.danger, 0.15),
               alignItems: "center",
               justifyContent: "center",
               marginRight: 6,
             }}
           >
-            <Feather name="arrow-down" size={13} color="#F87171" />
+            <Feather name="arrow-down" size={13} color={THEME.danger} />
           </View>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               fontWeight: "500",
             }}
@@ -139,7 +142,7 @@ export default function FinancialMetrics({
 
         <Text
           style={{
-            color: "#FFFFFF",
+            color: THEME.textPrimary,
             fontSize: 15,
             fontWeight: "700",
             marginVertical: 6,
@@ -160,7 +163,7 @@ export default function FinancialMetrics({
         >
           <Text
             style={{
-              color: "#F87171",
+              color: THEME.danger,
               fontSize: 10.5,
               fontWeight: "600",
             }}
@@ -169,7 +172,7 @@ export default function FinancialMetrics({
           </Text>
           <Text
             style={{
-              color: "#71717A",
+              color: THEME.placeholderText,
               fontSize: 10.5,
               fontWeight: "400",
               marginLeft: 2,
@@ -190,17 +193,21 @@ export default function FinancialMetrics({
               width: 24,
               height: 24,
               borderRadius: 12,
-              backgroundColor: "#202024",
+              backgroundColor: THEME.surfaceHover,
               alignItems: "center",
               justifyContent: "center",
               marginRight: 6,
             }}
           >
-            <Ionicons name="wallet-outline" size={13} color="#A1A1AA" />
+            <Ionicons
+              name="wallet-outline"
+              size={13}
+              color={THEME.textSecondary}
+            />
           </View>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 12,
               fontWeight: "500",
             }}
@@ -212,7 +219,7 @@ export default function FinancialMetrics({
 
         <Text
           style={{
-            color: "#FFFFFF",
+            color: THEME.textPrimary,
             fontSize: 15,
             fontWeight: "700",
             marginVertical: 6,
@@ -233,7 +240,7 @@ export default function FinancialMetrics({
         >
           <Text
             style={{
-              color: "#4ADE80",
+              color: net >= 0 ? THEME.success : THEME.danger,
               fontSize: 10.5,
               fontWeight: "600",
             }}
@@ -242,7 +249,7 @@ export default function FinancialMetrics({
           </Text>
           <Text
             style={{
-              color: "#71717A",
+              color: THEME.placeholderText,
               fontSize: 10.5,
               fontWeight: "400",
               marginLeft: 2,

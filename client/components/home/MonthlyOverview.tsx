@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { formatCurrency } from "@/utils/helper";
+import { useTheme } from "@/hooks/useRedux";
 import type { ITransaction } from "@/types/transaction/types";
 import DashboardCard from "./DashboardCard";
 
@@ -98,6 +99,8 @@ export default function MonthlyOverview({
     });
   }, [transactions, month, year]);
 
+  const { THEME } = useTheme();
+
   return (
     <DashboardCard radius={24} padding={20} style={{ marginBottom: 14 }}>
       {/* Test-accessible hidden fallback */}
@@ -119,7 +122,7 @@ export default function MonthlyOverview({
       >
         <Text
           style={{
-            color: "#8E8E93",
+            color: THEME.textSecondary,
             fontSize: 11,
             fontWeight: "700",
             letterSpacing: 0.8,
@@ -134,9 +137,9 @@ export default function MonthlyOverview({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: "#202023",
+            backgroundColor: THEME.surfaceHover,
             borderWidth: 1,
-            borderColor: "#2B2B2F",
+            borderColor: THEME.border,
             borderRadius: 12,
             paddingHorizontal: 10,
             paddingVertical: 4,
@@ -145,14 +148,14 @@ export default function MonthlyOverview({
         >
           <Text
             style={{
-              color: "#C7C7CC",
+              color: THEME.textPrimary,
               fontSize: 11,
               fontWeight: "600",
             }}
           >
             Month
           </Text>
-          <Feather name="chevron-down" size={12} color="#8E8E93" />
+          <Feather name="chevron-down" size={12} color={THEME.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -168,7 +171,7 @@ export default function MonthlyOverview({
         <View style={{ flex: 1.25, paddingRight: 12 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 38,
               fontWeight: "800",
               letterSpacing: -1,
@@ -179,7 +182,7 @@ export default function MonthlyOverview({
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 13.5,
               fontWeight: "400",
               marginTop: 2,
@@ -195,7 +198,7 @@ export default function MonthlyOverview({
               width: "100%",
               height: 6,
               borderRadius: 3,
-              backgroundColor: "#28282C",
+              backgroundColor: THEME.surfaceHover,
               overflow: "hidden",
             }}
           >
@@ -204,7 +207,7 @@ export default function MonthlyOverview({
                 width: `${spentPercent}%`,
                 height: 6,
                 borderRadius: 3,
-                backgroundColor: "#34D399",
+                backgroundColor: THEME.success,
               }}
             />
           </View>
@@ -220,7 +223,7 @@ export default function MonthlyOverview({
           >
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 11.5,
                 fontWeight: "500",
               }}
@@ -229,7 +232,7 @@ export default function MonthlyOverview({
             </Text>
             <Text
               style={{
-                color: "#8E8E93",
+                color: THEME.textSecondary,
                 fontSize: 11.5,
                 fontWeight: "500",
               }}
@@ -265,14 +268,14 @@ export default function MonthlyOverview({
                   height: 58,
                 }}
               >
-                {/* White dot indicator above the active mint bar */}
+                {/* Indicator dot above the active highlighted bar */}
                 {bar.isHighlight ? (
                   <View
                     style={{
                       width: 5,
                       height: 5,
                       borderRadius: 2.5,
-                      backgroundColor: "#FFFFFF",
+                      backgroundColor: THEME.textPrimary,
                       marginBottom: 4,
                     }}
                   />
@@ -285,7 +288,9 @@ export default function MonthlyOverview({
                     width: 5,
                     height: bar.height,
                     borderRadius: 2.5,
-                    backgroundColor: bar.isHighlight ? "#34D399" : "#28282C",
+                    backgroundColor: bar.isHighlight
+                      ? THEME.success
+                      : THEME.surfaceHover,
                   }}
                 />
               </View>
@@ -294,7 +299,7 @@ export default function MonthlyOverview({
 
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 11,
               fontWeight: "500",
               marginTop: 8,

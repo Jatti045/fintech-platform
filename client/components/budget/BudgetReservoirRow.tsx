@@ -1,7 +1,9 @@
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useRedux";
 import { capitalizeFirst, formatCurrency } from "@/utils/helper";
+import { hexToRgba } from "@/utils/colorUtils";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type { IBudget } from "@/types/budget/types";
 import { hapticLight } from "@/utils/haptics";
@@ -40,6 +42,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
   onEdit,
   onDelete,
 }: BudgetReservoirRowProps) {
+  const { THEME } = useTheme();
   const limit = safeAmount(displayLimit ?? budget.limit);
   const spent = safeAmount(displaySpent ?? budget.spent);
   const ratio = limit > 0 ? spent / limit : 0;
@@ -47,19 +50,19 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
 
   // Semantic color: green (<= 80%), gold (81-100%), red (> 100%)
   const statusColor =
-    ratio > 1 ? "#F87171" : ratio >= 0.8 ? "#E5C468" : "#34D399";
+    ratio > 1 ? THEME.danger : ratio >= 0.8 ? THEME.warning : THEME.success;
 
   return (
     <SwipeableRow
       onDelete={() => onDelete(budget.id)}
-      dangerColor="#F87171"
+      dangerColor={THEME.danger}
       actionStyle={{ borderRadius: 0 }}
     >
       <View
         style={{
-          backgroundColor: "#141416",
+          backgroundColor: THEME.surface,
           borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
-          borderBottomColor: "#1F1F24",
+          borderBottomColor: THEME.border,
         }}
       >
         <TouchableOpacity
@@ -87,7 +90,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
             <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
               <Text
                 style={{
-                  color: "#FFFFFF",
+                  color: THEME.textPrimary,
                   fontSize: 14.5,
                   fontWeight: "600",
                   letterSpacing: -0.1,
@@ -98,7 +101,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
               </Text>
               <Text
                 style={{
-                  color: "#8E8E93",
+                  color: THEME.textSecondary,
                   fontSize: 12.5,
                   marginTop: 2,
                 }}
@@ -114,7 +117,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
             <View style={{ alignItems: "flex-end" }}>
               <Text
                 style={{
-                  color: ratio >= 0.8 ? statusColor : "#FFFFFF",
+                  color: ratio >= 0.8 ? statusColor : THEME.textPrimary,
                   fontSize: 14,
                   fontWeight: "700",
                 }}
@@ -130,7 +133,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
               >
                 <Text
                   style={{
-                    color: ratio >= 0.8 ? statusColor : "#8E8E93",
+                    color: ratio >= 0.8 ? statusColor : THEME.textSecondary,
                     fontSize: 12,
                     fontWeight: "600",
                     marginRight: 4,
@@ -138,7 +141,11 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
                 >
                   {percent}%
                 </Text>
-                <Feather name="chevron-right" size={14} color="#636366" />
+                <Feather
+                  name="chevron-right"
+                  size={14}
+                  color={THEME.textSecondary}
+                />
               </View>
             </View>
           </View>
@@ -148,7 +155,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
             <View
               style={{
                 height: 5,
-                backgroundColor: "#1F1F24",
+                backgroundColor: THEME.surfaceHover,
                 borderRadius: 2.5,
                 marginTop: 10,
                 overflow: "hidden",
@@ -186,9 +193,9 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#1E1E22",
+                backgroundColor: THEME.surfaceHover,
                 borderWidth: 1,
-                borderColor: "#28282C",
+                borderColor: THEME.border,
                 borderRadius: 10,
                 paddingVertical: 9,
               }}
@@ -196,12 +203,12 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
               <Feather
                 name="edit-3"
                 size={14}
-                color="#FFFFFF"
+                color={THEME.textPrimary}
                 style={{ marginRight: 6 }}
               />
               <Text
                 style={{
-                  color: "#FFFFFF",
+                  color: THEME.textPrimary,
                   fontSize: 13,
                   fontWeight: "600",
                 }}
@@ -219,9 +226,9 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "rgba(248, 113, 113, 0.12)",
+                backgroundColor: hexToRgba(THEME.danger, 0.12),
                 borderWidth: 1,
-                borderColor: "rgba(248, 113, 113, 0.3)",
+                borderColor: hexToRgba(THEME.danger, 0.3),
                 borderRadius: 10,
                 paddingVertical: 9,
               }}
@@ -229,12 +236,12 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
               <Feather
                 name="trash-2"
                 size={14}
-                color="#F87171"
+                color={THEME.danger}
                 style={{ marginRight: 6 }}
               />
               <Text
                 style={{
-                  color: "#F87171",
+                  color: THEME.danger,
                   fontSize: 13,
                   fontWeight: "600",
                 }}

@@ -2,10 +2,12 @@ import React from "react";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/colorUtils";
 import type { ITheme } from "@/types/theme/types";
 
 interface NotificationPreferenceProps {
-  THEME: ITheme;
+  THEME?: ITheme;
   enabled: boolean;
   permissionDenied: boolean;
   onToggle: (enabled: boolean) => void;
@@ -24,7 +26,7 @@ interface NotificationPreferenceProps {
  * system level.
  */
 export default function NotificationPreference({
-  THEME,
+  THEME: propTheme,
   enabled,
   permissionDenied,
   onToggle,
@@ -32,13 +34,16 @@ export default function NotificationPreference({
   title = "Purchase Reminders",
   subtitle = "A gentle nudge at 12 PM and 6 PM to log your purchases.",
 }: NotificationPreferenceProps) {
+  const { THEME: reduxTheme } = useTheme();
+  const theme = propTheme || reduxTheme;
+
   return (
     <View
       style={{
-        backgroundColor: "#141416",
+        backgroundColor: theme.surface,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#1F1F23",
+        borderColor: theme.border,
         padding: 16,
         marginBottom: 8,
       }}
@@ -49,21 +54,21 @@ export default function NotificationPreference({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: "rgba(212, 175, 106, 0.12)",
+            backgroundColor: hexToRgba(theme.primary, 0.12),
             borderWidth: 1,
-            borderColor: "rgba(212, 175, 106, 0.25)",
+            borderColor: hexToRgba(theme.primary, 0.25),
             alignItems: "center",
             justifyContent: "center",
             marginRight: 12,
           }}
         >
-          <Feather name="bell" size={17} color="#D4AF6A" />
+          <Feather name="bell" size={17} color={theme.primary} />
         </View>
 
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: theme.textPrimary,
               fontSize: 15,
               fontWeight: "700",
             }}
@@ -72,7 +77,7 @@ export default function NotificationPreference({
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: theme.textSecondary,
               fontSize: 12,
               marginTop: 2,
               lineHeight: 16,
@@ -88,7 +93,7 @@ export default function NotificationPreference({
           value={permissionDenied ? false : enabled}
           disabled={permissionDenied}
           onValueChange={onToggle}
-          trackColor={{ false: "#262629", true: "#D4AF6A" }}
+          trackColor={{ false: theme.border, true: theme.primary }}
           thumbColor="#FFFFFF"
         />
       </View>
@@ -104,9 +109,9 @@ export default function NotificationPreference({
             justifyContent: "center",
             paddingVertical: 10,
             borderRadius: 12,
-            backgroundColor: "#1A1A1E",
+            backgroundColor: theme.surfaceHover,
             borderWidth: 1,
-            borderColor: "#26262A",
+            borderColor: theme.border,
           }}
           accessibilityRole="button"
           accessibilityLabel="Open Settings"
@@ -114,10 +119,12 @@ export default function NotificationPreference({
           <Feather
             name="settings"
             size={14}
-            color="#D4AF6A"
+            color={theme.primary}
             style={{ marginRight: 6 }}
           />
-          <Text style={{ color: "#D4AF6A", fontWeight: "700", fontSize: 13 }}>
+          <Text
+            style={{ color: theme.primary, fontWeight: "700", fontSize: 13 }}
+          >
             Open Settings
           </Text>
         </TouchableOpacity>

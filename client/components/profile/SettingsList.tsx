@@ -2,14 +2,17 @@ import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/colorUtils";
 import type { SettingsListProps } from "@/types/profile/types";
 
 /**
  * SettingsList — Security & Account actions matching the approved design system:
- * - Neutral actions (Log Out, Change Password) in a subtle dark card with dividers.
- * - Destructive action (Delete Account) in a separate restrained red-bordered card.
+ * - Neutral actions (Log Out, Change Password) in a subtle card with dividers.
+ * - Destructive action (Delete Account) in a separate restrained danger-tinted card.
  */
 export default function SettingsList({ items }: SettingsListProps) {
+  const { THEME } = useTheme();
   const destructiveIndex = items.findIndex((i) => i.isDestructive);
   const neutralItems = items.filter((i) => !i.isDestructive);
   const destructiveItem =
@@ -20,10 +23,10 @@ export default function SettingsList({ items }: SettingsListProps) {
       {/* Neutral Items Card */}
       <View
         style={{
-          backgroundColor: "#141416",
+          backgroundColor: THEME.surface,
           borderRadius: 20,
           borderWidth: 1,
-          borderColor: "#1F1F23",
+          borderColor: THEME.border,
           overflow: "hidden",
         }}
       >
@@ -45,20 +48,24 @@ export default function SettingsList({ items }: SettingsListProps) {
                   width: 36,
                   height: 36,
                   borderRadius: 10,
-                  backgroundColor: "#1A1A1E",
+                  backgroundColor: THEME.surfaceHover,
                   borderWidth: 1,
-                  borderColor: "#26262A",
+                  borderColor: THEME.border,
                   alignItems: "center",
                   justifyContent: "center",
                   marginRight: 12,
                 }}
               >
-                <Ionicons name={item.icon as any} size={17} color="#FFFFFF" />
+                <Ionicons
+                  name={item.icon as any}
+                  size={17}
+                  color={THEME.textPrimary}
+                />
               </View>
 
               <Text
                 style={{
-                  color: "#FFFFFF",
+                  color: THEME.textPrimary,
                   fontSize: 14.5,
                   fontWeight: "600",
                   flex: 1,
@@ -67,7 +74,11 @@ export default function SettingsList({ items }: SettingsListProps) {
                 {item.title}
               </Text>
 
-              <Ionicons name="chevron-forward" size={16} color="#636366" />
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={THEME.textSecondary}
+              />
             </TouchableOpacity>
 
             {i < neutralItems.length - 1 ? (
@@ -75,7 +86,7 @@ export default function SettingsList({ items }: SettingsListProps) {
                 style={{
                   height: 1,
                   marginHorizontal: 14,
-                  backgroundColor: "#1F1F23",
+                  backgroundColor: THEME.border,
                 }}
               />
             ) : null}
@@ -87,10 +98,10 @@ export default function SettingsList({ items }: SettingsListProps) {
       {destructiveItem ? (
         <View
           style={{
-            backgroundColor: "#141416",
+            backgroundColor: THEME.surface,
             borderRadius: 20,
             borderWidth: 1,
-            borderColor: "rgba(248, 113, 113, 0.25)",
+            borderColor: hexToRgba(THEME.danger, 0.25),
             marginTop: 10,
             overflow: "hidden",
           }}
@@ -111,20 +122,20 @@ export default function SettingsList({ items }: SettingsListProps) {
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                backgroundColor: "rgba(248, 113, 113, 0.1)",
+                backgroundColor: hexToRgba(THEME.danger, 0.1),
                 borderWidth: 1,
-                borderColor: "rgba(248, 113, 113, 0.2)",
+                borderColor: hexToRgba(THEME.danger, 0.2),
                 alignItems: "center",
                 justifyContent: "center",
                 marginRight: 12,
               }}
             >
-              <Ionicons name="trash-outline" size={17} color="#F87171" />
+              <Ionicons name="trash-outline" size={17} color={THEME.danger} />
             </View>
 
             <Text
               style={{
-                color: "#F87171",
+                color: THEME.danger,
                 fontSize: 14.5,
                 fontWeight: "700",
                 flex: 1,
@@ -133,7 +144,7 @@ export default function SettingsList({ items }: SettingsListProps) {
               {destructiveItem.title}
             </Text>
 
-            <Ionicons name="chevron-forward" size={16} color="#F87171" />
+            <Ionicons name="chevron-forward" size={16} color={THEME.danger} />
           </TouchableOpacity>
         </View>
       ) : null}

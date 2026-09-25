@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
+import { useTheme } from "@/hooks/useRedux";
 import TransactionModal from "@/components/transaction/TxModal";
 import BudgetModal from "@/components/budget/BudgetModal";
 import { MonthSetupModal } from "@/components/budget";
@@ -58,10 +59,12 @@ export default function Index() {
     handleInfoPress,
   } = useHomeScreen();
 
+  const { THEME } = useTheme();
+
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      style={{ flex: 1, backgroundColor: "#0B0B0D" }}
+      style={{ flex: 1, backgroundColor: THEME.background }}
     >
       <ScrollView
         contentContainerStyle={{
@@ -74,9 +77,9 @@ export default function Index() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            progressBackgroundColor="#161618"
-            colors={["#D4AF6A"]}
-            tintColor="#D4AF6A"
+            progressBackgroundColor={THEME.surface}
+            colors={[THEME.primary]}
+            tintColor={THEME.primary}
           />
         }
       >

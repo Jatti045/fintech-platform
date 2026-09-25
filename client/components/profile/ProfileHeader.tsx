@@ -2,6 +2,8 @@ import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/colorUtils";
 import ProfileAvatar from "./ProfileAvatar";
 import type { ProfileHeaderProps } from "@/types/profile/types";
 
@@ -12,23 +14,25 @@ import type { ProfileHeaderProps } from "@/types/profile/types";
  * Far Right: Subtle interactive chevron.
  */
 export default function ProfileHeader({
-  THEME,
+  THEME: propTheme,
   user,
   uploading,
   deleting,
   onPickImage,
   onDeleteImage,
 }: ProfileHeaderProps) {
+  const { THEME: reduxTheme } = useTheme();
+  const theme = propTheme || reduxTheme;
   const displayName = user?.username || "James A";
   const displayEmail = user?.email || "james.attia@gmail.com";
 
   return (
     <View
       style={{
-        backgroundColor: "#141416",
+        backgroundColor: theme.surface,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#1F1F23",
+        borderColor: theme.border,
         padding: 16,
         marginBottom: 8,
         flexDirection: "row",
@@ -37,7 +41,7 @@ export default function ProfileHeader({
     >
       {/* Left: Avatar */}
       <ProfileAvatar
-        THEME={THEME}
+        THEME={theme}
         user={user}
         uploading={uploading}
         deleting={deleting}
@@ -50,7 +54,7 @@ export default function ProfileHeader({
         <Text
           numberOfLines={1}
           style={{
-            color: "#FFFFFF",
+            color: theme.textPrimary,
             fontSize: 18,
             fontWeight: "800",
             letterSpacing: -0.3,
@@ -61,7 +65,7 @@ export default function ProfileHeader({
         <Text
           numberOfLines={1}
           style={{
-            color: "#8E8E93",
+            color: theme.textSecondary,
             fontSize: 13,
             marginTop: 2,
             marginBottom: 8,
@@ -79,20 +83,20 @@ export default function ProfileHeader({
             borderRadius: 999,
             paddingHorizontal: 9,
             paddingVertical: 3,
-            backgroundColor: "rgba(212, 175, 106, 0.08)",
+            backgroundColor: hexToRgba(theme.primary, 0.08),
             borderWidth: 1,
-            borderColor: "rgba(212, 175, 106, 0.3)",
+            borderColor: hexToRgba(theme.primary, 0.3),
           }}
         >
           <Feather
             name="shield"
             size={11}
-            color="#D4AF6A"
+            color={theme.primary}
             style={{ marginRight: 5 }}
           />
           <Text
             style={{
-              color: "#D4AF6A",
+              color: theme.primary,
               fontSize: 11,
               fontWeight: "700",
               letterSpacing: -0.1,
@@ -111,7 +115,11 @@ export default function ProfileHeader({
         accessibilityLabel="Edit profile"
         style={{ paddingLeft: 8 }}
       >
-        <Ionicons name="chevron-forward" size={18} color="#636366" />
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={theme.textSecondary}
+        />
       </TouchableOpacity>
     </View>
   );

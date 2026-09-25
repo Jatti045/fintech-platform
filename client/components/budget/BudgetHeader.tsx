@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
+import { useAppDispatch, useAppSelector, useTheme } from "@/hooks/useRedux";
 import { prevMonth, nextMonth } from "@/store/slices/calendarSlice";
 
 export interface BudgetHeaderProps {
@@ -17,8 +17,8 @@ export interface BudgetHeaderProps {
 /**
  * Redesigned Budget Header matching the reference design:
  * - Prominent "Budgets" title with "Your monthly flow, one dial" subtitle
- * - Understated dark month selector pill: [ 📅 August 2026 ⌵ ]
- * - Full-width dark search bar: "Search budgets, categories, or merchants..."
+ * - Understated month selector pill: [ 📅 August 2026 ⌵ ]
+ * - Full-width search bar: "Search budgets, categories, or merchants..."
  * - Test fallbacks to maintain 100% test suite compatibility
  */
 export default function BudgetHeader({
@@ -29,6 +29,7 @@ export default function BudgetHeader({
   onSearchChange,
   onMonthPress,
 }: BudgetHeaderProps) {
+  const { THEME } = useTheme();
   const dispatch = useAppDispatch();
   const calendarYear = useAppSelector((state: any) => state?.calendar?.year);
   const displayYear = year ?? calendarYear ?? "";
@@ -61,7 +62,7 @@ export default function BudgetHeader({
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 28,
               fontWeight: "800",
               letterSpacing: -0.5,
@@ -71,7 +72,7 @@ export default function BudgetHeader({
           </Text>
           <Text
             style={{
-              color: "#8E8E93",
+              color: THEME.textSecondary,
               fontSize: 13.5,
               fontWeight: "400",
               marginTop: 2,
@@ -90,9 +91,9 @@ export default function BudgetHeader({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: "#161618",
+            backgroundColor: THEME.surface,
             borderWidth: 1,
-            borderColor: "#262629",
+            borderColor: THEME.border,
             borderRadius: 12,
             paddingHorizontal: 12,
             paddingVertical: 7,
@@ -101,12 +102,12 @@ export default function BudgetHeader({
           <Feather
             name="calendar"
             size={14}
-            color="#C7C7CC"
+            color={THEME.textPrimary}
             style={{ marginRight: 6 }}
           />
           <Text
             style={{
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 13.5,
               fontWeight: "600",
               letterSpacing: -0.1,
@@ -117,7 +118,7 @@ export default function BudgetHeader({
           <Feather
             name="chevron-down"
             size={14}
-            color="#8E8E93"
+            color={THEME.textSecondary}
             style={{ marginLeft: 6 }}
           />
         </TouchableOpacity>
@@ -130,10 +131,10 @@ export default function BudgetHeader({
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
-            backgroundColor: "#161618",
+            backgroundColor: THEME.surface,
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: "#262629",
+            borderColor: THEME.border,
             paddingHorizontal: 12,
             paddingVertical: 8,
             marginBottom: 12,
@@ -144,9 +145,15 @@ export default function BudgetHeader({
             style={{ padding: 4 }}
             accessibilityLabel="Previous month"
           >
-            <Feather name="chevron-left" size={18} color="#FFFFFF" />
+            <Feather name="chevron-left" size={18} color={THEME.textPrimary} />
           </TouchableOpacity>
-          <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
+          <Text
+            style={{
+              color: THEME.textPrimary,
+              fontSize: 14,
+              fontWeight: "600",
+            }}
+          >
             {formattedMonth}
           </Text>
           <TouchableOpacity
@@ -154,7 +161,7 @@ export default function BudgetHeader({
             style={{ padding: 4 }}
             accessibilityLabel="Next month"
           >
-            <Feather name="chevron-right" size={18} color="#FFFFFF" />
+            <Feather name="chevron-right" size={18} color={THEME.textPrimary} />
           </TouchableOpacity>
         </View>
       )}
@@ -164,10 +171,10 @@ export default function BudgetHeader({
         <View
           style={{
             height: 48,
-            backgroundColor: "#161618",
+            backgroundColor: THEME.inputBackground,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#262629",
+            borderColor: THEME.border,
             flexDirection: "row",
             alignItems: "center",
             paddingHorizontal: 14,
@@ -177,17 +184,17 @@ export default function BudgetHeader({
           <Feather
             name="search"
             size={18}
-            color="#636366"
+            color={THEME.placeholderText}
             style={{ marginRight: 10 }}
           />
           <TextInput
             value={searchQuery}
             onChangeText={onSearchChange}
             placeholder="Search budgets, categories, or merchants..."
-            placeholderTextColor="#636366"
+            placeholderTextColor={THEME.placeholderText}
             style={{
               flex: 1,
-              color: "#FFFFFF",
+              color: THEME.textPrimary,
               fontSize: 14,
               paddingVertical: 0,
             }}
@@ -198,7 +205,7 @@ export default function BudgetHeader({
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={{ marginLeft: 6 }}
             >
-              <Feather name="x-circle" size={16} color="#8E8E93" />
+              <Feather name="x-circle" size={16} color={THEME.textSecondary} />
             </TouchableOpacity>
           )}
 

@@ -5,8 +5,8 @@ import type { ITheme, IThemeState } from "@/types/theme/types";
 import { logger } from "@/utils/logger";
 
 const initialState: IThemeState = {
-  selectedTheme: "Light",
-  THEME: THEME_PALETTES.LIGHT,
+  selectedTheme: "Dark",
+  THEME: THEME_PALETTES.DARK,
 };
 
 export const loadThemeFromStorage = createAsyncThunk(

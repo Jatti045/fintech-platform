@@ -2,17 +2,22 @@ import React from "react";
 import { View, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { useTheme } from "@/hooks/useRedux";
 import type { ProfileAvatarProps } from "@/types/profile/types";
 
 /**
- * Avatar with thin warm-gold border, dark charcoal interior, and camera icon or uploaded image.
+ * Avatar with thin accent border, surfaceHover interior, and camera icon or uploaded image.
  * Supports tap-to-upload and long-press-to-delete.
  */
 export default function ProfileAvatar({
+  THEME: propTheme,
   user,
   onPickImage,
   onDeleteImage,
 }: ProfileAvatarProps) {
+  const { THEME: reduxTheme } = useTheme();
+  const theme = propTheme || reduxTheme;
+
   return (
     <View
       style={{
@@ -20,10 +25,10 @@ export default function ProfileAvatar({
         height: 72,
         borderRadius: 36,
         borderWidth: 1.5,
-        borderColor: "#D4AF6A",
+        borderColor: theme.primary,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#18181B",
+        backgroundColor: theme.surfaceHover,
         overflow: "hidden",
       }}
     >
@@ -52,10 +57,10 @@ export default function ProfileAvatar({
             borderRadius: 34,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "#18181B",
+            backgroundColor: theme.surfaceHover,
           }}
         >
-          <Ionicons name="camera" size={26} color="#8E8E93" />
+          <Ionicons name="camera" size={26} color={theme.textSecondary} />
         </TouchableOpacity>
       )}
     </View>

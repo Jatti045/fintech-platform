@@ -3,12 +3,14 @@ import { View, Text, TouchableOpacity, FlatList, Modal } from "react-native";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { Ionicons } from "@expo/vector-icons";
 
+import { useTheme } from "@/hooks/useRedux";
+import { hexToRgba } from "@/utils/colorUtils";
 import { CURRENCIES, DEFAULT_CURRENCY } from "@/constants/Currencies";
 import type { CurrencyPickerModalProps } from "@/types/profile/types";
 
 /**
  * Bottom-sheet style modal for selecting the default currency.
- * Minimal, dark, restrained design.
+ * Minimal, theme-aware, restrained design.
  */
 export default function CurrencyPickerModal({
   visible,
@@ -16,6 +18,8 @@ export default function CurrencyPickerModal({
   onSelect,
   onClose,
 }: CurrencyPickerModalProps) {
+  const { THEME } = useTheme();
+
   if (!visible) return null;
 
   const modalHeight = getModalHeight();
@@ -31,13 +35,13 @@ export default function CurrencyPickerModal({
       >
         <View
           style={{
-            backgroundColor: "#0B0B0D",
+            backgroundColor: THEME.surface,
             borderTopLeftRadius: MODAL_BORDER_RADIUS,
             borderTopRightRadius: MODAL_BORDER_RADIUS,
             height: modalHeight,
             paddingBottom: 30,
             borderWidth: 1,
-            borderColor: "#1F1F23",
+            borderColor: THEME.border,
           }}
         >
           {/* Header */}
@@ -49,12 +53,12 @@ export default function CurrencyPickerModal({
               paddingHorizontal: 20,
               paddingVertical: 18,
               borderBottomWidth: 1,
-              borderBottomColor: "#1F1F23",
+              borderBottomColor: THEME.border,
             }}
           >
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.textPrimary,
                 fontSize: 17,
                 fontWeight: "700",
               }}
@@ -65,7 +69,7 @@ export default function CurrencyPickerModal({
               onPress={onClose}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close" size={22} color="#8E8E93" />
+              <Ionicons name="close" size={22} color={THEME.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -86,10 +90,10 @@ export default function CurrencyPickerModal({
                     paddingVertical: 14,
                     paddingHorizontal: 20,
                     backgroundColor: isSelected
-                      ? "rgba(212, 175, 106, 0.1)"
+                      ? hexToRgba(THEME.primary, 0.1)
                       : "transparent",
                     borderBottomWidth: 0.5,
-                    borderBottomColor: "#1F1F23",
+                    borderBottomColor: THEME.border,
                   }}
                 >
                   <Text style={{ fontSize: 22, marginRight: 14 }}>
@@ -98,7 +102,7 @@ export default function CurrencyPickerModal({
                   <View style={{ flex: 1 }}>
                     <Text
                       style={{
-                        color: "#FFFFFF",
+                        color: THEME.textPrimary,
                         fontWeight: isSelected ? "700" : "500",
                         fontSize: 15,
                       }}
@@ -106,7 +110,7 @@ export default function CurrencyPickerModal({
                       {item.code}{" "}
                       <Text
                         style={{
-                          color: "#8E8E93",
+                          color: THEME.textSecondary,
                           fontWeight: "400",
                         }}
                       >
@@ -116,7 +120,7 @@ export default function CurrencyPickerModal({
                   </View>
                   <Text
                     style={{
-                      color: "#8E8E93",
+                      color: THEME.textSecondary,
                       fontSize: 15,
                       fontWeight: "600",
                     }}
@@ -127,7 +131,7 @@ export default function CurrencyPickerModal({
                     <Ionicons
                       name="checkmark-circle"
                       size={20}
-                      color="#D4AF6A"
+                      color={THEME.primary}
                       style={{ marginLeft: 10 }}
                     />
                   )}
