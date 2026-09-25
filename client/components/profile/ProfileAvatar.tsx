@@ -1,69 +1,63 @@
 import React from "react";
 import { View, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 
 import type { ProfileAvatarProps } from "@/types/profile/types";
 
 /**
- * Renders the gradient-bordered avatar with tap-to-upload and long-press-to-delete.
+ * Avatar with thin warm-gold border, dark charcoal interior, and camera icon or uploaded image.
+ * Supports tap-to-upload and long-press-to-delete.
  */
 export default function ProfileAvatar({
-  THEME,
   user,
   onPickImage,
   onDeleteImage,
 }: ProfileAvatarProps) {
   return (
-    <View className="relative mb-4">
-      <LinearGradient
-        colors={[THEME.primary, THEME.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          width: 120,
-          height: 120,
-          borderRadius: 60,
-          padding: 3,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <View
+    <View
+      style={{
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        borderWidth: 1.5,
+        borderColor: "#D4AF6A",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#18181B",
+        overflow: "hidden",
+      }}
+    >
+      {user?.profilePic ? (
+        <TouchableOpacity
+          onPress={onPickImage}
+          onLongPress={onDeleteImage}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Change or remove profile picture"
+        >
+          <Image
+            source={{ uri: user.profilePic }}
+            style={{ width: 68, height: 68, borderRadius: 34 }}
+          />
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          onPress={onPickImage}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Upload profile picture"
           style={{
-            width: 114,
-            height: 114,
-            borderRadius: 57,
-            backgroundColor: THEME.surface,
+            width: 68,
+            height: 68,
+            borderRadius: 34,
             alignItems: "center",
             justifyContent: "center",
-            overflow: "hidden",
+            backgroundColor: "#18181B",
           }}
         >
-          {user?.profilePic ? (
-            <TouchableOpacity onPress={onPickImage} onLongPress={onDeleteImage}>
-              <Image
-                source={{ uri: user.profilePic }}
-                style={{ width: 108, height: 108, borderRadius: 54 }}
-              />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              onPress={onPickImage}
-              style={{
-                width: 108,
-                height: 108,
-                borderRadius: 54,
-                backgroundColor: THEME.textSecondary + "33",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="camera" size={48} color={THEME.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </LinearGradient>
+          <Ionicons name="camera" size={26} color="#8E8E93" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

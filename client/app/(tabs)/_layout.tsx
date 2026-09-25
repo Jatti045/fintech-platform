@@ -138,12 +138,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            headerShown: true,
-            headerTitle: () => null,
-            headerStyle: {
-              backgroundColor: THEME.border,
-              height: 70,
-            },
+            headerShown: false,
             tabBarLabel: "Profile",
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: "center", justifyContent: "center" }}>

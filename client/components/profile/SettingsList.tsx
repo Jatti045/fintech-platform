@@ -2,121 +2,141 @@ import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import GlassPanel from "@/components/global/GlassPanel";
-import { hexToRgba } from "@/utils/helper";
 import type { SettingsListProps } from "@/types/profile/types";
 
 /**
- * SettingsList — a grouped glass list framing the account actions. The
- * destructive “Delete Account” action is separated from the neutral ones.
+ * SettingsList — Security & Account actions matching the approved design system:
+ * - Neutral actions (Log Out, Change Password) in a subtle dark card with dividers.
+ * - Destructive action (Delete Account) in a separate restrained red-bordered card.
  */
-export default function SettingsList({ THEME, items }: SettingsListProps) {
+export default function SettingsList({ items }: SettingsListProps) {
   const destructiveIndex = items.findIndex((i) => i.isDestructive);
   const neutralItems = items.filter((i) => !i.isDestructive);
   const destructiveItem =
     destructiveIndex >= 0 ? items[destructiveIndex] : null;
 
   return (
-    <View>
-      <Text
+    <View style={{ marginBottom: 12 }}>
+      {/* Neutral Items Card */}
+      <View
         style={{
-          color: THEME.textSecondary,
-          fontSize: 11,
-          fontWeight: "700",
-          letterSpacing: 0.6,
-          textTransform: "uppercase",
-          marginBottom: 8,
-          marginTop: 4,
+          backgroundColor: "#141416",
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor: "#1F1F23",
+          overflow: "hidden",
         }}
       >
-        Security & Account
-      </Text>
-
-      <GlassPanel padding={0} radius={18} style={{ marginBottom: 12 }}>
         {neutralItems.map((item, i) => (
           <View key={`${item.title}-${item.icon}`}>
-            <SettingRow
-              title={item.title}
-              icon={item.icon}
-              THEME={THEME}
+            <TouchableOpacity
               onPress={item.onPress}
-              isDestructive={false}
-            />
+              accessibilityRole="button"
+              accessibilityLabel={item.title}
+              activeOpacity={0.7}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 14,
+              }}
+            >
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  backgroundColor: "#1A1A1E",
+                  borderWidth: 1,
+                  borderColor: "#26262A",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 12,
+                }}
+              >
+                <Ionicons name={item.icon as any} size={17} color="#FFFFFF" />
+              </View>
+
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 14.5,
+                  fontWeight: "600",
+                  flex: 1,
+                }}
+              >
+                {item.title}
+              </Text>
+
+              <Ionicons name="chevron-forward" size={16} color="#636366" />
+            </TouchableOpacity>
+
             {i < neutralItems.length - 1 ? (
               <View
                 style={{
                   height: 1,
                   marginHorizontal: 14,
-                  backgroundColor: hexToRgba(THEME.border, 0.7),
+                  backgroundColor: "#1F1F23",
                 }}
               />
             ) : null}
           </View>
         ))}
-      </GlassPanel>
+      </View>
 
+      {/* Destructive Item Card */}
       {destructiveItem ? (
-        <GlassPanel
-          padding={0}
-          radius={18}
-          style={{ marginBottom: 12, borderColor: hexToRgba(THEME.danger, 0.4) }}
+        <View
+          style={{
+            backgroundColor: "#141416",
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: "rgba(248, 113, 113, 0.25)",
+            marginTop: 10,
+            overflow: "hidden",
+          }}
         >
-          <SettingRow
-            title={destructiveItem.title}
-            icon={destructiveItem.icon}
-            THEME={THEME}
+          <TouchableOpacity
             onPress={destructiveItem.onPress}
-            isDestructive
-          />
-        </GlassPanel>
+            accessibilityRole="button"
+            accessibilityLabel={destructiveItem.title}
+            activeOpacity={0.7}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 14,
+            }}
+          >
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                backgroundColor: "rgba(248, 113, 113, 0.1)",
+                borderWidth: 1,
+                borderColor: "rgba(248, 113, 113, 0.2)",
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 12,
+              }}
+            >
+              <Ionicons name="trash-outline" size={17} color="#F87171" />
+            </View>
+
+            <Text
+              style={{
+                color: "#F87171",
+                fontSize: 14.5,
+                fontWeight: "700",
+                flex: 1,
+              }}
+            >
+              {destructiveItem.title}
+            </Text>
+
+            <Ionicons name="chevron-forward" size={16} color="#F87171" />
+          </TouchableOpacity>
+        </View>
       ) : null}
     </View>
-  );
-}
-
-function SettingRow({
-  title,
-  icon,
-  THEME,
-  onPress,
-  isDestructive,
-}: {
-  title: string;
-  icon: string;
-  THEME: SettingsListProps["THEME"];
-  onPress: () => void;
-  isDestructive: boolean;
-}) {
-  const color = isDestructive ? THEME.danger : THEME.textPrimary;
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      activeOpacity={0.7}
-      style={{ flexDirection: "row", alignItems: "center", padding: 14 }}
-    >
-      <View
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 11,
-          backgroundColor: hexToRgba(color, 0.14),
-          alignItems: "center",
-          justifyContent: "center",
-          marginRight: 12,
-        }}
-      >
-        <Ionicons name={icon as any} size={17} color={color} />
-      </View>
-      <Text style={{ color, fontSize: 15, fontWeight: "700", flex: 1 }}>
-        {title}
-      </Text>
-      <Ionicons
-        name="chevron-forward"
-        size={18}
-        color={isDestructive ? THEME.danger : THEME.textSecondary}
-      />
-    </TouchableOpacity>
   );
 }

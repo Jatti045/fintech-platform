@@ -1,9 +1,7 @@
 import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useTheme } from "@/hooks/useRedux";
-import { formatCurrency, hexToRgba } from "@/utils/helper";
-import GlassPanel from "@/components/global/GlassPanel";
+import { formatCurrency } from "@/utils/helper";
 import type { ITheme } from "@/types/theme/types";
 
 export interface MonthlyIncomeProps {
@@ -18,90 +16,115 @@ export interface MonthlyIncomeProps {
 }
 
 /**
- * MonthlyIncome — a glass inline editor for the month’s income. Feeds the
- * net-readings across Home and the Transaction flow header.
+ * MonthlyIncome — card matching the approved mockup:
+ * - Gold trend icon, "Monthly Income", "Set your expected monthly income as a planning baseline."
+ * - Subtle dark green container showing "Earned this month" and actual amount.
+ * - Dark numeric input with hairline border.
+ * - Gold "Save Monthly Income" button.
  */
 export default function MonthlyIncome({
-  THEME,
   input,
   setInput,
-  monthLabel,
   saving,
   onSave,
   actualIncome = 0,
 }: MonthlyIncomeProps) {
-  const { THEME: T } = useTheme();
   const expected = Number(input) || 0;
   const actual = Number(actualIncome) || 0;
+
+  const earnedText =
+    expected > 0
+      ? `${formatCurrency(actual, "USD")} of ${formatCurrency(expected, "USD")}`
+      : `${formatCurrency(actual, "USD")} (no target set)`;
+
   return (
-    <GlassPanel padding={14} radius={18} style={{ marginBottom: 16 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+    <View
+      style={{
+        backgroundColor: "#141416",
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: "#1F1F23",
+        padding: 16,
+        marginBottom: 8,
+      }}
+    >
+      {/* Header Row */}
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
         <View
           style={{
-            width: 30,
-            height: 30,
-            borderRadius: 10,
-            backgroundColor: hexToRgba(THEME.primary, 0.16),
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            backgroundColor: "rgba(212, 175, 106, 0.12)",
+            borderWidth: 1,
+            borderColor: "rgba(212, 175, 106, 0.25)",
             alignItems: "center",
             justifyContent: "center",
-            marginRight: 10,
+            marginRight: 12,
           }}
         >
-          <Feather name="trending-up" size={15} color={THEME.primary} />
+          <Feather name="trending-up" size={17} color="#D4AF6A" />
         </View>
+
         <View style={{ flex: 1 }}>
-          <Text style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "800" }}>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 15,
+              fontWeight: "700",
+            }}
+          >
             Monthly Income
           </Text>
-          <Text style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 1 }}>
-            {monthLabel}
+          <Text style={{ color: "#8E8E93", fontSize: 12, marginTop: 2 }}>
+            Set your expected monthly income as a planning baseline.
           </Text>
         </View>
       </View>
 
-      <Text style={{ color: THEME.textSecondary, fontSize: 12, marginBottom: 10 }}>
-        Set your expected monthly income as a planning baseline.
-      </Text>
-
-      {/* Actual vs expected readout */}
-      {actual > 0 && (
-        <View
+      {/* Subtle green information container */}
+      <View
+        style={{
+          backgroundColor: "rgba(52, 211, 153, 0.08)",
+          borderWidth: 1,
+          borderColor: "rgba(52, 211, 153, 0.2)",
+          borderRadius: 12,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          marginTop: 14,
+          marginBottom: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text style={{ color: "#8E8E93", fontSize: 12.5, fontWeight: "500" }}>
+          Earned this month
+        </Text>
+        <Text
           style={{
-            backgroundColor: hexToRgba(THEME.success, 0.1),
-            borderRadius: 10,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            marginBottom: 10,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
+            color: "#34D399",
+            fontSize: 13,
+            fontWeight: "700",
+            letterSpacing: -0.1,
           }}
         >
-          <Text style={{ color: THEME.textSecondary, fontSize: 12, flex: 1 }}>
-            Earned this month
-          </Text>
-          <Text
-            style={{ color: THEME.success, fontSize: 13, fontWeight: "800" }}
-          >
-            {formatCurrency(actual, "USD")}
-            {expected > 0
-              ? ` of ${formatCurrency(expected, "USD")} expected`
-              : " (no target set)"}
-          </Text>
-        </View>
-      )}
+          {earnedText}
+        </Text>
+      </View>
 
+      {/* Numeric Input */}
       <TextInput
         value={input}
         onChangeText={setInput}
         keyboardType="decimal-pad"
         placeholder="0.00"
-        placeholderTextColor={THEME.placeholderText}
+        placeholderTextColor="#636366"
         style={{
-          backgroundColor: hexToRgba(THEME.background, 0.5),
-          borderColor: THEME.border,
+          backgroundColor: "#101012",
+          borderColor: "#222226",
           borderWidth: 1,
-          color: THEME.textPrimary,
+          color: "#FFFFFF",
           borderRadius: 12,
           paddingHorizontal: 14,
           paddingVertical: 12,
@@ -112,22 +135,30 @@ export default function MonthlyIncome({
         accessibilityLabel="Monthly income"
       />
 
+      {/* Save Button */}
       <TouchableOpacity
         onPress={onSave}
         disabled={saving}
+        activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityLabel="Save monthly income"
         style={{
-          backgroundColor: saving ? THEME.border : THEME.primary,
+          backgroundColor: saving ? "#262629" : "#D4AF6A",
           borderRadius: 12,
-          paddingVertical: 12,
+          paddingVertical: 13,
           alignItems: "center",
         }}
       >
-        <Text style={{ color: T.textPrimary, fontWeight: "800", fontSize: 14 }}>
+        <Text
+          style={{
+            color: saving ? "#8E8E93" : "#0B0B0D",
+            fontWeight: "800",
+            fontSize: 14,
+          }}
+        >
           {saving ? "Saving…" : "Save Monthly Income"}
         </Text>
       </TouchableOpacity>
-    </GlassPanel>
+    </View>
   );
 }
