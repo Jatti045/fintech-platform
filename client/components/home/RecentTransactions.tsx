@@ -5,7 +5,6 @@ import { capitalizeFirst, formatCurrency } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type { ITransaction } from "@/types/transaction/types";
 import DashboardCard from "./DashboardCard";
-import BrandIcon from "./BrandIcon";
 
 export interface RecentTransactionsProps {
   transactions: ITransaction[];
@@ -20,11 +19,11 @@ function formatTxDate(dateStr: string): string {
 }
 
 /**
- * Recent Transactions section matching the reference design:
- * RECENT TRANSACTIONS                    See all >
- * Single unified subtle surface containing clean rows:
- *   [icon]  Category           -$58.00
- *           Merchant            Aug 20
+ * Recent Transactions section:
+ * Single unified subtle surface containing clean text-focused rows:
+ *   Category           -$58.00
+ *   Merchant            Aug 20
+ * (Zero icons/logos/avatars)
  */
 export default function RecentTransactions({
   transactions,
@@ -143,11 +142,8 @@ export default function RecentTransactions({
                 borderBottomColor: "#212124",
               }}
             >
-              {/* Category / Brand Icon */}
-              <BrandIcon name={tx.name} category={category} size={38} />
-
-              {/* Middle: Category & Merchant */}
-              <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+              {/* Left: Category & Merchant */}
+              <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
                 <Text
                   style={{
                     color: "#F4F4F5",
@@ -173,7 +169,7 @@ export default function RecentTransactions({
               </View>
 
               {/* Right: Amount & Date */}
-              <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
+              <View style={{ alignItems: "flex-end" }}>
                 <Text
                   style={{
                     color: "#FFFFFF",

@@ -32,6 +32,15 @@ import type { IBudget } from "@/types/budget/types";
 const textMock = Text as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
 
+jest.mock("expo-router", () => ({
+  router: {
+    push: jest.fn(),
+    replace: jest.fn(),
+    navigate: jest.fn(),
+    back: jest.fn(),
+  },
+}));
+
 jest.mock("@/api/transaction", () => ({
   __esModule: true,
   default: { fetchAll: jest.fn() },
@@ -300,5 +309,19 @@ describe("Index", () => {
 
     expect(renderedText("Help & Usage")).toBe(true);
   });
-});
 
+  it("navigates to Profile when Settings is pressed in the header", async () => {
+    const { router } = require("expo-router");
+    await setup();
+
+    const settings = lastProps(
+      touchableOpacityMock,
+      (props) => props.accessibilityLabel === "Profile settings",
+    );
+    renderer.act(() => {
+      settings!.onPress();
+    });
+
+    expect(router.push).toHaveBeenCalledWith("/(tabs)/profile");
+  });
+});

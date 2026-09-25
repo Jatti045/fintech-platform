@@ -1,20 +1,24 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useUser } from "@/hooks/useRedux";
 import { capitalizeFirst } from "@/utils/helper";
 
 type Props = {
   onInfoPress: () => void;
-  onSearchPress?: () => void;
+  onSettingsPress?: () => void;
 };
 
 /**
  * Dashboard Header matching the reference design:
  * Left: "Budgee" title and secondary muted greeting with emoji.
- * Right: Two understated, dark circular utility buttons (Search, Settings).
+ * Right: Two understated, dark circular utility buttons:
+ *   [ Information ] [ Settings ]
+ *   - Information: opens the Help & Usage modal
+ *   - Settings: navigates to the Profile screen
  */
-export default function HomeHeader({ onInfoPress, onSearchPress }: Props) {
+export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
   const user = useUser();
 
   const rawName = user?.username ? String(user.username) : "James";
@@ -24,6 +28,14 @@ export default function HomeHeader({ onInfoPress, onSearchPress }: Props) {
   const greetingText =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const emoji = hour < 18 ? "☀️" : "🌙";
+
+  const handleSettings = () => {
+    if (onSettingsPress) {
+      onSettingsPress();
+    } else {
+      router.push("/(tabs)/profile");
+    }
+  };
 
   return (
     <View
@@ -59,12 +71,12 @@ export default function HomeHeader({ onInfoPress, onSearchPress }: Props) {
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        {/* Search button */}
+        {/* Information button */}
         <TouchableOpacity
-          onPress={onSearchPress}
+          onPress={onInfoPress}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Search transactions"
+          accessibilityLabel="Help and usage"
           style={{
             width: 38,
             height: 38,
@@ -76,15 +88,15 @@ export default function HomeHeader({ onInfoPress, onSearchPress }: Props) {
             justifyContent: "center",
           }}
         >
-          <Feather name="search" size={17} color="#E5E5EA" />
+          <Feather name="info" size={17} color="#E5E5EA" />
         </TouchableOpacity>
 
-        {/* Settings / info button */}
+        {/* Settings button -> Profile */}
         <TouchableOpacity
-          onPress={onInfoPress}
+          onPress={handleSettings}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Help and usage"
+          accessibilityLabel="Profile settings"
           style={{
             width: 38,
             height: 38,

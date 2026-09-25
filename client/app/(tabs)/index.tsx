@@ -1,4 +1,5 @@
 import React from "react";
+import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
@@ -79,8 +80,11 @@ export default function Index() {
           />
         }
       >
-        {/* 1. Header: Budgee, Greeting, Search & Settings */}
-        <HomeHeader onInfoPress={handleInfoPress} />
+        {/* 1. Header: Budgee, Greeting, Info & Settings */}
+        <HomeHeader
+          onInfoPress={handleInfoPress}
+          onSettingsPress={() => router.push("/(tabs)/profile")}
+        />
 
         {/* 2. Month Selector: [ < ]  Month Year  [ > ] */}
         <MonthSelector

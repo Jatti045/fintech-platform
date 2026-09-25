@@ -3,7 +3,6 @@ import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import type { IRecurringPayment } from "@/types/recurring/types";
 import DashboardCard from "./DashboardCard";
-import BrandIcon from "./BrandIcon";
 
 export interface UpcomingBillsCardProps {
   /** Predicted bills due soonest first (dismissed rows already removed). */
@@ -30,13 +29,12 @@ function shortDate(iso: string): string {
 }
 
 /**
- * Upcoming Bills section matching the reference design:
- * UPCOMING BILLS                         See all >
- * Compact horizontal cards showing:
- *   [Brand Icon]
+ * Upcoming Bills section:
+ * Text-focused, clean horizontal cards showing:
  *   Merchant
- *   Amount
  *   Date
+ *   Amount
+ * (Zero icons/logos/avatars)
  */
 export default function UpcomingBillsCard({
   bills,
@@ -129,7 +127,7 @@ export default function UpcomingBillsCard({
                 radius={18}
                 padding={14}
                 style={{
-                  minHeight: 124,
+                  minHeight: 112,
                   justifyContent: "space-between",
                   borderColor: isExpanded ? "#34D399" : "#232326",
                 }}
@@ -154,22 +152,30 @@ export default function UpcomingBillsCard({
                 </View>
 
                 <View>
-                  <BrandIcon name={bill.name} size={32} />
-
                   <Text
                     style={{
-                      color: "#E4E4E7",
-                      fontSize: 13,
-                      fontWeight: "500",
-                      marginTop: 10,
+                      color: "#FFFFFF",
+                      fontSize: 13.5,
+                      fontWeight: "600",
                     }}
                     numberOfLines={1}
                   >
                     {bill.name}
                   </Text>
+                  <Text
+                    style={{
+                      color: "#8E8E93",
+                      fontSize: 11.5,
+                      fontWeight: "400",
+                      marginTop: 3,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {shortDate(bill.nextExpectedDate)}
+                  </Text>
                 </View>
 
-                <View>
+                <View style={{ marginTop: 10 }}>
                   <Text
                     style={{
                       color: "#FFFFFF",
@@ -180,17 +186,6 @@ export default function UpcomingBillsCard({
                     numberOfLines={1}
                   >
                     {displayAmt}
-                  </Text>
-
-                  <Text
-                    style={{
-                      color: "#8E8E93",
-                      fontSize: 11,
-                      fontWeight: "400",
-                      marginTop: 2,
-                    }}
-                  >
-                    {shortDate(bill.nextExpectedDate)}
                   </Text>
                 </View>
               </DashboardCard>

@@ -7,7 +7,6 @@ import { safeAmount } from "../../utils/transaction/helpers";
 import type { TransactionItem } from "../../types/transaction/types";
 import { hapticHeavy } from "@/utils/haptics";
 import SwipeableRow from "@/components/global/SwipeableRow";
-import BrandIcon from "@/components/home/BrandIcon";
 
 function formatRowDate(dateStr?: string | Date): string {
   if (!dateStr) return "";
@@ -38,9 +37,10 @@ export interface TransactionRowProps {
 }
 
 /**
- * TransactionRow — matches the reference design:
- * - Brand/Category icon on the left
+ * TransactionRow:
+ * - Text-focused clean row (zero icons/logos/avatars)
  * - Category as primary label (white) + Merchant/Account name as secondary (muted gray)
+ * - Transfer indicator if applicable
  * - Row date ("Aug 20") right-aligned before amount
  * - Semantic red for expenses (-$58.00), semantic green for income (+$2,500.00)
  * - Subtle chevron (>)
@@ -140,12 +140,7 @@ const TransactionRow = React.memo(function TransactionRow({
           paddingVertical: 14,
         }}
       >
-        {/* Brand / Category Icon */}
-        <View style={{ marginRight: 12 }}>
-          <BrandIcon name={tx.name} category={displayCategory} size={38} />
-        </View>
-
-        {/* Category & Merchant Info */}
+        {/* Category & Merchant Info (Reflowed to left edge) */}
         <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
           <Text
             style={{
