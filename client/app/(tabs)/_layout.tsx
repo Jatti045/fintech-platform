@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import "@/global.css";
 import { useTheme } from "@/hooks/useRedux";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { useNotificationOnboarding } from "@/hooks/useNotificationOnboarding";
 import NotificationOnboardingModal from "@/components/onboarding/NotificationOnboardingModal";
 import PlaidStatusBanner from "@/components/plaid/PlaidStatusBanner";
@@ -13,23 +13,23 @@ interface TabIndicatorProps {
 }
 
 function TabIndicator({ focused, color = "#D4AF6A" }: TabIndicatorProps) {
-  if (!focused) return <View style={{ height: 4, marginTop: 2 }} />;
+  if (!focused) return <View style={{ height: 4, marginTop: 4 }} />;
 
   return (
     <View
       style={{
-        width: 3.5,
-        height: 3.5,
+        width: 4,
+        height: 4,
         borderRadius: 2,
         backgroundColor: color,
-        marginTop: 2,
+        marginTop: 4,
       }}
     />
   );
 }
 
 export default function TabsLayout() {
-  const TAB_ICON_SIZE = 22;
+  const TAB_ICON_SIZE = 24;
   const { THEME } = useTheme();
   const notificationOnboarding = useNotificationOnboarding();
 
@@ -57,6 +57,7 @@ export default function TabsLayout() {
           name="index"
           options={{
             tabBarLabel: "Home",
+            tabBarAccessibilityLabel: "Home",
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: "center", justifyContent: "center" }}>
                 <Ionicons
@@ -64,16 +65,6 @@ export default function TabsLayout() {
                   size={TAB_ICON_SIZE}
                   color={color}
                 />
-                <Text
-                  style={{
-                    color,
-                    fontSize: 10,
-                    fontWeight: focused ? "600" : "500",
-                    marginTop: 2,
-                  }}
-                >
-                  Home
-                </Text>
                 <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),
@@ -85,23 +76,14 @@ export default function TabsLayout() {
           options={{
             headerShown: false,
             tabBarLabel: "Transactions",
+            tabBarAccessibilityLabel: "Transactions",
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: "center", justifyContent: "center" }}>
                 <Ionicons
-                  name={focused ? "document-text" : "document-text-outline"}
+                  name={focused ? "receipt" : "receipt-outline"}
                   size={TAB_ICON_SIZE}
                   color={color}
                 />
-                <Text
-                  style={{
-                    color,
-                    fontSize: 10,
-                    fontWeight: focused ? "600" : "500",
-                    marginTop: 2,
-                  }}
-                >
-                  Transactions
-                </Text>
                 <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),
@@ -113,23 +95,14 @@ export default function TabsLayout() {
           options={{
             headerShown: false,
             tabBarLabel: "Budgets",
+            tabBarAccessibilityLabel: "Budgets",
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: "center", justifyContent: "center" }}>
                 <Ionicons
-                  name={focused ? "card" : "card-outline"}
+                  name={focused ? "pie-chart" : "pie-chart-outline"}
                   color={color}
                   size={TAB_ICON_SIZE}
                 />
-                <Text
-                  style={{
-                    color,
-                    fontSize: 10,
-                    fontWeight: focused ? "600" : "500",
-                    marginTop: 2,
-                  }}
-                >
-                  Budgets
-                </Text>
                 <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),
@@ -141,6 +114,7 @@ export default function TabsLayout() {
           options={{
             headerShown: false,
             tabBarLabel: "Profile",
+            tabBarAccessibilityLabel: "Profile",
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: "center", justifyContent: "center" }}>
                 <Ionicons
@@ -148,16 +122,6 @@ export default function TabsLayout() {
                   color={color}
                   size={TAB_ICON_SIZE}
                 />
-                <Text
-                  style={{
-                    color,
-                    fontSize: 10,
-                    fontWeight: focused ? "600" : "500",
-                    marginTop: 2,
-                  }}
-                >
-                  Profile
-                </Text>
                 <TabIndicator focused={focused} color={THEME.primary} />
               </View>
             ),

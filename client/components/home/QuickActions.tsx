@@ -46,7 +46,7 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
       </Text>
 
       {/* 2 Action Cards filling width equally */}
-      <View style={{ flexDirection: "row", gap: 12 }}>
+      <View style={{ flexDirection: "column", gap: 12 }}>
         {/* 1. New Transaction */}
         <TouchableOpacity
           onPress={onNewTransaction}
@@ -58,7 +58,10 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
           <DashboardCard
             radius={18}
             padding={14}
-            style={{ minHeight: 96, justifyContent: "space-between" }}
+            style={{
+              minHeight: 62,
+              flexDirection: "row",
+            }}
           >
             <View
               style={{
@@ -68,6 +71,7 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
                 backgroundColor: THEME.primary,
                 alignItems: "center",
                 justifyContent: "center",
+                marginRight: 12,
               }}
             >
               <Feather name="plus" size={18} color={iconColor} />
@@ -83,7 +87,7 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
               }}
               numberOfLines={2}
             >
-              New{"\n"}Transaction
+              New Transaction
             </Text>
           </DashboardCard>
         </TouchableOpacity>
@@ -99,13 +103,17 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
           <DashboardCard
             radius={18}
             padding={14}
-            style={{ minHeight: 96, justifyContent: "space-between" }}
+            style={{
+              minHeight: 62,
+              flexDirection: "row",
+            }}
           >
             <View
               style={{
                 width: 34,
                 height: 34,
                 borderRadius: 10,
+                marginRight: 12,
                 backgroundColor: THEME.secondary,
                 alignItems: "center",
                 justifyContent: "center",
@@ -124,7 +132,7 @@ export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
               }}
               numberOfLines={2}
             >
-              New{"\n"}Budget
+              New Budget
             </Text>
           </DashboardCard>
         </TouchableOpacity>
