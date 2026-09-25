@@ -1,7 +1,6 @@
 import React from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, View } from "react-native";
-import { useTheme } from "@/hooks/useRedux";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
 import TransactionModal from "@/components/transaction/TxModal";
 import BudgetModal from "@/components/budget/BudgetModal";
@@ -10,28 +9,28 @@ import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
 import MonthSelector from "@/components/home/MonthSelector";
-import HomePulse from "@/components/home/HomePulse";
-import SpendingRhythm from "@/components/home/SpendingRhythm";
-import BudgetPulse from "@/components/home/BudgetPulse";
+import MonthlyOverview from "@/components/home/MonthlyOverview";
+import FinancialMetrics from "@/components/home/FinancialMetrics";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
-import RecentFlow from "@/components/home/RecentFlow";
+import RecentTransactions from "@/components/home/RecentTransactions";
 import QuickActions from "@/components/home/QuickActions";
 
 /**
- * Home tab — a composition/orchestration layer only:
+ * Budgee Dashboard (Home Tab).
  *
- *  - `useHomeScreen` owns homepage state (fetching, refresh, currency
- *    conversion, month metadata, modal state, quick-action guards)
- *  - the `Home*` components are presentational
- *  - the modals are self-contained (TxModal / BudgetModal / InformationModal)
+ * Minimal, premium, polished, clean, and highly legible financial product UI.
+ * Rebuilt to closely match the reference design:
+ *   - Dark near-black background (#0B0B0D)
+ *   - Restrained surfaces, hairline subtle borders (#232326), no glassmorphic glow
+ *   - Clear hierarchy: Budgee Header → Month Selector → Monthly Overview
+ *     → 3 Metrics (Income/Spent/Net) → Explain My Month → Upcoming Bills
+ *     → Recent Transactions → Quick Actions
+ *   - All Redux, RTK Query, calculations, and modal logic preserved
  */
 export default function Index() {
-  const { THEME } = useTheme();
-
   const {
     transactions,
     displayTransactions,
-    displayBudgets,
     activeCurrency,
     monthlyIncome,
     expenseTotal,
@@ -60,23 +59,30 @@ export default function Index() {
 
   return (
     <SafeAreaView
-      edges={["left", "right"]}
-      style={{ flex: 1, backgroundColor: THEME.background }}
+      edges={["top", "left", "right"]}
+      style={{ flex: 1, backgroundColor: "#0B0B0D" }}
     >
       <ScrollView
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 24,
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            progressBackgroundColor={THEME.background}
-            colors={[THEME.primary]}
+            progressBackgroundColor="#161618"
+            colors={["#D4AF6A"]}
+            tintColor="#D4AF6A"
           />
         }
       >
+        {/* 1. Header: Budgee, Greeting, Search & Settings */}
         <HomeHeader onInfoPress={handleInfoPress} />
 
+        {/* 2. Month Selector: [ < ]  Month Year  [ > ] */}
         <MonthSelector
           monthLabel={monthLabel}
           isCurrentMonth={isCurrentMonth}
@@ -84,48 +90,56 @@ export default function Index() {
           onNext={handleNextMonth}
         />
 
-        <HomePulse
+        {/* 3. Main Monthly Overview: $2,005 left to spend, progress bar, spending trend */}
+        <MonthlyOverview
           monthlyIncome={monthlyIncome}
           totalSpent={expenseTotal}
           monthLabel={monthLabel}
           currencyCode={activeCurrency}
           isCurrentMonth={isCurrentMonth}
-        />
-
-        <SpendingRhythm
           transactions={transactions}
           month={month}
           year={year}
+        />
+
+        {/* 4. Three Metrics: Income / Spent / Net */}
+        <FinancialMetrics
+          monthlyIncome={monthlyIncome}
+          totalSpent={expenseTotal}
           currencyCode={activeCurrency}
         />
 
-              <BudgetPulse budgets={displayBudgets} currencyCode={activeCurrency} />
-
+        {/* 5. Explain My Month: AI feature panel */}
         <MonthlyInsightCard month={month} year={year} />
 
+        {/* 6. Upcoming Bills: Spotify, Netflix, OpenAI compact cards */}
         <UpcomingBillsCard
           bills={upcomingBills}
           currencyCode={activeCurrency}
           onDismiss={handleDismissBill}
         />
 
-        <RecentFlow
+        {/* 7. Recent Transactions: unified subtle surface */}
+        <RecentTransactions
           transactions={displayTransactions}
           currencyCode={activeCurrency}
         />
 
+        {/* 8. Quick Actions: 4 compact action cards */}
         <QuickActions
           onNewTransaction={handleNewTransaction}
           onNewBudget={handleNewBudget}
         />
 
-        <View style={{ height: 80 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Modals */}
+      {/* Modals & Sheets */}
       <TransactionModal openSheet={openTxModal} setOpenSheet={setOpenTxModal} />
-      <BudgetModal openSheet={openBudgetModal} setOpenSheet={setOpenBudgetModal} />
-      {/* Smart Month Setup — opened from the no-budget guard and quick actions */}
+      <BudgetModal
+        openSheet={openBudgetModal}
+        setOpenSheet={setOpenBudgetModal}
+      />
       <MonthSetupModal
         open={openSetup}
         onOpenChange={handleHideSetup}

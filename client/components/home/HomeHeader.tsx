@@ -1,60 +1,104 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import BudgeeLogo from "./budgeeLogo";
-import { useTheme } from "@/hooks/useRedux";
+import { useUser } from "@/hooks/useRedux";
+import { capitalizeFirst } from "@/utils/helper";
 
 type Props = {
   onInfoPress: () => void;
+  onSearchPress?: () => void;
 };
 
-{
-  /*Persistent top bar: app logo on the left, info button on the right.*/
-}
-export default function HomeHeader({ onInfoPress }: Props) {
-  const { THEME } = useTheme();
+/**
+ * Dashboard Header matching the reference design:
+ * Left: "Budgee" title and secondary muted greeting with emoji.
+ * Right: Two understated, dark circular utility buttons (Search, Settings).
+ */
+export default function HomeHeader({ onInfoPress, onSearchPress }: Props) {
+  const user = useUser();
+
+  const rawName = user?.username ? String(user.username) : "James";
+  const name = capitalizeFirst(rawName.trim());
+
+  const hour = new Date().getHours();
+  const greetingText =
+    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const emoji = hour < 18 ? "☀️" : "🌙";
+
   return (
     <View
       style={{
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 18,
+        paddingTop: 4,
+        marginBottom: 16,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <BudgeeLogo
-          size={36}
-          primary={THEME.primary}
-          secondary={THEME.secondary}
-        />
+      <View>
         <Text
           style={{
-            color: THEME.textPrimary,
-            fontSize: 20,
+            color: "#FFFFFF",
+            fontSize: 26,
             fontWeight: "800",
-            marginLeft: 10,
+            letterSpacing: -0.5,
           }}
         >
           Budgee
         </Text>
+        <Text
+          style={{
+            color: "#8E8E93",
+            fontSize: 13.5,
+            fontWeight: "400",
+            marginTop: 2,
+          }}
+        >
+          {greetingText}, {name} {emoji}
+        </Text>
       </View>
 
-      <TouchableOpacity
-        onPress={onInfoPress}
-        accessibilityRole="button"
-        accessibilityLabel="Help and usage"
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 8,
-          backgroundColor: THEME.surface,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Feather name="info" size={18} color={THEME.textPrimary} />
-      </TouchableOpacity>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        {/* Search button */}
+        <TouchableOpacity
+          onPress={onSearchPress}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Search transactions"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: "#1C1C1F",
+            borderWidth: 1,
+            borderColor: "#28282C",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Feather name="search" size={17} color="#E5E5EA" />
+        </TouchableOpacity>
+
+        {/* Settings / info button */}
+        <TouchableOpacity
+          onPress={onInfoPress}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Help and usage"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: "#1C1C1F",
+            borderWidth: 1,
+            borderColor: "#28282C",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Feather name="settings" size={17} color="#E5E5EA" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

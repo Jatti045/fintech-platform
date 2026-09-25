@@ -1,10 +1,9 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useTheme } from "@/hooks/useRedux";
 
 type Props = {
-  /** Pre-formatted label, e.g. "February 2026". */
+  /** Pre-formatted label, e.g. "August 2026". */
   monthLabel: string;
   /** Disables the forward arrow when already at the current month. */
   isCurrentMonth: boolean;
@@ -13,7 +12,8 @@ type Props = {
 };
 
 /**
- * Centred month navigation row with previous / next chevron buttons.
+ * Centered month navigation row with understated dark controls.
+ * Matches the reference design: [ < ]  Month Year  [ > ]
  */
 export default function MonthSelector({
   monthLabel,
@@ -21,14 +21,13 @@ export default function MonthSelector({
   onPrev,
   onNext,
 }: Props) {
-  const { THEME } = useTheme();
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: 12,
+        marginBottom: 16,
       }}
     >
       <TouchableOpacity
@@ -37,18 +36,28 @@ export default function MonthSelector({
         accessibilityRole="button"
         accessibilityLabel="Previous month"
         style={{
-          padding: 8,
-          marginRight: 12,
-          backgroundColor: THEME.surface,
-          borderRadius: 8,
-          borderColor: THEME.border,
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          backgroundColor: "#1C1C1F",
           borderWidth: 1,
+          borderColor: "#28282C",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <Feather name="chevron-left" size={20} color={THEME.textPrimary} />
+        <Feather name="chevron-left" size={18} color="#E5E5EA" />
       </TouchableOpacity>
 
-      <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>
+      <Text
+        style={{
+          color: "#FFFFFF",
+          fontSize: 15.5,
+          fontWeight: "700",
+          marginHorizontal: 16,
+          letterSpacing: -0.2,
+        }}
+      >
         {monthLabel}
       </Text>
 
@@ -60,16 +69,18 @@ export default function MonthSelector({
         accessibilityLabel="Next month"
         accessibilityState={{ disabled: isCurrentMonth }}
         style={{
-          padding: 8,
-          marginLeft: 12,
-          backgroundColor: THEME.surface,
-          borderRadius: 8,
-          opacity: isCurrentMonth ? 0.5 : 1,
-          borderColor: THEME.border,
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          backgroundColor: "#1C1C1F",
           borderWidth: 1,
+          borderColor: "#28282C",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: isCurrentMonth ? 0.35 : 1,
         }}
       >
-        <Feather name="chevron-right" size={20} color={THEME.textPrimary} />
+        <Feather name="chevron-right" size={18} color="#E5E5EA" />
       </TouchableOpacity>
     </View>
   );

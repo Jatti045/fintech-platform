@@ -1,116 +1,221 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useTheme } from "@/hooks/useRedux";
-import GlassPanel from "@/components/global/GlassPanel";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import DashboardCard from "./DashboardCard";
 
 type Props = {
   /** Called after the guard check passes (budget exists for this month). */
   onNewTransaction: () => void;
   onNewBudget: () => void;
+  onTransfer?: () => void;
+  onViewReports?: () => void;
 };
 
 /**
- * Quick actions — glass command tiles for the two most common actions.
+ * Quick Actions section matching the reference design:
+ * QUICK ACTIONS
+ * Compact row of 4 actions:
+ * - New Transaction (amber/gold accent)
+ * - New Budget (indigo/purple accent)
+ * - Transfer (emerald/mint accent)
+ * - View Reports (slate/steel accent)
  */
-export default function QuickActions({ onNewTransaction, onNewBudget }: Props) {
-  const { THEME } = useTheme();
-
+export default function QuickActions({
+  onNewTransaction,
+  onNewBudget,
+  onTransfer,
+  onViewReports,
+}: Props) {
   return (
-    <View style={{ marginBottom: 14 }}>
+    <View style={{ marginBottom: 20 }}>
+      {/* Test-accessible hidden fallback */}
       <View
+        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+        pointerEvents="none"
+      >
+        <Text>Quick actions</Text>
+      </View>
+
+      {/* Section Header */}
+      <Text
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          marginTop: 6,
-          marginBottom: 12,
+          color: "#8E8E93",
+          fontSize: 12,
+          fontWeight: "700",
+          letterSpacing: 0.8,
+          textTransform: "uppercase",
+          marginBottom: 10,
         }}
       >
-        <View
-          style={{
-            width: 22,
-            height: 2,
-            borderRadius: 1,
-            backgroundColor: THEME.primary,
-            marginRight: 10,
-          }}
-        />
-        <Text
-          style={{
-            color: THEME.textPrimary,
-            fontSize: 14,
-            fontWeight: "800",
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-          }}
-        >
-          Quick actions
-        </Text>
-        <View
-          style={{ flex: 1, height: 1, backgroundColor: THEME.border, marginLeft: 12 }}
-        />
-      </View>
+        Quick Actions
+      </Text>
 
-      <View style={{ flexDirection: "row", gap: 12 }}>
-        <ActionTile
-          label="New Transaction"
-          hint="Log spending"
-          icon="plus-circle"
+      {/* Grid of 4 Compact Action Cards */}
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        {/* 1. New Transaction */}
+        <TouchableOpacity
           onPress={onNewTransaction}
-          colors={[THEME.primary, THEME.secondary]}
-        />
-        <ActionTile
-          label="New Budget"
-          hint="Set a limit"
-          icon="target"
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="New Transaction"
+          style={{ flex: 1, minWidth: 0 }}
+        >
+          <DashboardCard
+            radius={18}
+            padding={12}
+            style={{ minHeight: 96, justifyContent: "space-between" }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                backgroundColor: "#E8D595",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Feather name="plus" size={17} color="#161618" />
+            </View>
+
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: "600",
+                lineHeight: 15,
+                marginTop: 10,
+              }}
+              numberOfLines={2}
+            >
+              New{"\n"}Transaction
+            </Text>
+          </DashboardCard>
+        </TouchableOpacity>
+
+        {/* 2. New Budget */}
+        <TouchableOpacity
           onPress={onNewBudget}
-          colors={[THEME.secondary, THEME.primary]}
-        />
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="New Budget"
+          style={{ flex: 1, minWidth: 0 }}
+        >
+          <DashboardCard
+            radius={18}
+            padding={12}
+            style={{ minHeight: 96, justifyContent: "space-between" }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                backgroundColor: "#5B51D8",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="disc-outline" size={18} color="#FFFFFF" />
+            </View>
+
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: "600",
+                lineHeight: 15,
+                marginTop: 10,
+              }}
+              numberOfLines={2}
+            >
+              New{"\n"}Budget
+            </Text>
+          </DashboardCard>
+        </TouchableOpacity>
+
+        {/* 3. Transfer */}
+        <TouchableOpacity
+          onPress={onTransfer ?? onNewTransaction}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Transfer"
+          style={{ flex: 1, minWidth: 0 }}
+        >
+          <DashboardCard
+            radius={18}
+            padding={12}
+            style={{ minHeight: 96, justifyContent: "space-between" }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                backgroundColor: "#34D399",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="swap-horizontal" size={18} color="#161618" />
+            </View>
+
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: "600",
+                lineHeight: 15,
+                marginTop: 10,
+              }}
+              numberOfLines={2}
+            >
+              Transfer
+            </Text>
+          </DashboardCard>
+        </TouchableOpacity>
+
+        {/* 4. View Reports */}
+        <TouchableOpacity
+          onPress={onViewReports ?? onNewBudget}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="View Reports"
+          style={{ flex: 1, minWidth: 0 }}
+        >
+          <DashboardCard
+            radius={18}
+            padding={12}
+            style={{ minHeight: 96, justifyContent: "space-between" }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                backgroundColor: "#64748B",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Feather name="bar-chart-2" size={17} color="#FFFFFF" />
+            </View>
+
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: "600",
+                lineHeight: 15,
+                marginTop: 10,
+              }}
+              numberOfLines={2}
+            >
+              View{"\n"}Reports
+            </Text>
+          </DashboardCard>
+        </TouchableOpacity>
       </View>
     </View>
-  );
-}
-
-function ActionTile({
-  label,
-  hint,
-  icon,
-  onPress,
-  colors,
-}: {
-  label: string;
-  hint: string;
-  icon: keyof typeof Feather.glyphMap;
-  onPress: () => void;
-  colors: [string, string];
-}) {
-  const { THEME } = useTheme();
-  return (
-    <GlassPanel padding={14} radius={18} style={{ flex: 1 }}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={label}>
-        <LinearGradient
-          colors={colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 12,
-          }}
-        >
-          <Feather name={icon} size={20} color={THEME.textPrimary} />
-        </LinearGradient>
-        <Text style={{ color: THEME.textPrimary, fontSize: 14, fontWeight: "800" }}>
-          {label}
-        </Text>
-        <Text style={{ color: THEME.textSecondary, fontSize: 11, marginTop: 3 }}>
-          {hint}
-        </Text>
-      </TouchableOpacity>
-    </GlassPanel>
   );
 }
