@@ -17,7 +17,10 @@ import { useTransactionOperations } from "./useTransactionOperation";
 import SectionHeader from "@/components/transaction/SectionHeader";
 import TransactionRow from "@/components/transaction/TxRow";
 import ListFooter from "@/components/transaction/TxFooter";
-import type { GroupedSection, TransactionItem } from "@/types/transaction/types";
+import type {
+  GroupedSection,
+  TransactionItem,
+} from "@/types/transaction/types";
 
 /**
  * Cohesive orchestration hook for the Transactions tab: Redux selectors,
@@ -46,7 +49,13 @@ export const useTransactionScreen = () => {
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
 
-  const selectedBudgetId = filterCategoryId !== "all" ? filterCategoryId : null;
+  const selectedBudgetId =
+    filterCategoryId !== "all" &&
+    filterCategoryId !== "income" &&
+    filterCategoryId !== "transfer_out" &&
+    filterCategoryId !== "transfer_in"
+      ? filterCategoryId
+      : null;
   const selectedMinAmount =
     minAmount.trim() === "" ? null : Number(minAmount) || 0;
   const selectedMaxAmount =
@@ -81,13 +90,15 @@ export const useTransactionScreen = () => {
     activeCurrency,
   );
 
-  const {
-    sectionsWithTotals,
-  } = useTransactionFilters(displayTransactions, budgets, {
-    filterCategoryId,
-    minAmount,
-    maxAmount,
-  });
+  const { sectionsWithTotals } = useTransactionFilters(
+    displayTransactions,
+    budgets,
+    {
+      filterCategoryId,
+      minAmount,
+      maxAmount,
+    },
+  );
 
   /** Clears the category/amount filter inputs. */
   const clearFilters = useCallback(() => {
@@ -188,13 +199,28 @@ export const useTransactionScreen = () => {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: TransactionItem }) => (
-      <TransactionRow
-        tx={item}
-        onEdit={handleEditPress}
-        onDelete={handleDeleteTransaction}
-      />
-    ),
+    ({
+      item,
+      index,
+      section,
+    }: {
+      item: TransactionItem;
+      index?: number;
+      section?: GroupedSection;
+    }) => {
+      const isLast =
+        section && typeof index === "number"
+          ? index === section.data.length - 1
+          : false;
+      return (
+        <TransactionRow
+          tx={item}
+          isLast={isLast}
+          onEdit={handleEditPress}
+          onDelete={handleDeleteTransaction}
+        />
+      );
+    },
     [handleEditPress, handleDeleteTransaction],
   );
 
@@ -266,4 +292,3 @@ export const useTransactionScreen = () => {
     loaderMessage,
   };
 };
-

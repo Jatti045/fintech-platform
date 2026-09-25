@@ -27,10 +27,31 @@ const UTC_MONTHS = [
   "Dec",
 ];
 
+const UTC_MONTHS_FULL = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 export function toUtcDateString(dateInput: string | Date): string {
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return "Unknown Date";
   return `${UTC_DAYS[d.getUTCDay()]} ${UTC_MONTHS[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, "0")} ${d.getUTCFullYear()}`;
+}
+
+export function toUtcMonthString(dateInput: string | Date): string {
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return "Unknown Date";
+  return `${UTC_MONTHS_FULL[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 /**
@@ -71,14 +92,39 @@ export function useTransactionFilters(
     const maxParsed = maxAmount.trim() !== "" ? Number(maxAmount) || 0 : null;
 
     return transactions.filter((t: any) => {
-      // Category filter — O(1) map lookup instead of O(n) find
+      // Category / Type filter
       if (filterCategoryId !== "all") {
-        const txBudgetId = t.budgetId ?? t.budget?.id;
-        if (txBudgetId) {
-          if (txBudgetId !== filterCategoryId) return false;
+        if (filterCategoryId === "income") {
+          const type = (t.type ?? "").toUpperCase();
+          if (type !== "INCOME") return false;
+        } else if (filterCategoryId === "transfer_out") {
+          const cat = String(t.category || "").toLowerCase();
+          const name = String(t.name || "").toLowerCase();
+          if (
+            !t.isTransfer &&
+            !cat.includes("transfer out") &&
+            !name.includes("transfer out")
+          ) {
+            return false;
+          }
+        } else if (filterCategoryId === "transfer_in") {
+          const cat = String(t.category || "").toLowerCase();
+          const name = String(t.name || "").toLowerCase();
+          if (
+            !t.isTransfer &&
+            !cat.includes("transfer in") &&
+            !name.includes("transfer in")
+          ) {
+            return false;
+          }
         } else {
-          const filterCat = budgetCategoryMap.get(filterCategoryId) ?? "";
-          if (String(t.category).toLowerCase() !== filterCat) return false;
+          const txBudgetId = t.budgetId ?? t.budget?.id;
+          if (txBudgetId) {
+            if (txBudgetId !== filterCategoryId) return false;
+          } else {
+            const filterCat = budgetCategoryMap.get(filterCategoryId) ?? "";
+            if (String(t.category).toLowerCase() !== filterCat) return false;
+          }
         }
       }
 
@@ -92,18 +138,15 @@ export function useTransactionFilters(
   }, [transactions, filterCategoryId, budgetCategoryMap, minAmount, maxAmount]);
 
   /**
-   * Grouped-by-day sections sorted newest-first with integer-cent totals.
-   *
-   * A single `useMemo` pass replaces the previous 3-step chain:
-   *   reduce → sort(sections) + sort(items) → map(totals)
-   * This avoids intermediate allocations and duplicate memoisation boundaries.
+   * Grouped-by-month sections sorted newest-first with integer-cent totals.
+   * Groups items into cohesive monthly card sections matching the reference design.
    */
   const sectionsWithTotals = useMemo<GroupedSection[]>(() => {
     const groups: Record<string, TransactionItem[]> = {};
 
     for (const t of filteredTransactions) {
-      const dayKey = toUtcDateString(t.date);
-      (groups[dayKey] ??= []).push(t as TransactionItem);
+      const monthKey = toUtcMonthString(t.date);
+      (groups[monthKey] ??= []).push(t as TransactionItem);
     }
 
     return (
@@ -116,8 +159,8 @@ export function useTransactionFilters(
           return {
             title,
             data,
-            // Day-total reflects spending only (income shows in the rows but
-            // shouldn't inflate the "spent that day" figure).
+            // Section total reflects spending only (income shows in rows but
+            // doesn't inflate the "spent" figure).
             total:
               Math.round(
                 data
@@ -134,10 +177,12 @@ export function useTransactionFilters(
               ) / 100,
           };
         })
-        // Sort sections: newest day first
-        .sort(
-          (a, b) => new Date(b.title).getTime() - new Date(a.title).getTime(),
-        )
+        // Sort sections: newest month first
+        .sort((a, b) => {
+          const dateA = new Date(a.data[0]?.date || a.title).getTime();
+          const dateB = new Date(b.data[0]?.date || b.title).getTime();
+          return dateB - dateA;
+        })
     );
   }, [filteredTransactions]);
 

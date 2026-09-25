@@ -82,17 +82,12 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="transaction"
           options={{
-            headerShown: true,
-            headerTitle: () => null,
-            headerStyle: {
-              backgroundColor: THEME.border,
-              height: 70,
-            },
+            headerShown: false,
             tabBarLabel: "Transactions",
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: "center", justifyContent: "center" }}>
                 <Ionicons
-                  name={focused ? "receipt" : "receipt-outline"}
+                  name={focused ? "document-text" : "document-text-outline"}
                   size={TAB_ICON_SIZE}
                   color={color}
                 />

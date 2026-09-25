@@ -1,53 +1,57 @@
 import React from "react";
-import { useTheme } from "@/hooks/useRedux";
-import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { Text, TouchableOpacity, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 
-function AddNewTransactionButton({
+export default function AddNewTransactionButton({
   setOpenSheet,
 }: {
   setOpenSheet: (val: boolean) => void;
 }) {
-  const { THEME } = useTheme();
   return (
-    <View className="absolute bottom-0 right-0 p-4">
+    <View
+      style={{
+        position: "absolute",
+        bottom: 20,
+        right: 16,
+        zIndex: 50,
+      }}
+    >
       <TouchableOpacity
         onPress={() => setOpenSheet(true)}
+        activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel="New Transaction"
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: "#E8D595",
+          paddingVertical: 12,
+          paddingHorizontal: 18,
+          borderRadius: 24,
+          shadowColor: "#000000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+          elevation: 6,
+        }}
       >
-        <LinearGradient
-          colors={[THEME.primary, THEME.secondary]}
-          start={[0, 0]}
-          end={[1, 1]}
+        <Feather
+          name="plus"
+          size={18}
+          color="#111111"
+          style={{ marginRight: 6 }}
+        />
+        <Text
           style={{
-            paddingVertical: 12,
-            paddingHorizontal: 12,
-            alignItems: "center",
-            justifyContent: "center",
-
-            borderRadius: 1000,
-            shadowColor: THEME.primary,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.7,
-            shadowRadius: 16,
-            elevation: 16, // For Android
+            color: "#111111",
+            fontSize: 14.5,
+            fontWeight: "700",
+            letterSpacing: -0.2,
           }}
         >
-          <View className="items-center justify-center flex-row gap-1">
-            <Feather name="plus" size={24} color={THEME.textPrimary} />
-            <Text
-              style={{ color: THEME.textPrimary }}
-              className="font-bold text-base"
-            >
-              New Transaction
-            </Text>
-          </View>
-        </LinearGradient>
+          New Transaction
+        </Text>
       </TouchableOpacity>
     </View>
   );
 }
-
-export default AddNewTransactionButton;

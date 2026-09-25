@@ -69,7 +69,11 @@ export default function BrandIcon({
   }
 
   // 3. OpenAI / ChatGPT
-  if (normalized.includes("openai") || normalized.includes("chatgpt")) {
+  if (
+    normalized.includes("openai") ||
+    normalized.includes("chatgpt") ||
+    normalizedCat.includes("general services")
+  ) {
     return (
       <View
         style={{
@@ -114,10 +118,76 @@ export default function BrandIcon({
     );
   }
 
-  // 5. Loan / Mortgages / Bank
+  // 5. Transfer out
+  if (
+    normalizedCat.includes("transfer out") ||
+    normalized.includes("transfer out")
+  ) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: "#2a1b30",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Ionicons name="swap-horizontal" size={size * 0.55} color="#c084fc" />
+      </View>
+    );
+  }
+
+  // 6. Transfer in
+  if (
+    normalizedCat.includes("transfer in") ||
+    normalized.includes("transfer in")
+  ) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: "#162e20",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Feather name="arrow-up" size={size * 0.52} color="#4ade80" />
+      </View>
+    );
+  }
+
+  // 7. Income / RBC / Payroll / Deposit
+  if (
+    normalizedCat.includes("income") ||
+    normalized.includes("rbc") ||
+    normalized.includes("payroll") ||
+    normalized.includes("salary")
+  ) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: "#162e20",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Feather name="download" size={size * 0.5} color="#4ade80" />
+      </View>
+    );
+  }
+
+  // 8. Loan / Earnin / Mortgages / Bank
   if (
     normalizedCat.includes("loan") ||
     normalized.includes("earin") ||
+    normalized.includes("earnin") ||
     normalizedCat.includes("debt") ||
     normalizedCat.includes("mortgage")
   ) {
@@ -137,7 +207,7 @@ export default function BrandIcon({
     );
   }
 
-  // 6. Food & Drink / Dining / Grocery / Smart & Final
+  // 9. Food & Drink / Dining / Grocery / Smart & Final
   if (
     normalizedCat.includes("food") ||
     normalizedCat.includes("drink") ||
@@ -161,7 +231,7 @@ export default function BrandIcon({
     );
   }
 
-  // 7. Entertainment / Music / Media
+  // 10. Entertainment / Music / Media
   if (
     normalizedCat.includes("entertainment") ||
     normalizedCat.includes("music") ||
@@ -183,7 +253,7 @@ export default function BrandIcon({
     );
   }
 
-  // 8. General merchandise / Shopping / Retail
+  // 11. General merchandise / Shopping / Retail
   if (
     normalizedCat.includes("merchandise") ||
     normalizedCat.includes("shopping") ||
@@ -205,12 +275,13 @@ export default function BrandIcon({
     );
   }
 
-  // 9. Transport / Travel / Gas
+  // 12. Transport / Travel / Gas / Royal Farms
   if (
     normalizedCat.includes("transport") ||
     normalizedCat.includes("travel") ||
     normalizedCat.includes("car") ||
-    normalizedCat.includes("gas")
+    normalizedCat.includes("gas") ||
+    normalized.includes("royal farms")
   ) {
     return (
       <View
