@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { useTheme } from "@/hooks/useRedux";
-import SectionHeader from "@/components/global/SectionHeader";
-import GlassPanel from "@/components/global/GlassPanel";
-import { formatCurrency, hexToRgba } from "@/utils/helper";
+import { Feather } from "@expo/vector-icons";
+import { formatCurrency } from "@/utils/helper";
+import { safeAmount } from "@/utils/transaction/helpers";
 import type { DisplayBudget, IBudget } from "@/types/budget/types";
 
 export interface UnbudgetedBudgetSectionProps {
@@ -15,117 +14,199 @@ export interface UnbudgetedBudgetSectionProps {
 }
 
 /**
- * Lists auto-created / unbudgeted categories (from the bank feed with no
- * limit assigned) with a "Set Limit" action. Pure presentation — classification
- * happens in `useBudgetScreen`.
+ * Lightweight Unbudgeted Spending section matching Section 13 of the reference mockup:
+ * ― UNBUDGETED SPENDING                     $170.04 >
+ * Transactions that aren't in a budget yet
  */
 export default function UnbudgetedBudgetSection({
   budgets,
   onSetLimit,
   onUseSuggestions,
 }: UnbudgetedBudgetSectionProps) {
-  const { THEME } = useTheme();
+  const [expanded, setExpanded] = useState(true);
+
+  const totalSpent = budgets.reduce(
+    (acc, b) => acc + safeAmount(b.displaySpent),
+    0,
+  );
+  const currencyCode = budgets[0]?.displayCurrency || "USD";
+
+  if (budgets.length === 0) return null;
 
   return (
-    <>
-      <SectionHeader
-        title="Unbudgeted Spending"
-        subtitle="Set Limits"
-        accent={THEME.warning}
-      />
-      <GlassPanel padding={12} radius={18} style={{ marginBottom: 12 }}>
-        {onUseSuggestions ? (
-          <TouchableOpacity
-            onPress={onUseSuggestions}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            style={{
-              backgroundColor: hexToRgba(THEME.primary, 0.12),
-              borderRadius: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 9,
-              alignItems: "center",
-              marginBottom: 4,
-            }}
-          >
-            <Text style={{ color: THEME.primary, fontSize: 12, fontWeight: "800" }}>
-              Use suggested limits
+    <View style={{ marginTop: 18, marginBottom: 12 }}>
+      {/* ── Section Header ──────────────────────────────────────────────── */}
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => setExpanded((prev) => !prev)}
+        style={{ marginBottom: 4 }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{
+                width: 18,
+                height: 3,
+                borderRadius: 1.5,
+                backgroundColor: "#D4AF6A",
+                marginRight: 8,
+              }}
+            />
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 13.5,
+                fontWeight: "700",
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
+              }}
+            >
+              UNBUDGETED SPENDING
             </Text>
-          </TouchableOpacity>
-        ) : (
-          <Text
-            style={{
-              color: THEME.textSecondary,
-              fontSize: 12,
-              lineHeight: 17,
-              marginBottom: 8,
-            }}
-          >
-            These categories came from your bank feed with no limit set. Tap
-            “Set Limit” to assign one and clear the flag.
-          </Text>
-        )}
-        {budgets.map((budget) => (
-          <View
-            key={budget.id}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingVertical: 8,
-              borderTopWidth: 1,
-              borderTopColor: hexToRgba(THEME.border, 0.6),
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  color: THEME.textPrimary,
-                  fontSize: 13,
-                  fontWeight: "700",
-                }}
-                numberOfLines={1}
-              >
-                {budget.category}
-              </Text>
-              <Text
-                style={{
-                  color: THEME.textSecondary,
-                  fontSize: 11,
-                  marginTop: 1,
-                }}
-              >
-                Spent {formatCurrency(budget.displaySpent, budget.displayCurrency)}
-                {budget.displayLimit > 0
-                  ? ` of ${formatCurrency(budget.displayLimit, budget.displayCurrency)}`
-                  : " — no limit"}
-              </Text>
-            </View>
+          </View>
+
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text
+              style={{
+                color: "#8E8E93",
+                fontSize: 13,
+                fontWeight: "600",
+                marginRight: 4,
+              }}
+            >
+              {formatCurrency(totalSpent, currencyCode)}
+            </Text>
+            <Feather
+              name={expanded ? "chevron-down" : "chevron-right"}
+              size={14}
+              color="#8E8E93"
+            />
+          </View>
+        </View>
+
+        <Text
+          style={{
+            color: "#8E8E93",
+            fontSize: 12.5,
+            marginTop: 2,
+            marginLeft: 26,
+          }}
+        >
+          Transactions that aren&apos;t in a budget yet
+        </Text>
+      </TouchableOpacity>
+
+      {/* ── Unbudgeted Items List ───────────────────────────────────────── */}
+      {expanded && (
+        <View
+          style={{
+            backgroundColor: "#141416",
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: "#212124",
+            padding: 12,
+            marginTop: 8,
+          }}
+        >
+          {onUseSuggestions ? (
             <TouchableOpacity
-              onPress={() => onSetLimit(budget)}
+              onPress={onUseSuggestions}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel={`Set limit for ${budget.category}`}
               style={{
-                backgroundColor: hexToRgba(THEME.warning, 0.16),
-                borderRadius: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                marginLeft: 8,
+                backgroundColor: "rgba(212, 175, 106, 0.12)",
+                borderColor: "#D4AF6A",
+                borderWidth: 1,
+                borderRadius: 10,
+                paddingVertical: 9,
+                alignItems: "center",
+                marginBottom: 8,
               }}
             >
               <Text
                 style={{
-                  color: THEME.warning,
-                  fontSize: 12,
-                  fontWeight: "800",
+                  color: "#D4AF6A",
+                  fontSize: 12.5,
+                  fontWeight: "700",
                 }}
               >
-                Set Limit
+                Use suggested limits
               </Text>
             </TouchableOpacity>
-          </View>
-        ))}
-      </GlassPanel>
-    </>
+          ) : null}
+
+          {budgets.map((budget, index) => (
+            <View
+              key={budget.id}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingVertical: 10,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: "#1F1F24",
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 13.5,
+                    fontWeight: "600",
+                  }}
+                  numberOfLines={1}
+                >
+                  {budget.category}
+                </Text>
+                <Text
+                  style={{
+                    color: "#8E8E93",
+                    fontSize: 12,
+                    marginTop: 2,
+                  }}
+                >
+                  Spent{" "}
+                  {formatCurrency(budget.displaySpent, budget.displayCurrency)}
+                  {budget.displayLimit > 0
+                    ? ` of ${formatCurrency(budget.displayLimit, budget.displayCurrency)}`
+                    : " — no limit"}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => onSetLimit(budget)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={`Set limit for ${budget.category}`}
+                style={{
+                  backgroundColor: "rgba(212, 175, 106, 0.14)",
+                  borderColor: "rgba(212, 175, 106, 0.4)",
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#D4AF6A",
+                    fontSize: 12,
+                    fontWeight: "700",
+                  }}
+                >
+                  Set Limit
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
   );
 }

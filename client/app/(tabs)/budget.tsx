@@ -55,12 +55,13 @@ export default function BudgetScreen() {
 
   return (
     <SafeAreaView
-      edges={["left", "right"]}
+      edges={["top", "left", "right"]}
       className="flex-1"
-      style={{ backgroundColor: THEME.background }}
+      style={{ backgroundColor: "#0B0B0D" }}
     >
       <BudgetHeader
         monthLabel={monthLabel}
+        year={year}
         showSearch={hasBudgets}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}

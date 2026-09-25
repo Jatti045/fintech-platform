@@ -110,12 +110,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="budget"
           options={{
-            headerShown: true,
-            headerTitle: () => null,
-            headerStyle: {
-              backgroundColor: THEME.border,
-              height: 70,
-            },
+            headerShown: false,
             tabBarLabel: "Budgets",
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: "center", justifyContent: "center" }}>
