@@ -54,6 +54,8 @@ export function buildMonthSpendSeries(
     amount?: number | string;
     category?: string;
     budgetId?: string | null;
+    type?: string;
+    isTransfer?: boolean;
   }[],
   opts: {
     category?: string;
@@ -69,6 +71,7 @@ export function buildMonthSpendSeries(
   const byDay: Record<number, number> = {};
 
   for (const tx of transactions) {
+    if (tx.isTransfer || (tx.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
     if (!tx.date) continue;
     const d = new Date(tx.date);
     if (d.getUTCMonth() !== opts.month || d.getUTCFullYear() !== opts.year)

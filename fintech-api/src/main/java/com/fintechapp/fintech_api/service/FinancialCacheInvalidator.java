@@ -51,6 +51,23 @@ public class FinancialCacheInvalidator {
         this.redisTemplate = redisTemplate;
     }
 
+    /** Small transaction-boundary hook; do not let pre-commit readers refill old totals. */
+    public void evictFinancialDataAfterCommit(String userId) {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            evictFinancialSummaryRegion(userId);
+                            evictRecurringPayments(userId);
+                        }
+                    });
+        } else {
+            evictFinancialSummaryRegion(userId);
+            evictRecurringPayments(userId);
+        }
+    }
+
     /** Evicts the cached month summary for one user after that month changes. */
     public void evictFinancialSummary(String userId, int year, int month) {
         evict(CacheConfig.FINANCIAL_SUMMARY_CACHE, summaryKey(userId, year, month));

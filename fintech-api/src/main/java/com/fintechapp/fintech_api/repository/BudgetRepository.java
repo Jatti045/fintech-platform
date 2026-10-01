@@ -48,6 +48,14 @@ public interface BudgetRepository extends JpaRepository<Budget, String> {
                         + "WHERE b.id = :budgetId")
         int decrementSpentClamped(@Param("budgetId") String budgetId, @Param("amount") double amount);
 
+        /** Rebuild a historical aggregate from the same eligibility invariant as summaries. */
+        @Modifying(flushAutomatically = true)
+        @Query(value = "UPDATE budgets SET spent = (SELECT COALESCE(SUM(t.amount), 0) "
+                        + "FROM transactions t WHERE t.budget_id = :budgetId "
+                        + "AND t.type = 'EXPENSE' AND t.is_transfer = FALSE) WHERE id = :budgetId",
+                        nativeQuery = true)
+        int recalculateSpent(@Param("budgetId") String budgetId);
+
         List<Budget> findByUser_IdOrderByDateDesc(String userId);
 
         List<Budget> findByUser_IdAndDateGreaterThanEqualAndDateLessThanOrderByDateDesc(

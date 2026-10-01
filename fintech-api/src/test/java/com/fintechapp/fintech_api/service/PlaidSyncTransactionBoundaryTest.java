@@ -66,6 +66,9 @@ class PlaidSyncTransactionBoundaryTest {
     @Mock
     private FinancialCacheInvalidator cacheInvalidator;
 
+    @Mock
+    private InternalTransferReconciliationService transferReconciliation;
+
     private PlaidService plaidService;
     private PlaidItem item;
     private User user;
@@ -104,7 +107,7 @@ class PlaidSyncTransactionBoundaryTest {
 
         plaidService = new PlaidService(
                 plaidRestClient, settings, encryptionService, plaidItemRepository,
-                userRepository, ingestService, cacheInvalidator, Optional.of(txManager));
+                userRepository, ingestService, cacheInvalidator, transferReconciliation, Optional.of(txManager));
 
         user = new User();
         user.setId("user-1");

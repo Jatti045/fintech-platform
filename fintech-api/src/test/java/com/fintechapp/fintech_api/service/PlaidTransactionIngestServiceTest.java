@@ -54,8 +54,8 @@ class PlaidTransactionIngestServiceTest {
     private static final int IDX_PLAID_ITEM_ID = 11;
     private static final int IDX_IS_TRANSFER = 12;
     private static final int IDX_PLAID_PFC_DETAILED = 13;
-    private static final int IDX_USER_ID = 14;
-    private static final int IDX_BUDGET_ID = 15;
+    private static final int IDX_USER_ID = 17;
+    private static final int IDX_BUDGET_ID = 18;
 
     @Mock
     private TransactionRepository transactionRepository;

@@ -71,6 +71,7 @@ export default function MonthlyOverview({
     for (let d = startDay; d <= endDay; d++) {
       let sum = 0;
       for (const t of transactions) {
+        if (t.isTransfer || (t.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
         const txDate = new Date(t.date);
         if (
           txDate.getDate() === d &&

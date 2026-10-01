@@ -49,6 +49,7 @@ public class TransactionService {
     private final UserRepository userRepository;
     private final FinancialCacheInvalidator cacheInvalidator;
     private final CurrencyConversionService currencyConversionService;
+    private final InternalTransferReconciliationService transferReconciliation;
 
     /**
      * Used to refresh the in-memory {@link Budget} after an atomic
@@ -64,12 +65,14 @@ public class TransactionService {
             TransactionRepository transactionRepository,
             UserRepository userRepository,
             FinancialCacheInvalidator cacheInvalidator,
-            CurrencyConversionService currencyConversionService) {
+            CurrencyConversionService currencyConversionService,
+            InternalTransferReconciliationService transferReconciliation) {
         this.budgetRepository = budgetRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
         this.cacheInvalidator = cacheInvalidator;
         this.currencyConversionService = currencyConversionService;
+        this.transferReconciliation = transferReconciliation;
     }
 
     /**
@@ -233,6 +236,7 @@ public class TransactionService {
                     "budgetId is required for expense transactions");
         }
 
+        transferReconciliation.lockUser(userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
 
@@ -307,6 +311,7 @@ public class TransactionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction ID is required");
         }
 
+        transferReconciliation.lockUser(userId);
         Transaction existing = transactionRepository.findByIdAndUser_Id(transactionId, userId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -324,6 +329,10 @@ public class TransactionService {
         }
 
         transactionRepository.delete(existing);
+        if (existing.getPlaidTransactionId() != null || existing.isTransfer()) {
+            transferReconciliation.reconcile(userId);
+            cacheInvalidator.evictFinancialDataAfterCommit(userId);
+        }
 
         cacheInvalidator.evictFinancialSummaryForDate(userId, existing.getDate());
         cacheInvalidator.evictRecurringPayments(userId);
@@ -357,6 +366,7 @@ public class TransactionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
         }
 
+        transferReconciliation.lockUser(userId);
         Transaction existing = transactionRepository.findByIdAndUser_Id(transactionId, userId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -390,9 +400,10 @@ public class TransactionService {
             newBudgetId = StringUtils.hasText(request.budgetId()) ? request.budgetId().trim() : null;
         }
 
-        // Expense transactions must always resolve to a budget; income may keep null.
+        // A verified transfer has no budget contribution. Reconciliation restores
+        // normal expense budgeting if this edit invalidates the pair.
         Budget newBudget = null;
-        if (newType == TransactionType.EXPENSE) {
+        if (newType == TransactionType.EXPENSE && !existing.isTransfer()) {
             if (!StringUtils.hasText(newBudgetId)) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -449,7 +460,7 @@ public class TransactionService {
         double oldAmount = existing.getAmount();
         TransactionType oldType = existing.getType();
 
-        if (oldBudget != null && oldType == TransactionType.EXPENSE) {
+        if (!existing.isTransfer() && oldBudget != null && oldType == TransactionType.EXPENSE) {
             if (newType != TransactionType.EXPENSE
                     || newBudget == null
                     || !oldBudget.getId().equals(newBudget.getId())) {
@@ -465,7 +476,7 @@ public class TransactionService {
             }
         }
 
-        if (newType == TransactionType.EXPENSE
+        if (!existing.isTransfer() && newType == TransactionType.EXPENSE
                 && newBudget != null
                 && (oldBudget == null || !oldBudget.getId().equals(newBudget.getId()))) {
             // Atomic database-side increment (no stale entity write-back).
@@ -478,9 +489,17 @@ public class TransactionService {
         }
         if (request.date() != null) {
             existing.setDate(newDate);
+            if (!oldDate.equals(newDate) && existing.getPlaidTransactionId() != null) {
+                existing.setPlaidPostedDate(LocalDate.ofInstant(newDate, ZoneOffset.UTC));
+            }
         }
         if (request.category() != null) {
-            existing.setCategory(CategoryNormalizer.normalize(request.category()));
+            String category = CategoryNormalizer.normalize(request.category());
+            if (!category.equalsIgnoreCase(existing.getCategory())) {
+                // A manual category correction invalidates the imported transfer evidence.
+                existing.setPlaidPfcDetailed(null);
+            }
+            existing.setCategory(category);
         } else if (newBudget != null) {
             existing.setCategory(newBudget.getCategory());
         }
@@ -499,6 +518,16 @@ public class TransactionService {
         existing.setBudget(newBudget);
 
         Transaction updated = transactionRepository.save(existing);
+        if (existing.isTransfer() && oldBudget != null) {
+            budgetRepository.recalculateSpent(oldBudget.getId());
+        }
+        if (existing.getPlaidTransactionId() != null || existing.isTransfer()) {
+            transferReconciliation.reconcile(userId);
+            cacheInvalidator.evictFinancialDataAfterCommit(userId);
+            if (updated.getBudget() != null) {
+                entityManager.refresh(updated.getBudget());
+            }
+        }
 
         // The update can move the transaction across a month boundary — evict
         // both the old and the new month's aggregate.

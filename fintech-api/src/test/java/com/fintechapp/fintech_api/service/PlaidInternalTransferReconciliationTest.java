@@ -1,383 +1,170 @@
 package com.fintechapp.fintech_api.service;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import java.time.Instant;
 import java.util.List;
-
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.fintechapp.fintech_api.model.*;
+import com.fintechapp.fintech_api.repository.*;
 
-import com.fintechapp.fintech_api.model.Budget;
-import com.fintechapp.fintech_api.model.Transaction;
-import com.fintechapp.fintech_api.model.TransactionType;
-import com.fintechapp.fintech_api.model.User;
-import com.fintechapp.fintech_api.repository.BudgetRepository;
-import com.fintechapp.fintech_api.repository.TransactionRepository;
-
-/**
- * Exhaustive regression tests for Plaid internal-transfer reconciliation
- * across all 10 domain scenarios specified in P2 requirements.
- */
+/** Regression coverage for the single persisted transfer classifier. */
 @ExtendWith(MockitoExtension.class)
 class PlaidInternalTransferReconciliationTest {
+    @Mock TransactionRepository transactions;
+    @Mock BudgetRepository budgets;
+    @Mock UserRepository users;
+    @Mock PlaidTransactionIngestService ingest;
+    @Mock FinancialCacheInvalidator cache;
+    InternalTransferReconciliationService service;
+    User user;
+    Budget budget;
 
-    @Mock
-    private TransactionRepository transactionRepository;
-
-    @Mock
-    private BudgetRepository budgetRepository;
-
-    @Mock
-    private PlaidCategoryFormatter categoryFormatter;
-
-    @Mock
-    private JdbcTemplate jdbcTemplate;
-
-    @Mock
-    private CurrencyConversionService currencyConversionService;
-
-    private PlaidTransactionIngestService ingestService;
-
-    private User user;
-
-    @BeforeEach
-    void setUp() {
-        ingestService = new PlaidTransactionIngestService(
-                transactionRepository, budgetRepository, categoryFormatter, jdbcTemplate, currencyConversionService);
-        user = new User();
-        user.setId("user-1");
-        user.setCurrency("USD");
+    @BeforeEach void setup() {
+        service = new InternalTransferReconciliationService(transactions, budgets, users, ingest, cache);
+        user = new User(); user.setId("user-1");
+        budget = new Budget(); budget.setId("budget-1");
+        when(users.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
     }
 
-    private Transaction createTx(
-            String id,
-            String name,
-            double amount,
-            TransactionType type,
-            Instant date,
-            String accountId,
-            String itemId,
-            String pfcDetailed,
-            Budget budget) {
-        Transaction tx = new Transaction();
-        tx.setId(id);
-        tx.setName(name);
-        tx.setAmount(amount);
-        tx.setType(type);
-        tx.setDate(date);
-        tx.setUser(user);
-        tx.setPlaidAccountId(accountId);
-        tx.setPlaidItemId(itemId);
-        tx.setPlaidPfcDetailed(pfcDetailed);
-        tx.setBudget(budget);
-        tx.setTransfer(false);
+    Transaction leg(String id, TransactionType type, int day) {
+        Transaction tx = new Transaction(); tx.setId(id); tx.setPlaidTransactionId(id);
+        tx.setUser(user); tx.setName("Bank movement"); tx.setCategory("Transfer");
+        tx.setType(type); tx.setAmount(500); tx.setOriginalAmount(500.0); tx.setOriginalCurrency("USD");
+        tx.setDate(Instant.parse("2026-03-" + String.format("%02d", day) + "T00:00:00Z"));
+        tx.setPlaidAccountId(id + "-account"); tx.setPlaidItemId("item-1");
+        tx.setPlaidPfcDetailed(type == TransactionType.EXPENSE ? "TRANSFER_OUT_ACCOUNT_TRANSFER" : "TRANSFER_IN_ACCOUNT_TRANSFER");
+        if (type == TransactionType.EXPENSE) tx.setBudget(budget);
         return tx;
     }
+    void rows(Transaction... rows) { when(transactions.findTransferCandidates("user-1")).thenReturn(List.of(rows)); }
 
-    @Test
-    @DisplayName("Scenario 1: Same-day valid transfer - both legs marked, budget contribution decremented")
-    void sameDayValidTransfer_pairedAndMarkedAsTransfer() {
-        Budget budget = new Budget();
-        budget.setId("b-chk");
-        budget.setSpent(1000.0);
-
-        Transaction outLeg = createTx(
-                "tx-out", "Online Transfer to Savings", 500.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-checking", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        Transaction inLeg = createTx(
-                "tx-in", "Online Transfer from Checking", 500.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T14:30:00Z"), "acc-savings", "item-chase",
-                "TRANSFER_IN_ACCOUNT_TRANSFER", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(outLeg, inLeg));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        assertTrue(outLeg.isTransfer());
-        assertTrue(inLeg.isTransfer());
-        assertNull(outLeg.getBudget());
-        verify(budgetRepository).decrementSpentClamped("b-chk", 500.0);
-        verify(transactionRepository).save(outLeg);
-        verify(transactionRepository).save(inLeg);
+    @Test void validPair_preservesRowsAndDirections_andReversesBudgetOnlyOnce() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        rows(out, in); service.reconcile("user-1"); service.reconcile("user-1");
+        assertTrue(out.isTransfer()); assertTrue(in.isTransfer()); assertNull(out.getBudget());
+        assertEquals(TransactionType.EXPENSE, out.getType()); assertEquals(TransactionType.INCOME, in.getType());
+        verify(budgets, times(1)).decrementSpentClamped("budget-1", 500);
+        verify(transactions, never()).delete(any(Transaction.class)); verify(transactions, times(2)).save(any());
     }
 
-    @Test
-    @DisplayName("Scenario 2: Same-day unrelated transactions - non-transfer category, neither marked")
-    void sameDayUnrelatedTransactions_remainsNonTransfer() {
-        Budget budget = new Budget();
-        budget.setId("b-bill");
-
-        Transaction bill = createTx(
-                "tx-bill", "Electric Bill", 120.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-checking", "item-chase",
-                "GENERAL_SERVICES_UTILITIES", budget);
-
-        Transaction dividend = createTx(
-                "tx-div", "Stock Dividend", 120.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T12:00:00Z"), "acc-brokerage", "item-chase",
-                "INCOME_DIVIDENDS", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(bill, dividend));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        assertFalse(bill.isTransfer());
-        assertFalse(dividend.isTransfer());
-        verify(budgetRepository, never()).decrementSpentClamped(anyString(), anyDouble());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @ParameterizedTest @ValueSource(ints = {1, 2, 3})
+    void crossItemAndSettlementDelay_supported(int delay) {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15 + delay);
+        in.setPlaidItemId("item-2"); in.setAmount(498); // converted totals need not equal
+        rows(out, in); service.reconcile("user-1"); assertTrue(out.isTransfer()); assertTrue(in.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 3: Multi-day settlement - different calendar days intentionally not paired (conservative limitation)")
-    void multiDaySettlement_differentDays_conservativeInvariantRetainsNonTransfer() {
-        Budget budget = new Budget();
-        budget.setId("b-chk");
-
-        // Day 1: outflow posted on March 15 at 23:30 UTC
-        Transaction outLeg = createTx(
-                "tx-out", "Transfer to Savings", 500.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T23:30:00Z"), "acc-checking", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        // Day 2: inflow posted on March 16 at 08:00 UTC
-        Transaction inLeg = createTx(
-                "tx-in", "Transfer from Checking", 500.0, TransactionType.INCOME,
-                Instant.parse("2026-03-16T08:00:00Z"), "acc-savings", "item-chase",
-                "TRANSFER_IN_ACCOUNT_TRANSFER", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(outLeg, inLeg));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        // Documents intentional limitation: conservative algorithm avoids false positives across multi-day windows
-        assertFalse(outLeg.isTransfer());
-        assertFalse(inLeg.isTransfer());
-        verify(budgetRepository, never()).decrementSpentClamped(anyString(), anyDouble());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @Test void outsideDateWindow_notPaired() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 19);
+        rows(out, in); service.reconcile("user-1"); assertFalse(out.isTransfer()); assertFalse(in.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 4: Unequal amounts - different integer cents never paired")
-    void unequalAmounts_sameDayAndAccounts_remainsNonTransfer() {
-        Budget budget = new Budget();
-        budget.setId("b-chk");
-
-        Transaction outLeg = createTx(
-                "tx-out", "Transfer to Savings", 100.00, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-checking", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        Transaction inLeg = createTx(
-                "tx-in", "Transfer from Checking", 105.00, TransactionType.INCOME,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-savings", "item-chase",
-                "TRANSFER_IN_ACCOUNT_TRANSFER", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(outLeg, inLeg));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        assertFalse(outLeg.isTransfer());
-        assertFalse(inLeg.isTransfer());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @Test void payrollAndPurchaseDoNotBlockValidSameValuePair() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        Transaction payroll = leg("pay", TransactionType.INCOME, 15), rent = leg("rent", TransactionType.EXPENSE, 15);
+        payroll.setPlaidPfcDetailed("INCOME_WAGES"); rent.setPlaidPfcDetailed("RENT_AND_UTILITIES_RENT");
+        rows(out, in, payroll, rent); service.reconcile("user-1");
+        assertTrue(out.isTransfer()); assertTrue(in.isTransfer()); assertFalse(payroll.isTransfer()); assertFalse(rent.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 5: Duplicate candidates - 3+ same-amount candidates on same day is ambiguous, none marked")
-    void duplicateCandidates_ambiguousGroupSizeGreaterThanTwo_noneMarked() {
-        Budget budget = new Budget();
-        budget.setId("b-chk");
-
-        Transaction out1 = createTx(
-                "tx-out-1", "Transfer", 200.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-checking", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        Transaction in1 = createTx(
-                "tx-in-1", "Transfer", 200.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T11:00:00Z"), "acc-savings-1", "item-chase",
-                "TRANSFER_IN_ACCOUNT_TRANSFER", null);
-
-        Transaction in2 = createTx(
-                "tx-in-2", "Transfer", 200.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T12:00:00Z"), "acc-savings-2", "item-chase",
-                "TRANSFER_IN_ACCOUNT_TRANSFER", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(out1, in1, in2));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        assertFalse(out1.isTransfer());
-        assertFalse(in1.isTransfer());
-        assertFalse(in2.isTransfer());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @ParameterizedTest @ValueSource(strings = {"TRANSFER_IN_PAYROLL", "TRANSFER_IN_REFUND", "TRANSFER_IN_DEPOSIT", "TRANSFER_IN_THIRD_PARTY_P2P", "TRANSFER_IN", "INCOME_OTHER_INCOME", "TRANSFER_IN_ACCOUNT_TRANSFER_FAKE"})
+    void nonTransferEvidenceNeverPairs(String code) {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        in.setPlaidPfcDetailed(code); in.setName("PAYMENT THANK YOU");
+        rows(out, in); service.reconcile("user-1"); assertFalse(out.isTransfer()); assertFalse(in.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 6: Ambiguous cases - same direction or missing accountId, neither marked")
-    void ambiguousCases_sameDirectionOrMissingAccount_remainsNonTransfer() {
-        Budget budget = new Budget();
-        budget.setId("b-chk");
-
-        // Case 6a: Two expenses in opposite accounts
-        Transaction exp1 = createTx(
-                "tx-exp-1", "Transfer", 300.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-chk", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        Transaction exp2 = createTx(
-                "tx-exp-2", "Transfer", 300.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-sav", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(exp1, exp2));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-        assertFalse(exp1.isTransfer());
-        assertFalse(exp2.isTransfer());
-
-        // Case 6b: Missing account ID on one leg
-        Transaction outWithAccount = createTx(
-                "tx-out-3", "Transfer", 400.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-chk", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        Transaction inWithoutAccount = createTx(
-                "tx-in-3", "Transfer", 400.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T10:00:00Z"), null, "item-chase",
-                "TRANSFER_IN_ACCOUNT_TRANSFER", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(outWithAccount, inWithoutAccount));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-        assertFalse(outWithAccount.isTransfer());
-        assertFalse(inWithoutAccount.isTransfer());
+    @ParameterizedTest @ValueSource(strings = {"ACME Payroll", "Purchase refund", "Employee reimbursement", "ATM withdrawal", "Venmo", "PayPal", "Cash App"})
+    void contradictoryNameBlocksIncorrectTransferCategory(String name) {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        in.setName(name); rows(out, in); service.reconcile("user-1");
+        assertFalse(out.isTransfer()); assertFalse(in.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 7: Same account transactions - both legs on same account not an internal transfer")
-    void sameAccountTransactions_bothLegsOnSameAccountId_remainsNonTransfer() {
-        Budget budget = new Budget();
-        budget.setId("b-chk");
-
-        Transaction outLeg = createTx(
-                "tx-out", "Transfer", 150.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-same", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
-
-        Transaction inLeg = createTx(
-                "tx-in", "Transfer", 150.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-same", "item-chase",
-                "TRANSFER_IN_ACCOUNT_TRANSFER", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(outLeg, inLeg));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        assertFalse(outLeg.isTransfer());
-        assertFalse(inLeg.isTransfer());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @Test void differentUsersNeverPair_evenIfRepositoryReturnedForeignRow() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        User foreign = new User(); foreign.setId("user-2"); in.setUser(foreign);
+        rows(out, in); service.reconcile("user-1"); assertFalse(out.isTransfer()); assertFalse(in.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 8: Different users - query isolates by userId so candidates never cross-pair")
-    void differentUsers_queryIsolatesByUserId() {
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of());
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        verify(transactionRepository).findTransferCandidates("user-1", "item-chase");
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @Test void sameAccountNeverPairs() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        in.setPlaidAccountId(out.getPlaidAccountId()); rows(out, in); service.reconcile("user-1"); assertFalse(out.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 9: Different Plaid items - cross-item movements not paired under single-item reconciliation")
-    void differentPlaidItems_queryIsolatesByItemId() {
-        when(transactionRepository.findTransferCandidates("user-1", "item-wells"))
-                .thenReturn(List.of());
-
-        ingestService.reconcileInternalTransfers("user-1", "item-wells");
-
-        verify(transactionRepository).findTransferCandidates("user-1", "item-wells");
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @Test void originalCurrencyMustMatch() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        in.setOriginalCurrency("CAD"); rows(out, in); service.reconcile("user-1"); assertFalse(out.isTransfer());
     }
 
-    @Test
-    @DisplayName("Scenario 10: Non-transfer categories - PAYROLL, REFUND, and DEPOSIT codes hard excluded")
-    void nonTransferCategories_payrollAndRefundExclusions() {
-        Budget budget = new Budget();
-        budget.setId("b-chk");
+    @Test void multipleDistinguishablePairsMatch_withoutWholeGroupRejection() {
+        Transaction a = leg("a", TransactionType.EXPENSE, 5), b = leg("b", TransactionType.INCOME, 6);
+        Transaction c = leg("c", TransactionType.EXPENSE, 15), d = leg("d", TransactionType.INCOME, 16);
+        rows(a, b, c, d); service.reconcile("user-1");
+        assertTrue(a.isTransfer()); assertTrue(b.isTransfer()); assertTrue(c.isTransfer()); assertTrue(d.isTransfer());
+    }
 
-        // Payroll deposit paired with same-amount checking withdrawal
-        Transaction salaryOut = createTx(
-                "tx-out-pay", "Transfer", 2500.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-chk", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
+    @Test void equallyPlausiblePairsNeverGuessed() {
+        Transaction a = leg("a", TransactionType.EXPENSE, 15), b = leg("b", TransactionType.INCOME, 15);
+        Transaction c = leg("c", TransactionType.EXPENSE, 15), d = leg("d", TransactionType.INCOME, 15);
+        rows(a, b, c, d); service.reconcile("user-1");
+        assertFalse(a.isTransfer()); assertFalse(b.isTransfer()); assertFalse(c.isTransfer()); assertFalse(d.isTransfer());
+        verify(budgets, never()).decrementSpentClamped(anyString(), anyDouble());
+    }
 
-        Transaction payrollIn = createTx(
-                "tx-in-pay", "Payroll Deposit", 2500.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-sav", "item-chase",
-                "TRANSFER_IN_PAYROLL", null);
+    @Test void removalOfCounterpart_restoresLoneExpenseOnlyOnce() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15); out.setTransfer(true); out.setBudget(null);
+        when(ingest.resolveOrCreateBudget(user, "Transfer", out.getDate())).thenReturn(budget);
+        rows(out); service.reconcile("user-1"); service.reconcile("user-1");
+        assertFalse(out.isTransfer()); assertSame(budget, out.getBudget()); verify(budgets, times(1)).incrementSpent("budget-1", 500);
+    }
 
-        // Refund paired with purchase return
-        Transaction returnOut = createTx(
-                "tx-out-ref", "Transfer", 45.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-chk", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
+    @ParameterizedTest @ValueSource(strings = {"amount", "account", "date", "category"})
+    void modificationInvalidatesBothLegs(String field) {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        out.setTransfer(true); in.setTransfer(true); out.setBudget(null);
+        switch (field) {
+            case "amount" -> in.setOriginalAmount(501.0);
+            case "account" -> in.setPlaidAccountId(out.getPlaidAccountId());
+            case "date" -> in.setDate(Instant.parse("2026-03-20T00:00:00Z"));
+            case "category" -> in.setPlaidPfcDetailed("INCOME_WAGES");
+        }
+        when(ingest.resolveOrCreateBudget(user, "Transfer", out.getDate())).thenReturn(budget);
+        rows(out, in); service.reconcile("user-1"); assertFalse(out.isTransfer()); assertFalse(in.isTransfer());
+        verify(budgets).incrementSpent("budget-1", 500);
+    }
 
-        Transaction refundIn = createTx(
-                "tx-in-ref", "Refund Deposit", 45.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-sav", "item-chase",
-                "TRANSFER_IN_REFUND", null);
+    @Test void pendingAndReplacedPendingAreNotIndependentLegs() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), pending = leg("pending", TransactionType.INCOME, 15);
+        Transaction posted = leg("posted", TransactionType.INCOME, 16);
+        pending.setPlaidPending(true); posted.setPlaidPending(false); posted.setPlaidPendingTransactionId("pending");
+        rows(out, pending, posted); service.reconcile("user-1");
+        assertTrue(out.isTransfer()); assertTrue(posted.isTransfer()); assertFalse(pending.isTransfer());
+        // Even historical rows with unknown pending status cannot act as a second leg.
+        pending.setPlaidPending(null); service.reconcile("user-1"); assertFalse(pending.isTransfer());
+    }
 
-        // Cash deposit paired with withdrawal
-        Transaction cashOut = createTx(
-                "tx-out-dep", "Transfer", 300.0, TransactionType.EXPENSE,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-chk", "item-chase",
-                "TRANSFER_OUT_ACCOUNT_TRANSFER", budget);
+    @Test void historyOnlyClassifiesCompleteUnambiguousPairs_andRebuildsSpent() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        Transaction incomplete = leg("old", TransactionType.EXPENSE, 15); incomplete.setOriginalAmount(null);
+        rows(out, in, incomplete); service.reconcileHistory("user-1"); service.reconcileHistory("user-1");
+        assertTrue(out.isTransfer()); assertFalse(incomplete.isTransfer());
+        verify(budgets).recalculateSpent("budget-1"); verify(budgets, times(1)).decrementSpentClamped("budget-1", 500);
+    }
 
-        Transaction cashIn = createTx(
-                "tx-in-dep", "Cash Deposit", 300.0, TransactionType.INCOME,
-                Instant.parse("2026-03-15T10:00:00Z"), "acc-sav", "item-chase",
-                "TRANSFER_IN_DEPOSIT", null);
-
-        when(transactionRepository.findTransferCandidates("user-1", "item-chase"))
-                .thenReturn(List.of(salaryOut, payrollIn, returnOut, refundIn, cashOut, cashIn));
-
-        ingestService.reconcileInternalTransfers("user-1", "item-chase");
-
-        assertFalse(salaryOut.isTransfer());
-        assertFalse(payrollIn.isTransfer());
-        assertFalse(returnOut.isTransfer());
-        assertFalse(refundIn.isTransfer());
-        assertFalse(cashOut.isTransfer());
-        assertFalse(cashIn.isTransfer());
-        verify(budgetRepository, never()).decrementSpentClamped(anyString(), anyDouble());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+    @Test void creditCardPaymentWithOwnedCounterpart_isTransfer() {
+        Transaction out = leg("out", TransactionType.EXPENSE, 15), in = leg("in", TransactionType.INCOME, 15);
+        out.setPlaidPfcDetailed("LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"); in.setPlaidPfcDetailed("LOAN_PAYMENTS_CREDIT_CARD_PAYMENT");
+        rows(out, in); service.reconcile("user-1"); assertTrue(out.isTransfer()); assertTrue(in.isTransfer());
     }
 }

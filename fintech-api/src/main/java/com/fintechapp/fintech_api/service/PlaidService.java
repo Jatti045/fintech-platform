@@ -79,6 +79,7 @@ public class PlaidService {
     private final UserRepository userRepository;
     private final PlaidTransactionIngestService ingestService;
     private final FinancialCacheInvalidator cacheInvalidator;
+    private final InternalTransferReconciliationService transferReconciliation;
     private final TransactionTemplate transactionTemplate;
 
     @Autowired
@@ -90,6 +91,7 @@ public class PlaidService {
             UserRepository userRepository,
             PlaidTransactionIngestService ingestService,
             FinancialCacheInvalidator cacheInvalidator,
+            InternalTransferReconciliationService transferReconciliation,
             Optional<PlatformTransactionManager> transactionManager) {
         this.plaidRestClient = plaidRestClient;
         this.settings = settings;
@@ -98,6 +100,7 @@ public class PlaidService {
         this.userRepository = userRepository;
         this.ingestService = ingestService;
         this.cacheInvalidator = cacheInvalidator;
+        this.transferReconciliation = transferReconciliation;
         this.transactionTemplate = transactionManager != null && transactionManager.isPresent()
                 ? new TransactionTemplate(transactionManager.get())
                 : null;
@@ -110,9 +113,10 @@ public class PlaidService {
             PlaidItemRepository plaidItemRepository,
             UserRepository userRepository,
             PlaidTransactionIngestService ingestService,
-            FinancialCacheInvalidator cacheInvalidator) {
+            FinancialCacheInvalidator cacheInvalidator,
+            InternalTransferReconciliationService transferReconciliation) {
         this(plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService,
-                cacheInvalidator, Optional.empty());
+                cacheInvalidator, transferReconciliation, Optional.empty());
     }
 
     private <T> T inTransaction(TransactionCallback<T> action) {
@@ -224,6 +228,7 @@ public class PlaidService {
 
         // Step 3: Persist the returned page in a short, dedicated database transaction.
         return inTransaction(status -> {
+            transferReconciliation.lockUser(userId);
             PlaidItem managedItem = plaidItemRepository.findByItemIdForUpdate(itemId)
                     .or(() -> plaidItemRepository.findByItemId(itemId))
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
@@ -252,6 +257,8 @@ public class PlaidService {
                 ingestService.removeByPlaidIds(removedIds, userId);
             }
 
+            transferReconciliation.reconcile(userId);
+
             String nextCursor = response.path("next_cursor").asString(null);
             boolean hasMore = response.path("has_more").asBoolean(false);
 
@@ -263,8 +270,7 @@ public class PlaidService {
             logger.info("Plaid sync payload received for item_id={}: added={}, modified={}, removed={}, new_cursor={}",
                     itemId, added.size(), modified.size(), removedIds.size(), nextCursor);
 
-            cacheInvalidator.evictFinancialSummaryRegion(userId);
-            cacheInvalidator.evictRecurringPayments(userId);
+            cacheInvalidator.evictFinancialDataAfterCommit(userId);
 
             registerCursorCommitMilestone(itemId, userId, cursor, managedItem.getCursor());
 
@@ -514,7 +520,10 @@ public class PlaidService {
                 node.path("unofficial_currency_code").asText(null),
                 plaidAccountId,
                 plaidItemId,
-                pfcDetailed);
+                pfcDetailed,
+                node.has("pending") ? node.path("pending").asBoolean(false) : null,
+                node.path("pending_transaction_id").asText(null),
+                parsePostedDate(node));
     }
 
     /** @return personal_finance_category.detailed if present, otherwise null. */
@@ -545,6 +554,14 @@ public class PlaidService {
             return legacy.get(0).asText("Other");
         }
         return "Other";
+    }
+
+    private static LocalDate parsePostedDate(JsonNode node) {
+        try {
+            return LocalDate.parse(node.path("date").asText(""), PLAID_DATE);
+        } catch (java.time.format.DateTimeParseException ex) {
+            return null;
+        }
     }
 
     private static Instant parseDate(JsonNode node) {

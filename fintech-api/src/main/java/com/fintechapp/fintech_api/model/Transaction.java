@@ -94,6 +94,16 @@ public class Transaction {
     @Column(name = "plaid_pfc_detailed", length = 128)
     private String plaidPfcDetailed;
 
+    @Column(name = "plaid_posted_date")
+    private java.time.LocalDate plaidPostedDate;
+
+    // Nullable for rows imported before pending metadata was retained.
+    @Column(name = "plaid_pending")
+    private Boolean plaidPending;
+
+    @Column(name = "plaid_pending_transaction_id", length = 128)
+    private String plaidPendingTransactionId;
+
     /**
      * True when this transaction is a transfer of money between the user's own
      * accounts (movement of existing money). Such transactions stay in the

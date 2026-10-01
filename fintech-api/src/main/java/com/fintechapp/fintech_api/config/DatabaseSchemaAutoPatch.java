@@ -127,12 +127,9 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
                 ADD COLUMN IF NOT EXISTS is_transfer BOOLEAN NOT NULL DEFAULT FALSE
                 """);
 
-        // The reconnect/pending deduplication columns were removed — drop the
-        // leftovers from databases created before the removal. plaid_item_id
-        // was dropped once for the old reconnect scheme but is now re-introduced
-        // below as the account/institution ownership key.
+        // Retain pending replacement identity; reconnect deduplication remains unchanged.
         jdbcTemplate.execute("""
-                ALTER TABLE transactions DROP COLUMN IF EXISTS plaid_pending_transaction_id
+                ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_pending_transaction_id VARCHAR(128)
                 """);
         jdbcTemplate.execute("""
                 DROP INDEX IF EXISTS idx_transactions_plaid_item
@@ -156,6 +153,9 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
                 ALTER TABLE transactions
                 ADD COLUMN IF NOT EXISTS plaid_pfc_detailed VARCHAR(128)
                 """);
+
+        jdbcTemplate.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_pending BOOLEAN");
+        jdbcTemplate.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_posted_date DATE");
 
         // Ownership-scoped lookup for proof-based internal-transfer pairing.
         jdbcTemplate.execute("""

@@ -59,6 +59,9 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private com.fintechapp.fintech_api.service.InternalTransferReconciliationService reconciler;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     private User createUser() {
@@ -679,8 +682,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
 
     // ── Proof-based internal-transfer detection ───────────────────────────────
     // is_transfer = true ONLY for movements between the same user's accounts
-    // under the same Plaid item, proven by a same-day, equal-amount,
-    // opposite-direction pair on two different accounts.
+    // with explicit category evidence and a unique opposite-direction counterpart.
+    // Reconciliation now runs at the page boundary, not inside each upsert.
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Test
@@ -692,12 +695,14 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 // Checking → Savings: both legs carry account/item ownership.
         PlaidTransaction checking = new PlaidTransaction(
                 "tr-out", "Transfer to Savings", date, "Transfer", 1000.0, false, "USD", null,
-                "checking-1", "item-tr1", "TRANSFER_TRANSFER_ACCOUNT_TRANSFER");
+                "checking-1", "item-tr1", "TRANSFER_OUT_ACCOUNT_TRANSFER");
         PlaidTransaction savings = new PlaidTransaction(
                 "tr-in", "Transfer from Checking", date, "Transfer", -1000.0, false, "USD", null,
-                "savings-1", "item-tr1", "TRANSFER_TRANSFER_ACCOUNT_TRANSFER");
+                "savings-1", "item-tr1", "TRANSFER_IN_ACCOUNT_TRANSFER");
         ingestService.upsertTransaction(user, checking);
         ingestService.upsertTransaction(user, savings);
+
+        reconciler.reconcile(user.getId());
 
         List<Transaction> stored = userTransactions(user);
         assertEquals(2, stored.size());
@@ -722,6 +727,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "only-out", "Transfer to Savings", date, "Transfer", 1000.0, false, "USD", null,
                 "checking-1", "item-only", null);
         ingestService.upsertTransaction(user, checking);
+
+        reconciler.reconcile(user.getId());
 
         // TEST 2 — no user-owned counterpart under the same item → expense.
         Transaction stored = userTransactions(user).get(0);
@@ -748,6 +755,9 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         ingestService.upsertTransaction(userA, outA);
         ingestService.upsertTransaction(userB, inB);
 
+        reconciler.reconcile(userA.getId());
+        reconciler.reconcile(userB.getId());
+
         // TEST 3 — one user's transaction can never pair with another user's.
         assertFalse(userTransactions(userA).get(0).isTransfer());
         assertFalse(userTransactions(userB).get(0).isTransfer());
@@ -760,24 +770,26 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Test
-    void differentPlaidItems_sameUser_doNotPair() {
+    void differentPlaidItems_sameUser_withEvidence_pair() {
         User user = createUser();
         item("item-ia", user);
         item("item-ib", user);
         Instant date = Instant.parse("2026-01-10T00:00:00Z");
 
         PlaidTransaction outA = new PlaidTransaction(
-                "a-out", "Checking", date, "Transfer", 1000.0, false, "USD", null, "checking-1", "item-ia", null);
+                "a-out", "Checking", date, "Transfer", 1000.0, false, "USD", null, "checking-1", "item-ia", "TRANSFER_OUT_ACCOUNT_TRANSFER");
         PlaidTransaction inB = new PlaidTransaction(
-                "b-in", "Savings", date, "Transfer", -1000.0, false, "USD", null, "savings-1", "item-ib", null);
+                "b-in", "Savings", date, "Transfer", -1000.0, false, "USD", null, "savings-1", "item-ib", "TRANSFER_IN_ACCOUNT_TRANSFER");
         ingestService.upsertTransaction(user, outA);
         ingestService.upsertTransaction(user, inB);
 
-        // TEST 4 — different institutions are never an internal transfer.
-        assertFalse(byPlaidId(userTransactions(user), "a-out").isTransfer());
-        assertFalse(byPlaidId(userTransactions(user), "b-in").isTransfer());
-        assertEquals(1000.0, expenses(user, date.plusSeconds(1)));
-        assertEquals(1000.0, income(user, date.plusSeconds(1)));
+        reconciler.reconcile(user.getId());
+
+        // Same-user ownership and structured evidence work across institutions.
+        assertTrue(byPlaidId(userTransactions(user), "a-out").isTransfer());
+        assertTrue(byPlaidId(userTransactions(user), "b-in").isTransfer());
+        assertEquals(0.0, expenses(user, date.plusSeconds(1)));
+        assertEquals(0.0, income(user, date.plusSeconds(1)));
 
         cleanup(user);
     }
@@ -793,6 +805,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "pay-1", "Payroll Deposit", date, "Income", -2500.0, false, "USD", null,
                 "checking-1", "item-pay", null);
         ingestService.upsertTransaction(user, payroll);
+
+        reconciler.reconcile(user.getId());
 
         // TEST 5 — payroll is income, never an internal transfer.
         assertFalse(userTransactions(user).get(0).isTransfer());
@@ -813,6 +827,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "checking-1", "item-loan", null);
         ingestService.upsertTransaction(user, loan);
 
+        reconciler.reconcile(user.getId());
+
         // TEST 6 — no user-owned counterpart → real expense.
         assertFalse(userTransactions(user).get(0).isTransfer());
         assertEquals(500.0, expenses(user, date.plusSeconds(1)));
@@ -832,6 +848,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "card-1", "item-ccbuy", null);
         ingestService.upsertTransaction(user, purchase);
 
+        reconciler.reconcile(user.getId());
+
         // TEST 7 — an ordinary purchase is spending, never a transfer.
         assertFalse(userTransactions(user).get(0).isTransfer());
         assertEquals(200.0, expenses(user, date.plusSeconds(1)));
@@ -849,14 +867,16 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         // Checking pays the user's own card: both accounts under item-ccpay.
         PlaidTransaction payment = new PlaidTransaction(
                 "cc-pay", "Payment Thank You", date, "Credit Card Payment", 500.0, false, "USD", null,
-                "checking-1", "item-ccpay", null);
+                "checking-1", "item-ccpay", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT");
         PlaidTransaction credit = new PlaidTransaction(
                 "cc-credit", "Payment Thank You", date, "Credit Card Payment", -500.0, false, "USD", null,
-                "card-1", "item-ccpay", null);
+                "card-1", "item-ccpay", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT");
         ingestService.upsertTransaction(user, payment);
         ingestService.upsertTransaction(user, credit);
 
-        // TEST 8 — proven same-item pair → transfer, zero financial impact.
+        // TEST 8 — structured card-payment pair → transfer, zero financial impact.
+        reconciler.reconcile(user.getId());
+
         List<Transaction> stored = userTransactions(user);
         assertTrue(stored.stream().allMatch(Transaction::isTransfer));
         assertEquals(0.0, income(user, date.plusSeconds(1)));
@@ -877,6 +897,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "checking-1", "item-ven", null);
         ingestService.upsertTransaction(user, venmo);
 
+        reconciler.reconcile(user.getId());
+
         // TEST 9 — no same-item user-owned counterpart → income.
         assertFalse(userTransactions(user).get(0).isTransfer());
         assertEquals(500.0, income(user, date.plusSeconds(1)));
@@ -896,6 +918,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "checking-1", "item-cash", null);
         ingestService.upsertTransaction(user, cash);
 
+        reconciler.reconcile(user.getId());
+
         // TEST 10 — cash deposits are real money in, never a transfer.
         assertFalse(userTransactions(user).get(0).isTransfer());
         assertEquals(500.0, income(user, date.plusSeconds(1)));
@@ -914,6 +938,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "ref-1", "Refund", date, "Refund", -45.0, false, "USD", null,
                 "card-1", "item-ref", null);
         ingestService.upsertTransaction(user, refund);
+
+        reconciler.reconcile(user.getId());
 
         // TEST 11 — refunds are never transfers; they stay money in.
         assertFalse(userTransactions(user).get(0).isTransfer());
@@ -945,9 +971,9 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "m-res", "Restaurant", day2, "Food", 200.0, false, "USD", null, "checking-1", "item-mi", null));
                 // -1000 checking → savings (proven pair).
         ingestService.upsertTransaction(user, new PlaidTransaction(
-                "m-tro", "Transfer to Savings", day3, "Transfer", 1000.0, false, "USD", null, "checking-1", "item-mi", "TRANSFER_TRANSFER_ACCOUNT_TRANSFER"));
+                "m-tro", "Transfer to Savings", day3, "Transfer", 1000.0, false, "USD", null, "checking-1", "item-mi", "TRANSFER_OUT_ACCOUNT_TRANSFER"));
         ingestService.upsertTransaction(user, new PlaidTransaction(
-                "m-tri", "Transfer from Checking", day3, "Transfer", -1000.0, false, "USD", null, "savings-1", "item-mi", "TRANSFER_TRANSFER_ACCOUNT_TRANSFER"));
+                "m-tri", "Transfer from Checking", day3, "Transfer", -1000.0, false, "USD", null, "savings-1", "item-mi", "TRANSFER_IN_ACCOUNT_TRANSFER"));
         // -500 credit-card purchase.
         ingestService.upsertTransaction(user, new PlaidTransaction(
                 "m-ccbuy", "Amazon", day4, "Shopping", 500.0, false, "USD", null, "card-1", "item-mi", "SHOPPING_ONLINE"));
@@ -956,6 +982,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "m-ccpay", "Payment Thank You", day5, "Credit Card Payment", 500.0, false, "USD", null, "checking-1", "item-mi", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"));
         ingestService.upsertTransaction(user, new PlaidTransaction(
                 "m-cccred", "Payment Thank You", day5, "Credit Card Payment", -500.0, false, "USD", null, "card-1", "item-mi", "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"));
+
+        reconciler.reconcile(user.getId());
 
         // TEST 12 — monthly invariant.
         assertEquals(8, userTransactions(user).size());
@@ -987,6 +1015,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         ingestService.upsertTransaction(user, bill);
         ingestService.upsertTransaction(user, deposit);
 
+        reconciler.reconcile(user.getId());
+
         List<Transaction> stored = userTransactions(user);
         // Neither may be classified as a transfer: both carry no transfer
         // candidate signal, and real spending/income must not disappear.
@@ -1016,6 +1046,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         ingestService.upsertTransaction(user, outgoing);
         ingestService.upsertTransaction(user, incoming);
 
+        reconciler.reconcile(user.getId());
+
         List<Transaction> stored = userTransactions(user);
         assertFalse(byPlaidId(stored, "c-out").isTransfer());
         assertFalse(byPlaidId(stored, "c-in").isTransfer());
@@ -1039,9 +1071,11 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "checking-1", "item-pp", "TRANSFER_PAYROLL");
         PlaidTransaction outbound = new PlaidTransaction(
                 "p-out", "External Transfer", date, "Transfer", 2500.0, false, "USD", null,
-                "savings-1", "item-pp", "TRANSFER_TRANSFER_ACCOUNT_TRANSFER");
+                "savings-1", "item-pp", "TRANSFER_OUT_ACCOUNT_TRANSFER");
         ingestService.upsertTransaction(user, payroll);
         ingestService.upsertTransaction(user, outbound);
+
+        reconciler.reconcile(user.getId());
 
         List<Transaction> stored = userTransactions(user);
         assertFalse(byPlaidId(stored, "p-pay").isTransfer());
@@ -1066,9 +1100,11 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "savings-1", "item-rf", "TRANSFER_REFUND");
         PlaidTransaction outbound = new PlaidTransaction(
                 "r-out", "Transfer To X", date, "Transfer", 100.0, false, "USD", null,
-                "checking-1", "item-rf", "TRANSFER_TRANSFER_ACCOUNT_TRANSFER");
+                "checking-1", "item-rf", "TRANSFER_OUT_ACCOUNT_TRANSFER");
         ingestService.upsertTransaction(user, refund);
         ingestService.upsertTransaction(user, outbound);
+
+        reconciler.reconcile(user.getId());
 
         List<Transaction> stored = userTransactions(user);
         assertFalse(byPlaidId(stored, "r-ref").isTransfer());
@@ -1097,6 +1133,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "checking-1", "item-sa", null);
         ingestService.upsertTransaction(user, out);
         ingestService.upsertTransaction(user, in);
+
+        reconciler.reconcile(user.getId());
 
         List<Transaction> stored = userTransactions(user);
         assertFalse(byPlaidId(stored, "sa-out").isTransfer());
@@ -1129,6 +1167,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         ingestService.upsertTransaction(user, b);
         ingestService.upsertTransaction(user, c);
 
+        reconciler.reconcile(user.getId());
+
         List<Transaction> stored = userTransactions(user);
         assertFalse(stored.stream().anyMatch(Transaction::isTransfer));
         assertEquals(300.0, income(user, date.plusSeconds(1)));
@@ -1149,6 +1189,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "ca-1", "CASH APP TRANSFER", date, "Transfer", 20.0, false, "USD", null,
                 "checking-1", "item-ca", "TRANSFER_OUT_THIRD_PARTY_P2P");
         ingestService.upsertTransaction(user, cashApp);
+
+        reconciler.reconcile(user.getId());
 
         List<Transaction> stored = userTransactions(user);
         assertFalse(stored.stream().anyMatch(Transaction::isTransfer));
@@ -1171,6 +1213,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "checking-1", "item-vmo", "TRANSFER_OUT_THIRD_PARTY_P2P");
         ingestService.upsertTransaction(user, venmo);
 
+        reconciler.reconcile(user.getId());
+
         List<Transaction> stored = userTransactions(user);
         assertFalse(stored.stream().anyMatch(Transaction::isTransfer));
         assertEquals(145.09, expenses(user, date.plusSeconds(1)));
@@ -1191,6 +1235,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "vmi-1", "VENMO", date, "Transfer", -500.0, false, "USD", null,
                 "checking-1", "item-vmi", "TRANSFER_IN_THIRD_PARTY_P2P");
         ingestService.upsertTransaction(user, venmo);
+
+        reconciler.reconcile(user.getId());
 
         List<Transaction> stored = userTransactions(user);
         assertFalse(stored.stream().anyMatch(Transaction::isTransfer));
@@ -1218,6 +1264,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
                 "savings-1", "item-cav", "TRANSFER_IN_THIRD_PARTY_P2P");
         ingestService.upsertTransaction(user, cashApp);
         ingestService.upsertTransaction(user, deposit);
+
+        reconciler.reconcile(user.getId());
 
         List<Transaction> stored = userTransactions(user);
         assertFalse(byPlaidId(stored, "ca-v-1").isTransfer());

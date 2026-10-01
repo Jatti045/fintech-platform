@@ -1,93 +1,42 @@
 package com.fintechapp.fintech_api.service;
 
+import java.util.Locale;
+import com.fintechapp.fintech_api.model.Transaction;
+import com.fintechapp.fintech_api.model.TransactionType;
 import tools.jackson.databind.JsonNode;
 
-/**
- * Decides whether a raw Plaid transaction is an internal transfer that must be
- * excluded from income and expense calculations.
- *
- * <p>
- * <b>The internal transfer invariant:</b> A transaction is an internal transfer
- * only when it moves existing money between two distinct accounts that both
- * belong
- * to the same user at the same financial institution (Plaid item). Every other
- * money
- * movement is either genuine income (money entering the user's net worth) or an
- * expense (money leaving the user's net worth).
- * </p>
- *
- * <p>
- * <b>Two-Phase Detection Architecture:</b>
- * </p>
- * <ul>
- * <li><b>Phase 1 (Ingest-time stateless evaluation):</b> At initial transaction
- * ingest,
- * {@link #isTransfer(JsonNode)} evaluates each raw Plaid transaction node in
- * isolation.
- * Because a single transaction node does not carry its paired opposite leg or
- * cross-account
- * ownership proof, it always returns {@code false}. This ensures no incoming
- * transaction
- * is prematurely suppressed before account ownership can be proven.</li>
- * <li><b>Phase 2 (Post-sync stateful reconciliation):</b> Following
- * synchronization,
- * {@code PlaidTransactionIngestService#reconcileInternalTransfers} executes a
- * proof-based
- * reconciliation over persisted transactions for the user and Plaid item. It
- * pairs
- * opposite-direction movements (income + expense) that share an exact
- * integer-cent amount,
- * occur on the same UTC calendar day, belong to different accounts under the
- * same Plaid item,
- * and exhibit verified transfer category codes.</li>
- * </ul>
- *
- * <p>
- * <b>Known Detection Limitation: Multi-Day Settlement Windows:</b>
- * </p>
- * <p>
- * Plaid's {@code /transactions/sync} payload does not provide an authoritative
- * cross-institution
- * or intra-bank transfer pair identifier. Transfers between accounts (such as
- * ACH or inter-account
- * sweeps) frequently settle across 1 to 3 business days, resulting in differing
- * posting dates.
- * Loosening the date matching window across multiple days was evaluated and
- * intentionally rejected
- * due to unacceptable false-positive risks:
- * <ul>
- * <li>Expanding the window across multiple days causes unrelated same-amount
- * transactions
- * (e.g., recurring subscriptions, bill payments, ATM withdrawals, or paycheck
- * splits)
- * to be erroneously matched as transfers.</li>
- * <li>Erronous transfer classification permanently erases real income and real
- * expenses from
- * the user's budget, cash flow, and monthly summary metrics.</li>
- * <li>In accounting systems, a false negative (showing both legs of a multi-day
- * transfer until
- * reconciled) is vastly preferable to a false positive (silently destroying
- * genuine financial records).</li>
- * </ul>
- * Therefore, multi-day settlement is retained as a documented known detection
- * limitation, and the
- * algorithm strictly enforces same-day proof-based pairing.
- * </p>
- */
+/** Explicit candidate policy. Categories describe intent, never ownership or a pair. */
 public final class PlaidTransferDetector {
+    private static final java.util.regex.Pattern NON_TRANSFER_NAME = java.util.regex.Pattern.compile(
+            "\\b(?:PAYROLL|SALARY|REFUND|REIMBURSEMENT|REIMBURSE|ATM|VENMO|PAYPAL|CASH APP|CASH WITHDRAWAL)\\b",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
 
-    private PlaidTransferDetector() {
-    }
+    private PlaidTransferDetector() {}
 
-    /**
-     * @param transactionNode the raw Plaid transaction object (unused — the
-     *                        detector has no access to account ownership)
-     * @return always {@code false}: the application cannot establish that a
-     *         transaction moves money between two of the same user's accounts
-     *         at the same financial institution from the data it persists, so
-     *         every transaction is treated as income or expense.
-     */
+    /** A raw single leg cannot establish an internal transfer. */
     public static boolean isTransfer(JsonNode transactionNode) {
         return false;
+    }
+
+    public static boolean isCandidate(Transaction transaction) {
+        // Contradictory, identifiable activity must not vanish even if Plaid's
+        // transfer category is wrong. Names never positively establish a pair.
+        if (transaction.getName() != null && NON_TRANSFER_NAME.matcher(transaction.getName()).find()) {
+            return false;
+        }
+        String detailed = transaction.getPlaidPfcDetailed();
+        if (detailed == null) {
+            return false;
+        }
+        String code = detailed.trim().toUpperCase(Locale.ROOT);
+        // Explicit PFC codes seen in the project's fixtures. Unknown codes fail closed.
+        // Broad TRANSFER_IN/OUT, deposits, payroll, refunds, cash and P2P are not accepted.
+        return switch (code) {
+            case "TRANSFER_IN_ACCOUNT_TRANSFER" -> transaction.getType() == TransactionType.INCOME;
+            case "TRANSFER_OUT_ACCOUNT_TRANSFER" -> transaction.getType() == TransactionType.EXPENSE;
+            // Credit account payment credits can have the same detailed code as checking debits.
+            case "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT" -> transaction.getType() != null;
+            default -> false;
+        };
     }
 }

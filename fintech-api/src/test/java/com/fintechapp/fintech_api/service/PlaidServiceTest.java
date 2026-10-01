@@ -75,6 +75,9 @@ class PlaidServiceTest {
     @Mock
     private FinancialCacheInvalidator cacheInvalidator;
 
+    @Mock
+    private InternalTransferReconciliationService transferReconciliation;
+
     private PlaidService service;
     private User user;
     private PlaidItem item;
@@ -86,7 +89,7 @@ class PlaidServiceTest {
                 List.of("US"), "en");
         service = new PlaidService(
                 plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService,
-                cacheInvalidator);
+                cacheInvalidator, transferReconciliation);
 
         user = new User();
         user.setId("user-1");
@@ -97,6 +100,30 @@ class PlaidServiceTest {
         item.setAccessTokenEncrypted("encrypted");
         item.setCursor(null);
         item.setUser(user);
+    }
+
+    @Test
+    void syncPageReconcilesOnceAfterAllMutations_andRetainsPendingMetadata() throws Exception {
+        stubSyncPage(mapper.readTree("""
+            {"added":[{"transaction_id":"posted","account_id":"a","amount":5,"date":"2026-03-15",
+              "pending":false,"pending_transaction_id":"pending"}],
+             "modified":[{"transaction_id":"changed","amount":6,"date":"2026-03-16","pending":true}],
+             "removed":[{"transaction_id":"pending"}],"next_cursor":"next","has_more":false}
+            """));
+        service.fetchAndApplySyncPage("item-1");
+        var order = org.mockito.Mockito.inOrder(transferReconciliation, ingestService);
+        order.verify(transferReconciliation).lockUser("user-1");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PlaidTransaction>> added = ArgumentCaptor.forClass(List.class);
+        order.verify(ingestService).upsertAddedBatch(any(User.class), added.capture());
+        order.verify(ingestService).upsertTransaction(any(User.class), any(PlaidTransaction.class));
+        order.verify(ingestService).removeByPlaidIds(List.of("pending"), "user-1");
+        order.verify(transferReconciliation).reconcile("user-1");
+        verify(transferReconciliation, org.mockito.Mockito.times(1)).reconcile("user-1");
+        assertEquals(false, added.getValue().get(0).pending());
+        assertEquals("pending", added.getValue().get(0).pendingTransactionId());
+        assertEquals(java.time.LocalDate.of(2026, 3, 15), added.getValue().get(0).postedDate());
+        verify(cacheInvalidator).evictFinancialDataAfterCommit("user-1");
     }
 
     private void stubSyncPage(JsonNode payload) {
