@@ -35,7 +35,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
   currencyCode,
 }: BudgetHaloProps) {
   const { THEME } = useTheme();
-  const displayYear = year ?? new Date().getFullYear();
+  const displayYear = year ?? new Date().getUTCFullYear();
   const formattedHeaderMonth = monthLabel.includes(String(displayYear))
     ? monthLabel.toUpperCase()
     : `${monthLabel} ${displayYear}`.toUpperCase();

@@ -141,7 +141,7 @@ export const useHomeScreen = () => {
   // ── Month metadata (trivial — computed directly, no memo) ─────────────
   const now = new Date();
   const isCurrentMonth =
-    calendar.month === now.getMonth() && calendar.year === now.getFullYear();
+    calendar.month === now.getUTCMonth() && calendar.year === now.getUTCFullYear();
   const monthLabel = `${new Date(calendar.year, calendar.month, 1).toLocaleString(undefined, { month: "long" })} ${calendar.year}`;
 
   // ── Calendar navigation ───────────────────────────────────────────────

@@ -183,6 +183,7 @@ function TransactionModal({
   const formatShortDate = (d: Date) => {
     try {
       return d.toLocaleDateString(undefined, {
+        timeZone: "UTC",
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -572,7 +573,7 @@ function TransactionModal({
                           accessibilityLabel="Previous day"
                           onPress={() => {
                             const prev = new Date(txDate);
-                            prev.setDate(prev.getDate() - 1);
+                            prev.setUTCDate(prev.getUTCDate() - 1);
                             setTxDate(clampDate(prev));
                           }}
                           style={{ padding: 6 }}
@@ -601,7 +602,7 @@ function TransactionModal({
                           activeOpacity={0.7}
                           onPress={() => {
                             const next = new Date(txDate);
-                            next.setDate(next.getDate() + 1);
+                            next.setUTCDate(next.getUTCDate() + 1);
                             setTxDate(clampDate(next));
                           }}
                           style={{ padding: 6 }}
@@ -637,6 +638,7 @@ function TransactionModal({
                       maximumDate={monthEndDate}
                       value={txDate}
                       mode="date"
+                      timeZoneName="UTC"
                       textColor={THEME.textPrimary}
                       display={Platform.OS === "ios" ? "spinner" : "calendar"}
                       onChange={(

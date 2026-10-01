@@ -100,7 +100,13 @@ public class PlaidTransactionSyncService {
         Duration leaseDuration = Duration.ofMillis(Math.max(itemLockLeaseDurationMs, 30_000L));
 
         // Step A — secure the two-tier lock (local mutex + distributed lease).
-        if (!acquireItemLock(itemId, lockToken, timeout, leaseDuration)) {
+        try {
+            if (!acquireItemLock(itemId, lockToken, timeout, leaseDuration)) {
+                return;
+            }
+        } catch (RuntimeException ex) {
+            logger.error("Failed to acquire Plaid sync lease for item_id={}", itemId, ex);
+            markSyncError(itemId);
             return;
         }
         long lockHeldSince = System.currentTimeMillis();
@@ -116,16 +122,22 @@ public class PlaidTransactionSyncService {
                 page++;
 
                 // Extend distributed lease if there are more pages to process.
-                if (hasMore && syncLockService != null) {
-                    syncLockService.extend(itemId, lockToken, leaseDuration);
+                if (hasMore && !syncLockService.extend(itemId, lockToken, leaseDuration)) {
+                    throw new IllegalStateException("Lost distributed Plaid sync lease before the next page");
                 }
             }
             logger.info("Plaid sync finished for item_id={} pages={} hasMore={} durationMs={} (thread={})",
                     itemId, page, hasMore, System.currentTimeMillis() - runStart,
                     Thread.currentThread().getName());
-            // The full run completed without an exception — surface health for
-            // the clients (per-page commits already stamped lastSyncedAt).
-            clearSyncError(itemId);
+            // Surface success only when every page was applied (per-page
+            // commits already stamped lastSyncedAt).
+            if (hasMore) {
+                // The bounded run stopped with unapplied pages. Preserve its cursor
+                // and surface retry instead of reporting a complete healthy sync.
+                markSyncError(itemId);
+            } else {
+                clearSyncError(itemId);
+            }
         } catch (Exception ex) {
             logger.error("Plaid transaction sync failed for item_id={} user_id={}",
                     itemId, userId, ex);
@@ -206,17 +218,18 @@ public class PlaidTransactionSyncService {
 
         // Bounded wait for the distributed lease so another JVM instance that
         // is mid-sync gets a chance to finish before this run gives up.
-        boolean distAcquired = syncLockService.acquireWithTimeout(itemId, lockToken, timeout, leaseDuration);
-        if (!distAcquired) {
-            // Release the local lock we just took — otherwise this skipped
-            // run would block every later same-JVM run for this item until
-            // something else cleared it.
-            localLock.unlock();
-            logger.info("Distributed sync lease unavailable for item_id={}; released local lock and skipped run",
-                    itemId);
-            return false;
+        boolean distAcquired = false;
+        try {
+            distAcquired = syncLockService.acquireWithTimeout(itemId, lockToken, timeout, leaseDuration);
+            return distAcquired;
+        } finally {
+            // Acquisition itself can throw (for example a database outage). The
+            // run's cleanup block has not started yet, so release locally here.
+            if (!distAcquired) {
+                localLock.unlock();
+                logger.info("Distributed sync lease not acquired for item_id={}; released local lock", itemId);
+            }
         }
-        return true;
     }
 
     private void releaseItemLock(String itemId, String lockToken) {

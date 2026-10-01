@@ -220,7 +220,7 @@ export const useTransactionOperations = () => {
       const updates: any = {};
       if (editingTransaction.name !== txName.trim())
         updates.name = txName.trim();
-      if (Number(editingTransaction.amount) !== finalAmount)
+      if (existingOriginalAmount !== finalAmount)
         updates.amount = finalAmount;
       if ((editingTransaction.type || "EXPENSE") !== type) updates.type = type;
       if (budgetChanged) updates.budgetId = selectedBudgetId || null;
@@ -240,7 +240,7 @@ export const useTransactionOperations = () => {
 
       // Always send currency snapshot when amount/currency changed.
       if (
-        requestHasNumericChange(editingTransaction.amount, finalAmount) ||
+        existingOriginalAmount !== finalAmount ||
         currencySnapshotChanged
       ) {
         updates.baseCurrency = baseCurrency;
@@ -365,7 +365,3 @@ export const useTransactionOperations = () => {
     handleDeleteTransaction,
   };
 };
-
-function requestHasNumericChange(oldValue: any, newValue: number): boolean {
-  return Number(oldValue) !== Number(newValue);
-}

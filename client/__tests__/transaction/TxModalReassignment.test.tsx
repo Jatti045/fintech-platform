@@ -516,4 +516,68 @@ describe("TxModal - Budget Reassignment & Regression Tests", () => {
     // Modal closed
     expect(setOpenSheet).toHaveBeenCalledWith(false);
   });
+  it("renames a foreign-currency transaction without changing its stored currency snapshot", async () => {
+    const existingTx: TransactionItem = {
+      id: "foreign", name: "Old", amount: 125, originalAmount: 100,
+      originalCurrency: "CAD", baseCurrency: "USD",
+      date: "2026-02-10T12:00:00.000Z", category: "Groceries",
+      budgetId: "b-groceries", type: TransactionType.EXPENSE,
+    };
+    mockedTxUpdate.mockResolvedValue({ success: true, data: existingTx });
+    const store = makeStore();
+    store.dispatch(setMonthYear({ month: 1, year: 2026 }));
+    let tree!: renderer.ReactTestRenderer;
+    renderer.act(() => {
+      tree = renderer.create(<Provider store={store}><AlertProvider>
+        <TransactionModal openSheet setOpenSheet={jest.fn()} editingTransaction={existingTx} />
+      </AlertProvider></Provider>);
+    });
+    try {
+      await until(() => nameInput()?.value === "Old");
+      renderer.act(() => { nameInput()!.onChangeText("Renamed"); });
+      await renderer.act(async () => {
+        await lastTouchableContaining("Update Transaction")!.onPress();
+        await flush();
+      });
+      expect(mockedTxUpdate).toHaveBeenCalledTimes(1);
+      expect(mockedTxUpdate.mock.calls[0][1]).toEqual({ name: "Renamed" });
+    } finally {
+      renderer.act(() => { tree.unmount(); });
+      store.dispatch(api.util.resetApiState());
+    }
+  });
+
+  it.each(["2026-03-08T00:30:00Z", "2026-11-01T00:30:00Z"])(
+    "displays and advances the reporting date in UTC across Toronto DST at %s", async (instant) => {
+      const day = new Date(instant);
+      const existingTx: TransactionItem = {
+        id: "dst", name: "Purchase", amount: 25, date: day.toISOString(),
+        category: "Groceries", budgetId: "b-groceries", baseCurrency: "USD", type: TransactionType.EXPENSE,
+      };
+      mockedTxUpdate.mockResolvedValue({ success: true, data: existingTx });
+      const store = makeStore();
+      store.dispatch(setMonthYear({ month: day.getUTCMonth(), year: day.getUTCFullYear() }));
+      let tree!: renderer.ReactTestRenderer;
+      renderer.act(() => {
+        tree = renderer.create(<Provider store={store}><AlertProvider>
+          <TransactionModal openSheet setOpenSheet={jest.fn()} editingTransaction={existingTx} />
+        </AlertProvider></Provider>);
+      });
+      try {
+        await until(() => nameInput()?.value === "Purchase");
+        expect(renderedText(day.toLocaleDateString(undefined, { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" }))).toBe(true);
+        renderer.act(() => { nextDayButton()!.onPress(); });
+        await renderer.act(async () => {
+          await lastTouchableContaining("Update Transaction")!.onPress();
+          await flush();
+        });
+        day.setUTCDate(day.getUTCDate() + 1);
+        expect(mockedTxUpdate.mock.calls[0][1].date).toBe(day.toISOString());
+      } finally {
+        renderer.act(() => { tree.unmount(); });
+        store.dispatch(api.util.resetApiState());
+      }
+    },
+  );
+
 });

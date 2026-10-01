@@ -312,9 +312,18 @@ public class PlaidTransactionIngestService {
 
     /** Deletes one transaction and restores its budget spent contribution. */
     private void removeTransaction(Transaction tx) {
-        if (tx.getType() == TransactionType.EXPENSE && tx.getBudget() != null) {
+        Budget budget = tx.getBudget();
+        if (tx.isTransfer() && budget != null) {
+            // A legacy flag/link does not tell us whether cached spent already
+            // excluded the row. Rebuild after deletion rather than subtract twice.
+            transactionRepository.delete(tx);
+            transactionRepository.flush();
+            budgetRepository.recalculateSpent(budget.getId());
+            return;
+        }
+        if (tx.getType() == TransactionType.EXPENSE && budget != null) {
             // Atomic, zero-floored decrement — safe against concurrent writers.
-            budgetRepository.decrementSpentClamped(tx.getBudget().getId(), tx.getAmount());
+            budgetRepository.decrementSpentClamped(budget.getId(), tx.getAmount());
         }
         transactionRepository.delete(tx);
     }

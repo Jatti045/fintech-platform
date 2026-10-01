@@ -33,3 +33,28 @@ test("spending trend is unchanged by transfer legs and normal income", () => {
   expect(bars(ledger)).toEqual(bars(purchases));
   expect(ledger).toHaveLength(5);
 });
+
+test("midnight UTC expense stays on its reporting day in Toronto", () => {
+  const atMidnight = [{ date: "2025-03-26T00:00:00Z", amount: 20, type: "EXPENSE" }] as ITransaction[];
+  const atNoon = [{ date: "2025-03-26T12:00:00Z", amount: 20, type: "EXPENSE" }] as ITransaction[];
+  expect(bars(atMidnight)).toEqual(bars(atNoon));
+});
+
+test("the current-day bar stays highlighted when an early month is left-padded", () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date("2025-03-01T12:00:00Z"));
+  let tree!: renderer.ReactTestRenderer;
+  try {
+    act(() => { tree = renderer.create(<MonthlyOverview monthlyIncome={1000} totalSpent={30}
+      monthLabel="March" currencyCode="USD" isCurrentMonth month={2} year={2025}
+      transactions={[{ date: "2025-03-01T00:00:00Z", amount: 30, type: "EXPENSE" } as ITransaction]} />); });
+    const styles = tree.root.findAllByType("View" as any).map(node => node.props.style)
+      .filter(style => style?.width === 5 && ["bar", "success"].includes(style.backgroundColor));
+    expect(styles).toHaveLength(8);
+    expect(styles[7].backgroundColor).toBe("success");
+    expect(styles[7].height).toBe(44);
+  } finally {
+    act(() => { tree?.unmount(); });
+    jest.useRealTimers();
+  }
+});

@@ -1,6 +1,6 @@
 import { monthOfDate } from "@/store/api/apiSlice";
 import { buildDailySpendTotals } from "@/utils/transaction/helpers";
-import { buildMonthSpendSeries, daysInMonth } from "@/utils/budget/budgetCalculations";
+import { buildMonthSpendSeries, daysInMonth, todayDayOfMonth } from "@/utils/budget/budgetCalculations";
 import { toUtcDateString } from "@/hooks/transaction/useTransactionFilters";
 
 describe("Timezone and Month Boundary Handling", () => {
@@ -129,3 +129,12 @@ describe("Timezone and Month Boundary Handling", () => {
     });
   });
 });
+
+it.each(["2026-10-01T00:30:00Z", "2027-01-01T00:30:00Z", "2026-03-09T00:30:00Z"])(
+  "budget pace uses the UTC reporting day at %s", (instant) => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(instant));
+    try { expect(todayDayOfMonth()).toBe(new Date(instant).getUTCDate()); }
+    finally { jest.useRealTimers(); }
+  },
+);

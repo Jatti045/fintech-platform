@@ -614,8 +614,8 @@ describe("Profile — fully lazy", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Cold-start hydration — hydrateApiCache", () => {
-  const SEED_MONTH = new Date().getMonth(); // 0-based, current month
-  const SEED_YEAR = new Date().getFullYear();
+  const SEED_MONTH = new Date().getUTCMonth(); // 0-based, current month
+  const SEED_YEAR = new Date().getUTCFullYear();
   const USER_ID = "user-hydration-test";
 
   /** Writes a persisted cache envelope to AsyncStorage under the correct keys. */
@@ -648,6 +648,24 @@ describe("Cold-start hydration — hydrateApiCache", () => {
       );
     }
   }
+
+  it("hydrates the UTC reporting month when Toronto is still in the previous year", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2027-01-01T00:30:00Z"));
+    const store = makeStore();
+    try {
+      await AsyncStorage.setItem(USER_DATA_STORAGE_KEY, JSON.stringify({ id: USER_ID }));
+      await AsyncStorage.setItem(`rtkq:v2:budgets:${USER_ID}:2027-0`,
+        JSON.stringify({ ts: Date.now(), data: [{ id: "boundary-budget", limit: 500 }] }));
+      await hydrateApiCache(store as any);
+      expect(queryKeys(store).filter((k) => k.includes("getBudgets"))).toEqual([
+        expect.stringContaining('"currentYear":2027'),
+      ]);
+    } finally {
+      store.dispatch(api.util.resetApiState());
+      jest.useRealTimers();
+    }
+  });
 
   it("seeds the getBudgets cache entry for the current month (key exists synchronously)", async () => {
     await seedAsyncStorage({ tx: false, budget: true });

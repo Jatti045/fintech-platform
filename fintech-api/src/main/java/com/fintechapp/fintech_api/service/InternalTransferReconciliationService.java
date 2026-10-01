@@ -25,7 +25,8 @@ import com.fintechapp.fintech_api.repository.UserRepository;
 
 /**
  * The single owner of persisted transfer decisions. Recomputes mutually unique
- * candidate pairs; no transaction rows are merged, deleted, or hidden.
+ * candidate pairs; the two transfer legs are never merged, deleted, or hidden.
+ * Explicitly superseded pending versions are retired before matching.
  */
 @Service
 public class InternalTransferReconciliationService {
@@ -73,7 +74,36 @@ public class InternalTransferReconciliationService {
     }
 
     private void reconcile(String userId, boolean historical) {
-        List<Transaction> rows = transactions.findTransferCandidates(userId);
+        List<Transaction> rows = new ArrayList<>(transactions.findTransferCandidates(userId));
+        Set<String> retiredPendingIds = new HashSet<>();
+        if (!historical) {
+            Map<String, Transaction> pendingByPlaidId = new HashMap<>();
+            for (Transaction tx : rows) {
+                if (ownedBy(tx, userId) && Boolean.TRUE.equals(tx.getPlaidPending())
+                        && StringUtils.hasText(tx.getPlaidTransactionId())) {
+                    pendingByPlaidId.put(tx.getPlaidTransactionId(), tx);
+                }
+            }
+            for (Transaction posted : rows) {
+                Transaction pending = pendingByPlaidId.get(posted.getPlaidPendingTransactionId());
+                if (ownedBy(posted, userId) && Boolean.FALSE.equals(posted.getPlaidPending())
+                        && StringUtils.hasText(posted.getPlaidTransactionId())
+                        && pending != null && !posted.getId().equals(pending.getId())
+                        && StringUtils.hasText(posted.getPlaidItemId())
+                        && posted.getPlaidItemId().equals(pending.getPlaidItemId())
+                        && StringUtils.hasText(posted.getPlaidAccountId())
+                        && posted.getPlaidAccountId().equals(pending.getPlaidAccountId())) {
+                    retiredPendingIds.add(pending.getPlaidTransactionId());
+                }
+            }
+            if (!retiredPendingIds.isEmpty()) {
+                // These are obsolete versions explicitly identified by Plaid,
+                // not the two independently visible internal-transfer legs.
+                ingest.removeByPlaidIds(new ArrayList<>(retiredPendingIds), userId);
+                transactions.flush();
+                rows.removeIf(tx -> retiredPendingIds.contains(tx.getPlaidTransactionId()));
+            }
+        }
         Set<String> replacedPendingIds = new HashSet<>();
         for (Transaction tx : rows) {
             if (ownedBy(tx, userId) && StringUtils.hasText(tx.getPlaidPendingTransactionId())) {
@@ -119,7 +149,7 @@ public class InternalTransferReconciliationService {
 
         Set<String> affectedBudgets = new HashSet<>();
         Set<String> repairBudgets = new HashSet<>();
-        boolean changed = false;
+        boolean changed = !retiredPendingIds.isEmpty();
         for (Transaction tx : rows) {
             if (!ownedBy(tx, userId)) {
                 continue;

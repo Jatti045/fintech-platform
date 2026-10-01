@@ -146,6 +146,81 @@ class InternalTransferAccountingIntegrationTest extends BaseIntegrationTest {
         em.flush(); em.clear(); assertFalse(rows(user).get(0).isTransfer()); assertEquals(500, spent(user));
     }
 
+    @ParameterizedTest @ValueSource(doubles = {500.0, -500.0})
+    void ordinaryPendingReplacement_countsOnlyPostedAmount_andIsOrderIndependent(double amount) {
+        User user = user();
+        String pfc = amount > 0 ? "GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE" : "INCOME_WAGES";
+        PlaidTransaction pending = new PlaidTransaction("pending", "Ordinary transaction", Instant.parse("2026-03-15T00:00:00Z"),
+                "Food", amount, false, "USD", null, "checking", "bank-1", pfc, true, null, LocalDate.of(2026, 3, 15));
+        PlaidTransaction posted = new PlaidTransaction("posted", "Ordinary transaction", Instant.parse("2026-03-16T00:00:00Z"),
+                "Food", amount * 1.05, false, "USD", null, "checking", "bank-1", pfc, false, "pending", LocalDate.of(2026, 3, 16));
+        apply(user, posted, pending); // reversed payload order still retires the predecessor
+        apply(user, pending, posted); // replay cannot resurrect it or change budget twice
+        assertEquals(1, rows(user).size()); assertFalse(rows(user).get(0).isTransfer());
+        assertEquals(amount > 0 ? 525 : 0, total(user, TransactionType.EXPENSE));
+        assertEquals(amount < 0 ? 525 : 0, total(user, TransactionType.INCOME));
+        assertEquals(amount > 0 ? 525 : 0, spent(user));
+    }
+
+    @Test void pendingReplacementNeverDeletesAnotherUsersTransaction() {
+        User owner = user(), other = user();
+        PlaidTransaction pending = new PlaidTransaction("pending", "Ordinary transaction", Instant.parse("2026-03-15T00:00:00Z"),
+                "Food", 500, false, "USD", null, "checking", "bank-1", "GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE",
+                true, null, LocalDate.of(2026, 3, 15));
+        apply(owner, pending);
+        PlaidTransaction posted = new PlaidTransaction("posted", "Ordinary transaction", Instant.parse("2026-03-16T00:00:00Z"),
+                "Food", 525, false, "USD", null, "checking", "bank-1", "GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE",
+                false, "pending", LocalDate.of(2026, 3, 16));
+        apply(other, posted);
+        assertEquals(1, rows(owner).size()); assertEquals(500, spent(owner));
+        assertEquals(1, rows(other).size()); assertEquals(525, spent(other));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"account", "item", "unknown-status"})
+    void pendingRetirementRequiresConsistentStoredMetadata(String mismatch) {
+        User user = user();
+        PlaidTransaction pending = new PlaidTransaction("pending", "Ordinary transaction", Instant.parse("2026-03-15T00:00:00Z"),
+                "Food", 500, false, "USD", null, "checking", "bank-1", "GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE",
+                "unknown-status".equals(mismatch) ? null : true, null, LocalDate.of(2026, 3, 15));
+        apply(user, pending);
+        PlaidTransaction posted = new PlaidTransaction("posted", "Ordinary transaction", Instant.parse("2026-03-16T00:00:00Z"),
+                "Food", 525, false, "USD", null, "account".equals(mismatch) ? "different" : "checking",
+                "item".equals(mismatch) ? "different" : "bank-1", "GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE",
+                false, "pending", LocalDate.of(2026, 3, 16));
+        apply(user, posted);
+        assertEquals(2, rows(user).size(), "contradictory/incomplete metadata must not authorize deletion");
+        assertEquals(1025, spent(user));
+    }
+
+    @Test void postedReplacementBeforeRemovalPage_doesNotDoubleCountIncome() {
+        User user = user();
+        PlaidTransaction pending = new PlaidTransaction("pending", "Bank movement", Instant.parse("2026-03-15T00:00:00Z"),
+                "TRANSFER_IN", -500, false, "USD", null, "savings", "bank-1", "TRANSFER_IN_ACCOUNT_TRANSFER",
+                true, null, LocalDate.of(2026, 3, 15));
+        apply(user, out("out", 15), pending);
+        PlaidTransaction posted = new PlaidTransaction("posted", "Bank movement", Instant.parse("2026-03-16T00:00:00Z"),
+                "TRANSFER_IN", -500, false, "USD", null, "savings", "bank-1", "TRANSFER_IN_ACCOUNT_TRANSFER",
+                false, "pending", LocalDate.of(2026, 3, 16));
+        apply(user, posted); // the explicit removed entry arrives on a later page
+        pairIsExcluded(user);
+        ingest.removeByPlaidIds(List.of("pending"), user.getId());
+        apply(user, posted); pairIsExcluded(user);
+    }
+
+    @Test void removingLegacyFlaggedBudgetLink_rebuildsEligibleSpending() {
+        User user = user();
+        apply(user, leg("normal", 25, "checking", "bank-1", 15, "GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE"), out("legacy", 15));
+        Transaction legacy = rows(user).stream().filter(t -> "legacy".equals(t.getPlaidTransactionId())).findFirst().orElseThrow();
+        legacy.setTransfer(true);
+        transactionRepository.saveAndFlush(legacy);
+        // The linked transfer has already been excluded from this cached total.
+        budgetRepository.recalculateSpent(legacy.getBudget().getId());
+        ingest.removeByPlaidIds(List.of("legacy"), user.getId());
+        em.flush(); em.clear();
+        assertEquals(25, spent(user));
+        assertEquals(25, total(user, TransactionType.EXPENSE));
+    }
+
     @Test void pendingReplacement_removedAfterPostedAdd_leavesTwoTransferRows() {
         User user = user(); PlaidTransaction pending = new PlaidTransaction("pending", "Bank movement",
                 Instant.parse("2026-03-15T00:00:00Z"), "TRANSFER_IN", -500, false, "USD", null,

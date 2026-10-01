@@ -48,8 +48,8 @@ const SpendingRhythm = React.memo(function SpendingRhythm({
   );
 
   const today = new Date();
-  const isCurrent = today.getMonth() === month && today.getFullYear() === year;
-  const todayIdx = isCurrent ? today.getDate() - 1 : -1;
+  const isCurrent = today.getUTCMonth() === month && today.getUTCFullYear() === year;
+  const todayIdx = isCurrent ? today.getUTCDate() - 1 : -1;
 
   const totalSpent = useMemo(
     () => series.reduce((acc, s) => acc + s.total, 0),

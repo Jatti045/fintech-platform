@@ -8,7 +8,7 @@
  *    false`, permanently disabling infinite scroll for cached months)
  *  - month + filter sets form distinct cache entries; page is excluded from
  *    the key so load-more accumulates into one entry
- *  - mutations invalidate only the affected months' tags
+ *  - creates invalidate their month; edits/deletes refresh reconciliation-dependent totals
  */
 
 /// <reference types="jest" />
@@ -18,6 +18,7 @@ import transactionApi from "@/api/transaction";
 import budgetApi from "@/api/budget";
 import financialSummaryApi from "@/api/financialSummary";
 import api from "@/store/api/apiSlice";
+import insightApi from "@/api/insight";
 import type { GetTransactionsArgs } from "@/store/api/apiSlice";
 
 jest.mock("@/api/transaction", () => ({
@@ -45,6 +46,11 @@ jest.mock("@/api/budget", () => ({
 jest.mock("@/api/financialSummary", () => ({
   __esModule: true,
   default: { fetchSummary: jest.fn() },
+}));
+
+jest.mock("@/api/insight", () => ({
+  __esModule: true,
+  default: { fetchMonthlyInsight: jest.fn() },
 }));
 
 const mockedTxFetch = transactionApi.fetchAll as jest.Mock;
@@ -686,4 +692,57 @@ describe("getTransactions – canonical query arguments & cache keys", () => {
 
     expect(Object.keys(store.getState().api.queries)).toHaveLength(0);
   });
+});
+
+describe("reconciliation cache coverage", () => {
+  it.each(["update", "delete"])("%s refreshes counterpart-month totals and AI insights", async (mutation) => {
+    const store = makeStore();
+    const insightFetch = insightApi.fetchMonthlyInsight as jest.Mock;
+    insightFetch.mockResolvedValue({ data: {} });
+    mockedSummaryFetch.mockResolvedValue({ data: {} });
+    mockedBudgetFetch.mockResolvedValue({ data: [] });
+    const update = transactionApi.update as jest.Mock;
+    const remove = transactionApi.delete as jest.Mock;
+    update.mockResolvedValue({ success: true, data: { transaction: {} } });
+    remove.mockResolvedValue({ success: true, data: { transaction: null } });
+    const counterpartMonth = { currentMonth: 5, currentYear: 2026 };
+    const subscriptions = [
+      store.dispatch(api.endpoints.getFinancialSummary.initiate(counterpartMonth)),
+      store.dispatch(api.endpoints.getBudgets.initiate(counterpartMonth)),
+      store.dispatch(api.endpoints.getMonthlyInsight.initiate(counterpartMonth)),
+    ];
+    try {
+      await Promise.all(subscriptions);
+      mockedSummaryFetch.mockClear(); mockedBudgetFetch.mockClear(); insightFetch.mockClear();
+      const invalidateMonths = [{ year: 2026, month: 4 }];
+      if (mutation === "update") {
+        await store.dispatch(api.endpoints.updateTransaction.initiate({ id: "may-leg", updates: { amount: 600 }, invalidateMonths }));
+      } else {
+        await store.dispatch(api.endpoints.deleteTransaction.initiate({ id: "may-leg", invalidateMonths }));
+      }
+      expect(mockedSummaryFetch).toHaveBeenCalledWith(counterpartMonth);
+      expect(mockedBudgetFetch).toHaveBeenCalledWith(counterpartMonth);
+      expect(insightFetch).toHaveBeenCalledWith(counterpartMonth);
+    } finally {
+      subscriptions.forEach(s => s.unsubscribe());
+      store.dispatch(api.util.resetApiState());
+    }
+  });
+});
+
+it("creating an expense invalidates the already-requested explanation for that month", async () => {
+  const store = makeStore();
+  const insightFetch = insightApi.fetchMonthlyInsight as jest.Mock;
+  insightFetch.mockResolvedValue({ data: {} });
+  mockedTxCreate.mockResolvedValue({ success: true, data: { transaction: {} } });
+  const subscription = store.dispatch(api.endpoints.getMonthlyInsight.initiate({ currentMonth: 4, currentYear: 2026 }));
+  try {
+    await subscription;
+    insightFetch.mockClear();
+    await store.dispatch(api.endpoints.createTransaction.initiate({ ...makeTx("new"), type: "EXPENSE" as any }));
+    expect(insightFetch).toHaveBeenCalledTimes(1);
+  } finally {
+    subscription.unsubscribe();
+    store.dispatch(api.util.resetApiState());
+  }
 });

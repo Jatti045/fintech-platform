@@ -51,26 +51,31 @@ public class FinancialCacheInvalidator {
         this.redisTemplate = redisTemplate;
     }
 
-    /** Small transaction-boundary hook; do not let pre-commit readers refill old totals. */
+    /** Schedule every financial mutation eviction after its successful commit. */
     public void evictFinancialDataAfterCommit(String userId) {
+        evictFinancialSummaryRegion(userId);
+        evictRecurringPayments(userId);
+    }
+
+    private void afterCommit(Runnable eviction) {
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
                     new org.springframework.transaction.support.TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            evictFinancialSummaryRegion(userId);
-                            evictRecurringPayments(userId);
+                            // Use immediate cache operations inside the callback, rather than
+                            // registering another callback during transaction completion.
+                            eviction.run();
                         }
                     });
         } else {
-            evictFinancialSummaryRegion(userId);
-            evictRecurringPayments(userId);
+            eviction.run();
         }
     }
 
     /** Evicts the cached month summary for one user after that month changes. */
     public void evictFinancialSummary(String userId, int year, int month) {
-        evict(CacheConfig.FINANCIAL_SUMMARY_CACHE, summaryKey(userId, year, month));
+        afterCommit(() -> evict(CacheConfig.FINANCIAL_SUMMARY_CACHE, summaryKey(userId, year, month)));
     }
 
     /**
@@ -79,6 +84,10 @@ public class FinancialCacheInvalidator {
      * sync pages spanning history, account deletion).
      */
     public void evictFinancialSummaryRegion(String userId) {
+        afterCommit(() -> evictFinancialSummaryRegionNow(userId));
+    }
+
+    private void evictFinancialSummaryRegionNow(String userId) {
         String pattern = CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + userId + ":*";
         try {
             Set<String> keys = new LinkedHashSet<>();
@@ -99,7 +108,7 @@ public class FinancialCacheInvalidator {
 
     /** Evicts the cached recurring-payment detection for one user. */
     public void evictRecurringPayments(String userId) {
-        evict(CacheConfig.RECURRING_PAYMENTS_CACHE, userId);
+        afterCommit(() -> evict(CacheConfig.RECURRING_PAYMENTS_CACHE, userId));
     }
 
     private void evict(String cacheName, Object key) {

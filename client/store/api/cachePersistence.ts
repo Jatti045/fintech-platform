@@ -107,8 +107,8 @@ export const hydrateApiCache = async (store: {
   dispatch: (action: any) => unknown;
 }) => {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
   try {
     const userId = await getStoredUserId();
     if (!userId) return;

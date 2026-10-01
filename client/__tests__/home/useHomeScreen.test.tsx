@@ -278,6 +278,22 @@ describe("useHomeScreen", () => {
     expect(past.captured.current!.isCurrentMonth).toBe(false);
   });
 
+  it.each(["2026-10-01T00:30:00Z", "2027-01-01T00:30:00Z"])(
+    "uses the UTC reporting month at the Toronto boundary %s", async (instant) => {
+      jest.useFakeTimers({ doNotFake: ["setTimeout", "clearTimeout", "setImmediate", "clearImmediate", "nextTick", "queueMicrotask"] });
+      jest.setSystemTime(new Date(instant));
+      try {
+        const now = new Date(instant);
+        const { captured, store } = await setup((store) => {
+          store.dispatch(setMonthYear({ month: now.getUTCMonth(), year: now.getUTCFullYear() }));
+        });
+        expect(captured.current!.isCurrentMonth).toBe(true);
+        renderer.act(() => { store.dispatch(setMonthYear({ month: 8, year: 2026 })); });
+        expect(captured.current!.isCurrentMonth).toBe(false);
+      } finally { jest.useRealTimers(); }
+    },
+  );
+
   it("navigates months via handlers", async () => {
     const { captured, store } = await setup((store) => {
       store.dispatch(setMonthYear({ month: 5, year: 2026 }));

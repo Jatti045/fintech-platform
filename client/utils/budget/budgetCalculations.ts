@@ -16,7 +16,7 @@ export { safeAmount };
  * @returns The absolute difference in dollars, safe for display.
  */
 /**
- * Number of days in the given month (local calendar).
+ * Number of days in the given month (UTC reporting calendar).
  */
 export function daysInMonth(month: number, year: number): number {
   return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
@@ -102,7 +102,7 @@ export function buildMonthSpendSeries(
  * charts and to compute days-left.
  */
 export function todayDayOfMonth(): number {
-  return new Date().getDate();
+  return new Date().getUTCDate();
 }
 
 // ── Budget pace / status ────────────────────────────────────────────────────

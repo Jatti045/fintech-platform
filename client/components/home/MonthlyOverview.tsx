@@ -56,13 +56,13 @@ export default function MonthlyOverview({
     }
 
     const now = new Date();
-    const targetMonth = month ?? now.getMonth();
-    const targetYear = year ?? now.getFullYear();
-    const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-    const todayDate = now.getDate();
+    const targetMonth = month ?? now.getUTCMonth();
+    const targetYear = year ?? now.getUTCFullYear();
+    const daysInMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+    const todayDate = now.getUTCDate();
 
     const endDay =
-      targetMonth === now.getMonth() && targetYear === now.getFullYear()
+      targetMonth === now.getUTCMonth() && targetYear === now.getUTCFullYear()
         ? Math.min(todayDate, daysInMonth)
         : daysInMonth;
     const startDay = Math.max(1, endDay - 7);
@@ -74,9 +74,9 @@ export default function MonthlyOverview({
         if (t.isTransfer || (t.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
         const txDate = new Date(t.date);
         if (
-          txDate.getDate() === d &&
-          txDate.getMonth() === targetMonth &&
-          txDate.getFullYear() === targetYear
+          txDate.getUTCDate() === d &&
+          txDate.getUTCMonth() === targetMonth &&
+          txDate.getUTCFullYear() === targetYear
         ) {
           sum += Math.max(0, t.amount);
         }
@@ -89,7 +89,7 @@ export default function MonthlyOverview({
     }
 
     const maxVal = Math.max(1, ...dailyTotals);
-    const highlightIdx = Math.min(7, Math.max(0, endDay - startDay));
+    const highlightIdx = dailyTotals.length - 1;
 
     return dailyTotals.map((val, idx) => {
       const h = val > 0 ? Math.max(10, Math.round((val / maxVal) * 44)) : 12;

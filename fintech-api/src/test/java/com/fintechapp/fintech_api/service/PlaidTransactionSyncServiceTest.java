@@ -137,6 +137,7 @@ class PlaidTransactionSyncServiceTest {
     @Test
     void syncItemAsync_multiPage_loopsUntilHasMoreFalse() {
         stubItem();
+        when(syncLockService.extend(any(), any(), any())).thenReturn(true);
         when(plaidService.fetchAndApplySyncPage("item-1"))
                 .thenReturn(new SyncPageResult("cursor-1", true))
                 .thenReturn(new SyncPageResult("cursor-2", true))
@@ -152,6 +153,7 @@ class PlaidTransactionSyncServiceTest {
     @Test
     void syncItemAsync_zeroUpdates_stillLoopsUntilNoMore() {
         stubItem();
+        when(syncLockService.extend(any(), any(), any())).thenReturn(true);
         when(plaidService.fetchAndApplySyncPage("item-1"))
                 .thenReturn(new SyncPageResult("c1", true))
                 .thenReturn(new SyncPageResult("c2", false));
@@ -166,6 +168,7 @@ class PlaidTransactionSyncServiceTest {
     @Test
     void syncItemAsync_hasMoreAlwaysTrue_stopsAtPageCap() {
         stubItem();
+        when(syncLockService.extend(any(), any(), any())).thenReturn(true);
         // Always return hasMore=true; the guard must cap the loop.
         when(plaidService.fetchAndApplySyncPage("item-1"))
                 .thenReturn(new SyncPageResult("cursor-x", true));
@@ -174,6 +177,7 @@ class PlaidTransactionSyncServiceTest {
 
         // 50 is the hard cap (MAX_PAGES_PER_RUN) — must not loop forever.
         verify(plaidService, times(50)).fetchAndApplySyncPage("item-1");
+        assertTrue(item.isSyncError(), "an incomplete capped run must offer retry, not claim health");
     }
 
     // ── Per-item lock: a concurrent second run skips immediately ─────────────
@@ -220,6 +224,7 @@ class PlaidTransactionSyncServiceTest {
         } finally {
             releaseFirst.countDown();
             pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS), "sync workers must finish before the next test");
         }
 
         verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
@@ -263,6 +268,7 @@ class PlaidTransactionSyncServiceTest {
         } finally {
             releaseFirst.countDown();
             pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS), "sync workers must finish before the next test");
         }
     }
 
@@ -306,6 +312,7 @@ class PlaidTransactionSyncServiceTest {
         } finally {
             releaseFirst.countDown();
             pool.shutdownNow();
+            assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS), "sync workers must finish before the next test");
             syncLogger.detachAppender(appender);
         }
     }
@@ -353,11 +360,31 @@ class PlaidTransactionSyncServiceTest {
         verify(plaidItemRepository).save(item);
     }
 
+    @Test
+    void leaseAcquisitionExceptionDoesNotLeakLocalMutex() throws Exception {
+        String itemId = "acquisition-failure";
+        when(plaidItemRepository.findByItemId(itemId)).thenReturn(Optional.of(item));
+        when(syncLockService.acquireWithTimeout(eq(itemId), any(), any(), any()))
+                .thenThrow(new IllegalStateException("database unavailable")).thenReturn(true);
+        when(plaidService.fetchAndApplySyncPage(itemId)).thenReturn(new SyncPageResult("done", false));
+        ExecutorService failedWorker = Executors.newSingleThreadExecutor();
+        try {
+            failedWorker.submit(() -> service.syncItemAsync(itemId)).get(5, TimeUnit.SECONDS);
+            assertTrue(item.isSyncError(), "lease acquisition failure must surface retry health");
+            service.syncItemAsync(itemId); // another thread must now be able to acquire
+            verify(plaidService).fetchAndApplySyncPage(itemId);
+        } finally {
+            failedWorker.shutdownNow();
+            assertTrue(failedWorker.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
     // ── Multi-page lease extension ───────────────────────────────────────────
 
     @Test
     void syncItemAsync_multiPage_extendsLockLease() {
         stubItem();
+        when(syncLockService.extend(any(), any(), any())).thenReturn(true);
         when(plaidService.fetchAndApplySyncPage("item-1"))
                 .thenReturn(new SyncPageResult("cursor-1", true))
                 .thenReturn(new SyncPageResult("cursor-2", false));
@@ -366,6 +393,17 @@ class PlaidTransactionSyncServiceTest {
 
         verify(syncLockService, times(1)).extend(eq("item-1"), any(), any());
         verify(syncLockService, times(1)).release(eq("item-1"), any());
+    }
+
+    @Test
+    void lostLeaseStopsBeforeFetchingAnotherPageAndMarksError() {
+        stubItem();
+        when(plaidService.fetchAndApplySyncPage("item-1")).thenReturn(new SyncPageResult("c1", true));
+        when(syncLockService.extend(any(), any(), any())).thenReturn(false);
+        service.syncItemAsync("item-1");
+        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+        verify(syncLockService).release(eq("item-1"), any());
+        assertTrue(item.isSyncError());
     }
 
     // ── Different items must not serialize on each other's locks ─────────────

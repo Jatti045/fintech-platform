@@ -47,6 +47,9 @@ import com.fintechapp.fintech_api.repository.TransactionRepository;
  * aggregation (the summary's database work) is counted via a spy.
  * </p>
  */
+// Cache invalidation occurs after commit. Requests must exercise real service
+// commits, rather than sharing the test's rollback-only transaction.
+@org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
 class FinancialCacheIntegrationTest extends BaseIntegrationTest {
 
         @Autowired

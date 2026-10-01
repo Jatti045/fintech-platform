@@ -68,7 +68,7 @@ const BudgetTrendCard = React.memo(function BudgetTrendCard({
   const spent = safeAmount(displaySpent);
   const totalDays = daysInMonth(month, year);
   const now = new Date();
-  const isCurrentMonth = now.getMonth() === month && now.getFullYear() === year;
+  const isCurrentMonth = now.getUTCMonth() === month && now.getUTCFullYear() === year;
   const todayDay = Math.min(todayDayOfMonth(), totalDays);
 
   const { series, planPath, curvePath, areaPath, todayX, lastPoint } = useMemo(() => {

@@ -361,6 +361,9 @@ export const api = createApi({
       },
       providesTags: (_result, _error, arg) => [
         { type: "Insights", id: monthTagId(argsMonth(arg)) },
+        // Explanations derive from this summary. Financial mutations must not
+        // leave an already-requested explanation describing old totals.
+        { type: "Summary", id: monthTagId(argsMonth(arg)) },
       ],
     }),
 
@@ -426,15 +429,14 @@ export const api = createApi({
           return { error: toError(e) };
         }
       },
-      invalidatesTags: (_r, _e, arg) => {
-        const months = [...(arg.invalidateMonths ?? [])];
-        const dateMonth = monthOfDate(arg.updates.date);
-        if (dateMonth) months.push(dateMonth);
+      invalidatesTags: () => {
         // See createTransaction — Transactions refresh is handled by the
         // page-1 reset, not tag invalidation (ghost-row prevention).
         return [
-          ...monthTags("Budgets", months),
-          ...monthTags("Summary", months),
+          // Reconciliation can change a counterpart in another month. The
+          // API does not expose all affected months, so refresh derived totals.
+          { type: "Budgets" },
+          { type: "Summary" },
           { type: "Recurring", id: "all" },
         ];
       },
@@ -452,12 +454,12 @@ export const api = createApi({
           return { error: toError(e) };
         }
       },
-      invalidatesTags: (_r, _e, arg) => {
+      invalidatesTags: () => {
         // See createTransaction — Transactions refresh is handled by the
         // page-1 reset, not tag invalidation (ghost-row prevention).
         return [
-          ...monthTags("Budgets", arg.invalidateMonths ?? []),
-          ...monthTags("Summary", arg.invalidateMonths ?? []),
+          { type: "Budgets" },
+          { type: "Summary" },
           { type: "Recurring", id: "all" },
         ];
       },
