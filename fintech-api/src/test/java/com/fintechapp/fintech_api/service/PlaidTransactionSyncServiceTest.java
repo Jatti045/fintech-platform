@@ -110,6 +110,8 @@ class PlaidTransactionSyncServiceTest {
         // instance's tryAcquire would throw TransactionRequiredException first.
         verify(syncLockService).acquireWithTimeout(eq("item-1"), any(), any(), any());
         verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+        verify(plaidItemRepository).updateSyncError(eq("item-1"), eq(false), any());
+        verify(plaidItemRepository, never()).save(any());
     }
 
     @Test
@@ -177,7 +179,7 @@ class PlaidTransactionSyncServiceTest {
 
         // 50 is the hard cap (MAX_PAGES_PER_RUN) — must not loop forever.
         verify(plaidService, times(50)).fetchAndApplySyncPage("item-1");
-        assertTrue(item.isSyncError(), "an incomplete capped run must offer retry, not claim health");
+        verify(plaidItemRepository).updateSyncError(eq("item-1"), eq(true), any());
     }
 
     // ── Per-item lock: a concurrent second run skips immediately ─────────────
@@ -356,8 +358,8 @@ class PlaidTransactionSyncServiceTest {
         service.syncItemAsync("item-1");
 
         verify(syncLockService).release(eq("item-1"), any());
-        assertTrue(item.isSyncError());
-        verify(plaidItemRepository).save(item);
+        verify(plaidItemRepository).updateSyncError(eq("item-1"), eq(true), any());
+        verify(plaidItemRepository, never()).save(any());
     }
 
     @Test
@@ -370,7 +372,7 @@ class PlaidTransactionSyncServiceTest {
         ExecutorService failedWorker = Executors.newSingleThreadExecutor();
         try {
             failedWorker.submit(() -> service.syncItemAsync(itemId)).get(5, TimeUnit.SECONDS);
-            assertTrue(item.isSyncError(), "lease acquisition failure must surface retry health");
+            verify(plaidItemRepository).updateSyncError(eq(itemId), eq(true), any());
             service.syncItemAsync(itemId); // another thread must now be able to acquire
             verify(plaidService).fetchAndApplySyncPage(itemId);
         } finally {
@@ -403,7 +405,7 @@ class PlaidTransactionSyncServiceTest {
         service.syncItemAsync("item-1");
         verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
         verify(syncLockService).release(eq("item-1"), any());
-        assertTrue(item.isSyncError());
+        verify(plaidItemRepository).updateSyncError(eq("item-1"), eq(true), any());
     }
 
     // ── Different items must not serialize on each other's locks ─────────────

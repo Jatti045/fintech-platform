@@ -2,9 +2,9 @@ package com.fintechapp.fintech_api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -207,45 +207,36 @@ class PlaidWebhookServiceTest {
 
     @Test
     void handleWebhook_itemLoginRequired_marksItemRequiresReauth() {
-        PlaidItem item = new PlaidItem();
-        item.setItemId("item-1");
-        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
+        when(plaidItemRepository.markRequiresReauth(eq("item-1"), eq(PlaidItemStatus.REQUIRES_REAUTH), any()))
+                .thenReturn(1);
 
         service.handleWebhook(itemErrorPayload("item-1", "ITEM_LOGIN_REQUIRED"));
 
-        assertEquals(PlaidItemStatus.REQUIRES_REAUTH, item.getStatus());
-        assertNotNull(item.getReauthRequestedAt());
-        verify(plaidItemRepository).save(item);
+        verify(plaidItemRepository).markRequiresReauth(eq("item-1"), eq(PlaidItemStatus.REQUIRES_REAUTH), any());
+        verify(plaidItemRepository, never()).save(any());
         verifyNoInteractions(syncService);
     }
 
     @Test
     void handleWebhook_itemLoginRequiredWithoutErrorObject_marksItemRequiresReauth() {
-        PlaidItem item = new PlaidItem();
-        item.setItemId("item-1");
-        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
-
         // Some Plaid payloads carry the code directly on webhook_code instead of
         // inside an error object; both shapes must be handled.
         service.handleWebhook(payload("ITEM", "ITEM_LOGIN_REQUIRED", "item-1"));
 
-        assertEquals(PlaidItemStatus.REQUIRES_REAUTH, item.getStatus());
-        verify(plaidItemRepository).save(item);
+        verify(plaidItemRepository).markRequiresReauth(eq("item-1"), eq(PlaidItemStatus.REQUIRES_REAUTH), any());
+        verify(plaidItemRepository, never()).save(any());
     }
 
     @Test
     void handleWebhook_loginRepaired_clearsRequiresReauth() {
-        PlaidItem item = new PlaidItem();
-        item.setItemId("item-1");
-        item.setStatus(PlaidItemStatus.REQUIRES_REAUTH);
-        item.setReauthRequestedAt(java.time.Instant.now());
-        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
+        when(plaidItemRepository.clearRequiresReauth(eq("item-1"), eq(PlaidItemStatus.ACTIVE),
+                eq(PlaidItemStatus.REQUIRES_REAUTH), any())).thenReturn(1);
 
         service.handleWebhook(payload("ITEM", "LOGIN_REPAIRED", "item-1"));
 
-        assertEquals(PlaidItemStatus.ACTIVE, item.getStatus());
-        assertNull(item.getReauthRequestedAt());
-        verify(plaidItemRepository).save(item);
+        verify(plaidItemRepository).clearRequiresReauth(eq("item-1"), eq(PlaidItemStatus.ACTIVE),
+                eq(PlaidItemStatus.REQUIRES_REAUTH), any());
+        verify(plaidItemRepository, never()).save(any());
         verifyNoInteractions(syncService);
     }
 

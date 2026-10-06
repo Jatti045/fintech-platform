@@ -361,10 +361,11 @@ public class PlaidService {
      */
     @Transactional
     public PlaidItem completeReauth(AuthenticatedUser authenticatedUser, String itemId) {
-        PlaidItem item = findOwnedItem(authenticatedUser, itemId);
-        item.setStatus(PlaidItemStatus.ACTIVE);
-        item.setReauthRequestedAt(null);
-        return plaidItemRepository.save(item);
+        String userId = requireUserId(authenticatedUser);
+        if (plaidItemRepository.completeReauth(itemId, userId, PlaidItemStatus.ACTIVE, Instant.now()) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found");
+        }
+        return findOwnedItem(authenticatedUser, itemId);
     }
 
     /**

@@ -184,26 +184,23 @@ public class PlaidWebhookService {
         if (!StringUtils.hasText(itemId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Webhook missing item_id");
         }
-        plaidItemRepository.findByItemId(itemId).ifPresentOrElse(item -> {
-            item.setStatus(PlaidItemStatus.REQUIRES_REAUTH);
-            item.setReauthRequestedAt(Instant.now());
-            plaidItemRepository.save(item);
+        int updated = plaidItemRepository.markRequiresReauth(itemId, PlaidItemStatus.REQUIRES_REAUTH, Instant.now());
+        if (updated > 0) {
             logger.info("Marked item_id={} status=REQUIRES_REAUTH", itemId);
-        }, () -> logger.warn("Plaid ITEM_LOGIN_REQUIRED for unknown item_id={}; no local item to update", itemId));
+        } else {
+            logger.warn("Plaid ITEM_LOGIN_REQUIRED for unknown item_id={}; no local item to update", itemId);
+        }
     }
 
     private void clearRequiresReauth(String itemId) {
         if (!StringUtils.hasText(itemId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Webhook missing item_id");
         }
-        plaidItemRepository.findByItemId(itemId).ifPresentOrElse(item -> {
-            if (item.getStatus() == PlaidItemStatus.REQUIRES_REAUTH) {
-                item.setStatus(PlaidItemStatus.ACTIVE);
-                item.setReauthRequestedAt(null);
-                plaidItemRepository.save(item);
-                logger.info("Cleared REQUIRES_REAUTH for item_id={} after LOGIN_REPAIRED", itemId);
-            }
-        }, () -> logger.warn("LOGIN_REPAIRED for unknown item_id={}; nothing to clear", itemId));
+        int updated = plaidItemRepository.clearRequiresReauth(itemId, PlaidItemStatus.ACTIVE,
+                PlaidItemStatus.REQUIRES_REAUTH, Instant.now());
+        if (updated > 0) {
+            logger.info("Cleared REQUIRES_REAUTH for item_id={} after LOGIN_REPAIRED", itemId);
+        }
     }
 
     /**

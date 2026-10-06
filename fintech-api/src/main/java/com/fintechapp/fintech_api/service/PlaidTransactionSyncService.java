@@ -1,6 +1,7 @@
 package com.fintechapp.fintech_api.service;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -159,11 +160,9 @@ public class PlaidTransactionSyncService {
      */
     private void markSyncError(String itemId) {
         try {
-            plaidItemRepository.findByItemId(itemId).ifPresent(item -> {
-                item.setSyncError(true);
-                plaidItemRepository.save(item);
+            if (plaidItemRepository.updateSyncError(itemId, true, Instant.now()) > 0) {
                 logger.warn("Marked item_id={} with syncError after a failed sync", itemId);
-            });
+            }
         } catch (Exception persistEx) {
             logger.error("Failed to persist syncError flag for item_id={}", itemId, persistEx);
         }
@@ -175,13 +174,9 @@ public class PlaidTransactionSyncService {
      */
     private void clearSyncError(String itemId) {
         try {
-            plaidItemRepository.findByItemId(itemId).ifPresent(item -> {
-                if (item.isSyncError()) {
-                    item.setSyncError(false);
-                    plaidItemRepository.save(item);
-                    logger.info("Cleared syncError for item_id={} after a successful sync", itemId);
-                }
-            });
+            if (plaidItemRepository.updateSyncError(itemId, false, Instant.now()) > 0) {
+                logger.info("Cleared syncError for item_id={} after a successful sync", itemId);
+            }
         } catch (Exception persistEx) {
             logger.error("Failed to clear syncError flag for item_id={}", itemId, persistEx);
         }

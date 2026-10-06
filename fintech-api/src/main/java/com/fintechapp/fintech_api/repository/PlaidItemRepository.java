@@ -11,7 +11,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.fintechapp.fintech_api.model.PlaidItem;
+import com.fintechapp.fintech_api.model.PlaidItemStatus;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.LockModeType;
 
@@ -36,6 +38,49 @@ public interface PlaidItemRepository extends JpaRepository<PlaidItem, String> {
         List<PlaidItem> findByUser_IdOrderByCreatedAtDesc(String userId);
 
         long deleteByUser_Id(String userId);
+
+        // Health writers own only these columns. Never merge a PlaidItem snapshot:
+        // its cursor and lease may have changed since it was read.
+        @Transactional
+        @Modifying(clearAutomatically = true)
+        @Query("""
+                            update PlaidItem i
+                            set i.status = :status, i.reauthRequestedAt = :requestedAt, i.updatedAt = :requestedAt
+                            where i.itemId = :itemId
+                        """)
+        int markRequiresReauth(@Param("itemId") String itemId,
+                        @Param("status") PlaidItemStatus status, @Param("requestedAt") Instant requestedAt);
+
+        @Transactional
+        @Modifying(clearAutomatically = true)
+        @Query("""
+                            update PlaidItem i
+                            set i.status = :activeStatus, i.reauthRequestedAt = null, i.updatedAt = :updatedAt
+                            where i.itemId = :itemId and i.status = :requiredStatus
+                        """)
+        int clearRequiresReauth(@Param("itemId") String itemId,
+                        @Param("activeStatus") PlaidItemStatus activeStatus,
+                        @Param("requiredStatus") PlaidItemStatus requiredStatus, @Param("updatedAt") Instant updatedAt);
+
+        @Transactional
+        @Modifying(clearAutomatically = true)
+        @Query("""
+                            update PlaidItem i
+                            set i.status = :activeStatus, i.reauthRequestedAt = null, i.updatedAt = :updatedAt
+                            where i.id = :id and i.user.id = :userId
+                        """)
+        int completeReauth(@Param("id") String id, @Param("userId") String userId,
+                        @Param("activeStatus") PlaidItemStatus activeStatus, @Param("updatedAt") Instant updatedAt);
+
+        @Transactional
+        @Modifying(clearAutomatically = true)
+        @Query("""
+                            update PlaidItem i
+                            set i.syncError = :syncError, i.updatedAt = :updatedAt
+                            where i.itemId = :itemId and i.syncError <> :syncError
+                        """)
+        int updateSyncError(@Param("itemId") String itemId,
+                        @Param("syncError") boolean syncError, @Param("updatedAt") Instant updatedAt);
 
         /**
          * Attempts to atomically acquire or renew a distributed sync lease for the
