@@ -7,10 +7,10 @@ import {
   USER_DATA_STORAGE_KEY,
 } from "@/constants/storageKeys";
 import {
-  clearAuthToken,
   getAuthToken,
   setAuthToken,
 } from "@/utils/secureStorage";
+import { establishSession, invalidateSession, getSessionIdentity } from "@/utils/session";
 import { logger } from "@/utils/logger";
 import {
   type ILoginData,
@@ -20,28 +20,6 @@ import {
 } from "@/types/user/types";
 
 export type { ILoginData, ISignupData, IUser, IAuthResponse };
-
-/**
- * Clears all per-user cache entries and auth tokens from AsyncStorage.
- * Shared by `logout()` and `deleteAccount()` to avoid duplication.
- */
-async function clearUserStorage(userId?: string | null): Promise<void> {
-  if (userId) {
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const keysToRemove = allKeys.filter(
-        (k) =>
-          k.startsWith(`transactions:${userId}:`) ||
-          k.startsWith(`budgets:${userId}:`),
-      );
-      if (keysToRemove.length > 0) await AsyncStorage.multiRemove(keysToRemove);
-    } catch (error) {
-      logger.warn("UserAPI", "Failed to clear per-user cache keys", error);
-    }
-  }
-  await clearAuthToken();
-  await AsyncStorage.removeItem(USER_DATA_STORAGE_KEY);
-}
 
 class UserAPI extends BaseAPI {
   async hasAnyTransactions(): Promise<boolean> {
@@ -62,11 +40,7 @@ class UserAPI extends BaseAPI {
       { method: "POST", data: credentials },
     );
 
-    await setAuthToken(response.data.token);
-    await AsyncStorage.setItem(
-      USER_DATA_STORAGE_KEY,
-      JSON.stringify(response.data.user),
-    );
+    await establishSession(response.data.token, response.data.user);
 
     return response;
   }
@@ -79,16 +53,15 @@ class UserAPI extends BaseAPI {
   }
 
   async logout(): Promise<void> {
-    const rawUser = await AsyncStorage.getItem(USER_DATA_STORAGE_KEY);
-    const userId = rawUser ? JSON.parse(rawUser)?.id : null;
-    await clearUserStorage(userId);
+    await invalidateSession();
   }
 
   async deleteAccount(userId: string): Promise<IApiResponse<IUser>> {
+    const identity = await getSessionIdentity();
     const response = await this.makeRequest<IUser>(`/users/${userId}`, {
       method: "DELETE",
     });
-    await clearUserStorage(userId);
+    await invalidateSession(identity);
     return response;
   }
 
@@ -279,11 +252,7 @@ class UserAPI extends BaseAPI {
 
     console.log("Google auth: ", response)
 
-    await setAuthToken(response?.data?.token);
-    await AsyncStorage.setItem(
-         USER_DATA_STORAGE_KEY,
-        JSON.stringify(response?.data?.user),
-    );
+    await establishSession(response.data.token, response.data.user);
 
     return response
   }

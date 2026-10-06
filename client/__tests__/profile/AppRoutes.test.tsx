@@ -28,6 +28,11 @@ import userReducer, {
   loadUserFromStorage,
 } from "@/store/slices/userSlice";
 import themeReducer from "@/store/slices/themeSlice";
+import { store as appStore } from "@/store/store";
+import apiClient from "@/config/apiClient";
+import { AxiosError } from "axios";
+import * as SecureStore from "expo-secure-store";
+import { establishSession, invalidateSession } from "@/utils/session";
 import type { IUser } from "@/types/user/types";
 
 jest.mock("expo-router", () => {
@@ -268,4 +273,28 @@ describe("AppRoutes auth gate", () => {
     expect(lastScreenProps("(tabs)")?.redirect).toBe(true);
     expect(lastScreenProps("(auth)")?.redirect).toBe(false);
   });
+});
+
+test("401 on a restored session closes tabs and makes login accessible", async () => {
+  (SecureStore.getItemAsync as jest.Mock).mockResolvedValue("expired");
+  await establishSession("expired", user);
+  mockedGetStoredToken.mockResolvedValue("expired");
+  mockedGetStoredUser.mockResolvedValue(user);
+  let tree!: renderer.ReactTestRenderer;
+  await renderer.act(async () => {
+    tree = renderer.create(<Provider store={appStore}><AppRoutes /></Provider>);
+    await flush();
+  });
+  expect(lastScreenProps("(tabs)")?.redirect).toBe(false);
+  expect(lastScreenProps("(auth)")?.redirect).toBe(true);
+  await renderer.act(async () => {
+    await apiClient.get("/transaction", { adapter: async config => {
+      throw new AxiosError("Unauthorized", "ERR_BAD_REQUEST", config, undefined,
+        { status: 401, statusText: "Unauthorized", headers: {}, config, data: {} });
+    } }).catch(() => {});
+  });
+  expect(lastScreenProps("(tabs)")?.redirect).toBe(true);
+  expect(lastScreenProps("(auth)")?.redirect).toBe(false);
+  renderer.act(() => tree.unmount());
+  await invalidateSession();
 });

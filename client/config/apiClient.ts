@@ -1,10 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { handleApiError } from "./apiErrorHandler";
 import { API_TIMEOUT_MS } from "@/constants/appConfig";
-import { USER_DATA_STORAGE_KEY } from "@/constants/storageKeys";
-import { getAuthToken, clearAuthToken } from "@/utils/secureStorage";
+import { getSessionIdentity, invalidateSession, sessionGeneration, type SessionIdentity } from "@/utils/session";
+
 import { logger } from "@/utils/logger";
+
+type SessionConfig = { sessionIdentity?: SessionIdentity };
 
 const SCOPE = "apiClient";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -24,6 +25,7 @@ const apiClient = axios.create({
 
 const PUBLIC_AUTH_ENDPOINTS = [
   "/auth/login",
+  "/auth/google",
   "/auth/register",
   "/auth/signup",
   "/auth/forgot-password",
@@ -43,12 +45,13 @@ apiClient.interceptors.request.use(
       url.includes(endpoint),
     );
 
-    // Attach auth token (await AsyncStorage)
+    // Record the exact session used by this request.
     if (!isPublicAuthEndpoint) {
       try {
-        const token = await getAuthToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const identity = await getSessionIdentity();
+        if (identity) {
+          (config as typeof config & SessionConfig).sessionIdentity = identity;
+          config.headers.Authorization = `Bearer ${identity.token}`;
         }
       } catch (err) {
         logger.warn(SCOPE, "Failed to read auth token", err);
@@ -66,6 +69,10 @@ apiClient.interceptors.request.use(
 // Log responses and handle global errors
 apiClient.interceptors.response.use(
   (response) => {
+    const identity = (response.config as typeof response.config & SessionConfig).sessionIdentity;
+    if (identity && identity.generation !== sessionGeneration()) {
+      return Promise.reject({ status: 401, message: "Response belongs to an inactive session" });
+    }
     logger.debug(
       SCOPE,
       `API response: ${response.status} ${response.config.url}`,
@@ -81,16 +88,8 @@ apiClient.interceptors.response.use(
       normalized,
     );
 
-    // If unauthorized, clear stored auth data. Navigation should be
-    // performed by the UI layer instead of the API client to avoid
-    // surprising side-effects during background requests.
     if (normalized.status === 401) {
-      try {
-        await clearAuthToken();
-        await AsyncStorage.removeItem(USER_DATA_STORAGE_KEY);
-      } catch (e) {
-        logger.warn(SCOPE, "Failed to clear local auth data", e);
-      }
+      await invalidateSession((error.config as SessionConfig | undefined)?.sessionIdentity ?? null);
     }
 
     // Reject with a normalized error object so thunks can extract message

@@ -727,8 +727,6 @@ export function useProfile(): UseProfileReturn {
           style: "destructive",
           onPress: () => {
             dispatch(logoutUser());
-            // Drop all cached server data for the signed-out user.
-            dispatch(api.util.resetApiState());
           },
         },
       ],
@@ -763,8 +761,6 @@ export function useProfile(): UseProfileReturn {
                       const { success, message } =
                         response.payload as DeleteAccountPayload;
                       if (success) {
-                        // Drop all cached server data for the deleted account.
-                        dispatch(api.util.resetApiState());
                         showAlert({
                           title: "Account Deleted",
                           message:

@@ -344,15 +344,8 @@ const userSlice = createSlice({
       .addCase(deleteUserAccount.pending, (state) => {
         state.isLoading = true;
       })
-      .addCase(deleteUserAccount.fulfilled, (state) => {
-        state.isLoading = false;
-        state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
-        state.error = null;
-        state.loginError = null;
-        state.signupError = null;
-      })
+      // Session cleanup owns auth reset; a delayed completion must not reset a new login.
+      .addCase(deleteUserAccount.fulfilled, () => {})
       .addCase(deleteUserAccount.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
@@ -362,15 +355,8 @@ const userSlice = createSlice({
       .addCase(logoutUser.pending, (state) => {
         state.isLoading = true;
       })
-      .addCase(logoutUser.fulfilled, (state) => {
-        state.isLoading = false;
-        state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
-        state.error = null;
-        state.loginError = null;
-        state.signupError = null;
-      })
+      // Session cleanup owns auth reset; a delayed completion must not reset a new login.
+      .addCase(logoutUser.fulfilled, () => {})
       .addCase(logoutUser.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;

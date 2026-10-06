@@ -4,6 +4,7 @@ import api from "./apiSlice";
 import type { GetTransactionsArgs, TransactionsEnvelope } from "./apiSlice";
 import { monthTagId, defaultTransactionArgs } from "./apiSlice";
 import { USER_DATA_STORAGE_KEY } from "@/constants/storageKeys";
+import { sessionGeneration, withSessionGeneration } from "@/utils/session";
 import { logger } from "@/utils/logger";
 
 /**
@@ -11,8 +12,7 @@ import { logger } from "@/utils/logger";
  *
  * Replaces the old hand-rolled `utils/cache.ts`. Mirrors only unfiltered
  * page-1 results for the transactions query and all budgets results into
- * AsyncStorage, reusing the legacy key prefixes so the logout sweep in
- * `api/user.ts` (`clearUserStorage`) continues to wipe them unchanged.
+ * AsyncStorage, using versioned keys cleared by the centralized session cleanup.
  *
  * Crucially, the persisted value now contains the backend-authoritative
  * pagination envelope — the root fix for the cached-pagination bug where the
@@ -65,15 +65,16 @@ apiCachePersistenceMiddleware.startListening({
   effect: async (action) => {
     const arg = action.meta.arg.originalArgs as GetTransactionsArgs;
     if (!isUnfilteredFirstPage(arg)) return;
+    const generation = sessionGeneration();
     try {
       const userId = await getStoredUserId();
       if (!userId) return;
       // Legacy entries were bare arrays; skip anything without metadata.
       if (!isSeedableEnvelope(action.payload)) return;
-      await AsyncStorage.setItem(
+      await withSessionGeneration(generation, () => AsyncStorage.setItem(
         txKey(userId, arg.currentYear, arg.currentMonth),
         JSON.stringify({ ts: Date.now(), data: action.payload }),
-      );
+      ));
     } catch (e) {
       logger.warn("cachePersistence", "Failed to persist transactions", e);
     }
@@ -84,13 +85,14 @@ apiCachePersistenceMiddleware.startListening({
   matcher: api.endpoints.getBudgets.matchFulfilled,
   effect: async (action) => {
     const arg = action.meta.arg.originalArgs;
+    const generation = sessionGeneration();
     try {
       const userId = await getStoredUserId();
       if (!userId) return;
-      await AsyncStorage.setItem(
+      await withSessionGeneration(generation, () => AsyncStorage.setItem(
         budgetKey(userId, arg.currentYear, arg.currentMonth),
         JSON.stringify({ ts: Date.now(), data: action.payload ?? [] }),
-      );
+      ));
     } catch (e) {
       logger.warn("cachePersistence", "Failed to persist budgets", e);
     }
@@ -106,6 +108,7 @@ apiCachePersistenceMiddleware.startListening({
 export const hydrateApiCache = async (store: {
   dispatch: (action: any) => unknown;
 }) => {
+  const generation = sessionGeneration();
   const now = new Date();
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth();
@@ -117,6 +120,8 @@ export const hydrateApiCache = async (store: {
       AsyncStorage.getItem(txKey(userId, year, month)),
       AsyncStorage.getItem(budgetKey(userId, year, month)),
     ]);
+
+    if (generation !== sessionGeneration()) return;
 
     if (txRaw) {
       const parsed = safeParse(txRaw);
