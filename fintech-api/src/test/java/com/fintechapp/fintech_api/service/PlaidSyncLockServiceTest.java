@@ -213,14 +213,14 @@ class PlaidSyncLockServiceTest {
         assertFalse(lockService.extend(null, "token-1", Duration.ofSeconds(60)));
         assertFalse(lockService.extend("item-1", null, Duration.ofSeconds(60)));
         assertFalse(lockService.extend("item-1", "token-1", null));
-        verify(plaidItemRepository, never()).extendSyncLock(any(), any(), any());
+        verify(plaidItemRepository, never()).extendSyncLock(any(), any(), any(), any());
     }
 
     @Test
     void extend_repositoryUpdatesRow_returnsTrue() {
-        when(plaidItemRepository.extendSyncLock(eq("item-1"), eq("token-1"), any(Instant.class))).thenReturn(1);
+        when(plaidItemRepository.extendSyncLock(eq("item-1"), eq("token-1"), any(Instant.class), any(Instant.class))).thenReturn(1);
 
         assertTrue(lockService.extend("item-1", "token-1", Duration.ofSeconds(60)));
-        verify(plaidItemRepository).extendSyncLock(eq("item-1"), eq("token-1"), any(Instant.class));
+        verify(plaidItemRepository).extendSyncLock(eq("item-1"), eq("token-1"), any(Instant.class), any(Instant.class));
     }
 }

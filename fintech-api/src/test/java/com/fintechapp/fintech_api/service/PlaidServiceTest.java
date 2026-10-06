@@ -97,6 +97,8 @@ class PlaidServiceTest {
 
         item = new PlaidItem();
         item.setItemId("item-1");
+        item.setSyncLockToken("lease-1");
+        item.setSyncLockExpiresAt(java.time.Instant.now().plusSeconds(300));
         item.setAccessTokenEncrypted("encrypted");
         item.setCursor(null);
         item.setUser(user);
@@ -110,7 +112,7 @@ class PlaidServiceTest {
              "modified":[{"transaction_id":"changed","amount":6,"date":"2026-03-16","pending":true}],
              "removed":[{"transaction_id":"pending"}],"next_cursor":"next","has_more":false}
             """));
-        service.fetchAndApplySyncPage("item-1");
+        service.fetchAndApplySyncPage("item-1", "lease-1");
         var order = org.mockito.Mockito.inOrder(transferReconciliation, ingestService);
         order.verify(transferReconciliation).lockUser("user-1");
         @SuppressWarnings("unchecked")
@@ -124,6 +126,28 @@ class PlaidServiceTest {
         assertEquals("pending", added.getValue().get(0).pendingTransactionId());
         assertEquals(java.time.LocalDate.of(2026, 3, 15), added.getValue().get(0).postedDate());
         verify(cacheInvalidator).evictFinancialDataAfterCommit("user-1");
+    }
+
+    @Test
+    void staleCursorIsRejectedBeforeAnyMutationOrCacheInvalidation() throws Exception {
+        stubSyncPage(mapper.readTree("""
+                {"added":[{"transaction_id":"ghost","amount":99,"date":"2026-10-01"}],
+                 "modified":[],"removed":[],"next_cursor":"C1","has_more":false}
+                """));
+        org.mockito.Mockito.reset(userRepository);
+        PlaidItem current = new PlaidItem();
+        current.setCursor("C2");
+        current.setSyncLockToken("lease-1");
+        current.setSyncLockExpiresAt(java.time.Instant.now().plusSeconds(300));
+        when(plaidItemRepository.findByItemIdForUpdate("item-1")).thenReturn(Optional.of(current));
+
+        assertThrows(StalePlaidSyncPageException.class,
+                () -> service.fetchAndApplySyncPage("item-1", "lease-1"));
+
+        org.mockito.Mockito.verifyNoInteractions(ingestService, cacheInvalidator, userRepository);
+        verify(transferReconciliation, org.mockito.Mockito.never()).reconcile(any());
+        verify(plaidItemRepository, org.mockito.Mockito.never()).save(any());
+        assertEquals("C2", current.getCursor());
     }
 
     private void stubSyncPage(JsonNode payload) {
@@ -141,6 +165,7 @@ class PlaidServiceTest {
         when(responseSpec.body(JsonNode.class)).thenReturn(payload);
 
         when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
+        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
         when(plaidItemRepository.findByItemIdForUpdate("item-1")).thenReturn(Optional.of(item));
         when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
     }
@@ -161,7 +186,7 @@ class PlaidServiceTest {
                 errorBody.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
 
         when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
-        when(plaidItemRepository.findByItemIdForUpdate("item-1")).thenReturn(Optional.of(item));
+        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
         // userRepository.findById is intentionally NOT stubbed: the post() call
         // throws before the user lookup runs on the error path.
     }
@@ -245,7 +270,7 @@ class PlaidServiceTest {
                 """);
         stubSyncPage(payload);
 
-        service.fetchAndApplySyncPage("item-1");
+        service.fetchAndApplySyncPage("item-1", "lease-1");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
@@ -309,7 +334,7 @@ class PlaidServiceTest {
                 """);
         stubSyncPage(payload);
 
-        service.fetchAndApplySyncPage("item-1");
+        service.fetchAndApplySyncPage("item-1", "lease-1");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
@@ -387,7 +412,7 @@ class PlaidServiceTest {
                 """);
         stubSyncPage(payload);
 
-        service.fetchAndApplySyncPage("item-1");
+        service.fetchAndApplySyncPage("item-1", "lease-1");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
@@ -446,7 +471,7 @@ class PlaidServiceTest {
                 """);
         stubSyncPage(payload);
 
-        service.fetchAndApplySyncPage("item-1");
+        service.fetchAndApplySyncPage("item-1", "lease-1");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
@@ -473,7 +498,7 @@ class PlaidServiceTest {
         stubSyncPageError(errorBody);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.fetchAndApplySyncPage("item-1"));
+                () -> service.fetchAndApplySyncPage("item-1", "lease-1"));
 
         assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
         assertTrue(ex.getReason().contains("INVALID_API_KEYS"));
@@ -487,7 +512,7 @@ class PlaidServiceTest {
         stubSyncPageError("<html>502 Bad Gateway</html>");
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.fetchAndApplySyncPage("item-1"));
+                () -> service.fetchAndApplySyncPage("item-1", "lease-1"));
 
         assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
         assertTrue(ex.getReason().contains("<html>502 Bad Gateway</html>"));

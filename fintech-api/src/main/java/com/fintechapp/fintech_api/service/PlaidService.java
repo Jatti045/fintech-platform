@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import java.util.Optional;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -196,14 +197,14 @@ public class PlaidService {
      * The external Plaid HTTP call executes strictly outside any database
      * transaction, without holding any row locks or database connections.
      * The returned page is then persisted atomically within a short, dedicated
-     * database transaction.
+     * database transaction. Before any mutations, the locked item must still
+     * have this worker's unexpired lease and the cursor used for the fetch.
      * </p>
      */
-    public SyncPageResult fetchAndApplySyncPage(String itemId) {
+    public SyncPageResult fetchAndApplySyncPage(String itemId, String leaseToken) {
         // Step 1: Read cursor and decrypt access token outside of any database
         // transaction.
         PlaidItem item = plaidItemRepository.findByItemId(itemId)
-                .or(() -> plaidItemRepository.findByItemIdForUpdate(itemId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
         String cursor = item.getCursor();
         String userId = item.getUser().getId();
@@ -230,8 +231,17 @@ public class PlaidService {
         return inTransaction(status -> {
             transferReconciliation.lockUser(userId);
             PlaidItem managedItem = plaidItemRepository.findByItemIdForUpdate(itemId)
-                    .or(() -> plaidItemRepository.findByItemId(itemId))
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
+
+            // The row lock serializes writers; ownership and the input cursor fence
+            // responses fetched before another worker took over or advanced the item.
+            if (!StringUtils.hasText(leaseToken)
+                    || !leaseToken.equals(managedItem.getSyncLockToken())
+                    || managedItem.getSyncLockExpiresAt() == null
+                    || !managedItem.getSyncLockExpiresAt().isAfter(Instant.now())
+                    || !Objects.equals(cursor, managedItem.getCursor())) {
+                throw new StalePlaidSyncPageException(itemId);
+            }
 
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));

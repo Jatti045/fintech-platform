@@ -105,8 +105,9 @@ public class PlaidSyncLeaseStore {
         if (!StringUtils.hasText(itemId) || !StringUtils.hasText(token) || leaseDuration == null) {
             return false;
         }
-        Instant expiresAt = Instant.now().plus(leaseDuration);
-        int updated = plaidItemRepository.extendSyncLock(itemId, token, expiresAt);
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(leaseDuration);
+        int updated = plaidItemRepository.extendSyncLock(itemId, token, expiresAt, now);
         return updated > 0;
     }
 }

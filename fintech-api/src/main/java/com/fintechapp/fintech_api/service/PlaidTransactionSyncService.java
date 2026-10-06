@@ -115,17 +115,15 @@ public class PlaidTransactionSyncService {
             boolean hasMore = true;
             int page = 0;
             while (hasMore && page < MAX_PAGES_PER_RUN) {
+                if (!syncLockService.extend(itemId, lockToken, leaseDuration)) {
+                    throw new StalePlaidSyncPageException(itemId);
+                }
                 // Steps B–E live in fetchAndApplySyncPage: it fetches Plaid HTTP
                 // outside the database transaction, then persists the page and
                 // cursor in a short dedicated transaction.
-                SyncPageResult result = plaidService.fetchAndApplySyncPage(itemId);
+                SyncPageResult result = plaidService.fetchAndApplySyncPage(itemId, lockToken);
                 hasMore = result.hasMore();
                 page++;
-
-                // Extend distributed lease if there are more pages to process.
-                if (hasMore && !syncLockService.extend(itemId, lockToken, leaseDuration)) {
-                    throw new IllegalStateException("Lost distributed Plaid sync lease before the next page");
-                }
             }
             logger.info("Plaid sync finished for item_id={} pages={} hasMore={} durationMs={} (thread={})",
                     itemId, page, hasMore, System.currentTimeMillis() - runStart,
@@ -139,6 +137,10 @@ public class PlaidTransactionSyncService {
             } else {
                 clearSyncError(itemId);
             }
+        } catch (StalePlaidSyncPageException ex) {
+            // A newer owner/cursor can continue from persisted state. This is not
+            // a Plaid failure and must not mark the item unhealthy.
+            logger.info("Discarded stale Plaid sync page for item_id={}", itemId);
         } catch (Exception ex) {
             logger.error("Plaid transaction sync failed for item_id={} user_id={}",
                     itemId, userId, ex);

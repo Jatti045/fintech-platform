@@ -137,10 +137,11 @@ class PlaidItemHealthConcurrencyIntegrationTest extends BaseIntegrationTest {
                 PlaidService fetcher = mock(PlaidService.class);
                 PlaidSyncLockService locks = mock(PlaidSyncLockService.class);
                 when(locks.acquireWithTimeout(any(), any(), any(), any())).thenReturn(true);
+                when(locks.extend(any(), any(), any())).thenReturn(true);
                 if (operation.equals("SYNC_ERROR")) {
-                    when(fetcher.fetchAndApplySyncPage(item.getItemId())).thenThrow(new IllegalStateException("sync failed"));
+                    when(fetcher.fetchAndApplySyncPage(org.mockito.ArgumentMatchers.eq(item.getItemId()), any())).thenThrow(new IllegalStateException("sync failed"));
                 } else {
-                    when(fetcher.fetchAndApplySyncPage(item.getItemId())).thenReturn(new PlaidService.SyncPageResult("C1", false));
+                    when(fetcher.fetchAndApplySyncPage(org.mockito.ArgumentMatchers.eq(item.getItemId()), any())).thenReturn(new PlaidService.SyncPageResult("C1", false));
                 }
                 new PlaidTransactionSyncService(items, fetcher, locks).syncItemAsync(item.getItemId());
             }

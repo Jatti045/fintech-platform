@@ -53,6 +53,7 @@ class PlaidTransactionSyncServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(syncLockService.extend(any(), any(), any())).thenReturn(true);
         service = new PlaidTransactionSyncService(plaidItemRepository, plaidService, syncLockService);
         User user = new User();
         user.setId("user-1");
@@ -99,7 +100,7 @@ class PlaidTransactionSyncServiceTest {
     @Test
     void syncItemAsync_usesInjectedLockService_notRawNewInstance() {
         stubItem();
-        when(plaidService.fetchAndApplySyncPage("item-1"))
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
                 .thenReturn(new SyncPageResult("cursor-1", false));
 
         service.syncItemAsync("item-1");
@@ -109,7 +110,7 @@ class PlaidTransactionSyncServiceTest {
         // fetchAndApplySyncPage would not be reached at all because the raw
         // instance's tryAcquire would throw TransactionRequiredException first.
         verify(syncLockService).acquireWithTimeout(eq("item-1"), any(), any(), any());
-        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(1)).fetchAndApplySyncPage(eq("item-1"), anyString());
         verify(plaidItemRepository).updateSyncError(eq("item-1"), eq(false), any());
         verify(plaidItemRepository, never()).save(any());
     }
@@ -118,7 +119,7 @@ class PlaidTransactionSyncServiceTest {
     void syncItemAsync_itemNotFound_skipsSync() {
         when(plaidItemRepository.findByItemId("missing")).thenReturn(Optional.empty());
         service.syncItemAsync("missing");
-        verify(plaidService, never()).fetchAndApplySyncPage(any());
+        verify(plaidService, never()).fetchAndApplySyncPage(any(), any());
     }
 
     // ── Single page ──────────────────────────────────────────────────────────
@@ -126,12 +127,12 @@ class PlaidTransactionSyncServiceTest {
     @Test
     void syncItemAsync_singlePage_noMore_returnsAfterOneFetch() {
         stubItem();
-        when(plaidService.fetchAndApplySyncPage("item-1"))
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
                 .thenReturn(new SyncPageResult("cursor-1", false));
 
         service.syncItemAsync("item-1");
 
-        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(1)).fetchAndApplySyncPage(eq("item-1"), anyString());
     }
 
     // ── Multi-page cursor loop (Steps B–F) ───────────────────────────────────
@@ -140,14 +141,14 @@ class PlaidTransactionSyncServiceTest {
     void syncItemAsync_multiPage_loopsUntilHasMoreFalse() {
         stubItem();
         when(syncLockService.extend(any(), any(), any())).thenReturn(true);
-        when(plaidService.fetchAndApplySyncPage("item-1"))
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
                 .thenReturn(new SyncPageResult("cursor-1", true))
                 .thenReturn(new SyncPageResult("cursor-2", true))
                 .thenReturn(new SyncPageResult("cursor-3", false));
 
         service.syncItemAsync("item-1");
 
-        verify(plaidService, times(3)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(3)).fetchAndApplySyncPage(eq("item-1"), anyString());
     }
 
     // ── Zero-update pages still advance until has_more=false ─────────────────
@@ -156,13 +157,13 @@ class PlaidTransactionSyncServiceTest {
     void syncItemAsync_zeroUpdates_stillLoopsUntilNoMore() {
         stubItem();
         when(syncLockService.extend(any(), any(), any())).thenReturn(true);
-        when(plaidService.fetchAndApplySyncPage("item-1"))
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
                 .thenReturn(new SyncPageResult("c1", true))
                 .thenReturn(new SyncPageResult("c2", false));
 
         service.syncItemAsync("item-1");
 
-        verify(plaidService, times(2)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(2)).fetchAndApplySyncPage(eq("item-1"), anyString());
     }
 
     // ── Max page cap ─────────────────────────────────────────────────────────
@@ -172,13 +173,13 @@ class PlaidTransactionSyncServiceTest {
         stubItem();
         when(syncLockService.extend(any(), any(), any())).thenReturn(true);
         // Always return hasMore=true; the guard must cap the loop.
-        when(plaidService.fetchAndApplySyncPage("item-1"))
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
                 .thenReturn(new SyncPageResult("cursor-x", true));
 
         service.syncItemAsync("item-1");
 
         // 50 is the hard cap (MAX_PAGES_PER_RUN) — must not loop forever.
-        verify(plaidService, times(50)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(50)).fetchAndApplySyncPage(eq("item-1"), anyString());
         verify(plaidItemRepository).updateSyncError(eq("item-1"), eq(true), any());
     }
 
@@ -200,7 +201,7 @@ class PlaidTransactionSyncServiceTest {
         CountDownLatch releaseFirst = new CountDownLatch(1);
         AtomicInteger fetchCount = new AtomicInteger();
 
-        when(plaidService.fetchAndApplySyncPage("item-1")).thenAnswer(inv -> {
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString())).thenAnswer(inv -> {
             fetchCount.incrementAndGet();
             firstEntered.countDown();
             releaseFirst.await(5, TimeUnit.SECONDS);
@@ -229,7 +230,7 @@ class PlaidTransactionSyncServiceTest {
             assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS), "sync workers must finish before the next test");
         }
 
-        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(1)).fetchAndApplySyncPage(eq("item-1"), anyString());
     }
 
     // ── Lock release: a fresh run must succeed after a long-running one ───────
@@ -248,7 +249,7 @@ class PlaidTransactionSyncServiceTest {
         CountDownLatch releaseFirst = new CountDownLatch(1);
         AtomicInteger fetchCount = new AtomicInteger();
 
-        when(plaidService.fetchAndApplySyncPage("item-1")).thenAnswer(inv -> {
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString())).thenAnswer(inv -> {
             fetchCount.incrementAndGet();
             firstEntered.countDown();
             releaseFirst.await(5, TimeUnit.SECONDS);
@@ -292,7 +293,7 @@ class PlaidTransactionSyncServiceTest {
 
         CountDownLatch firstEntered = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
-        when(plaidService.fetchAndApplySyncPage("item-1")).thenAnswer(inv -> {
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString())).thenAnswer(inv -> {
             firstEntered.countDown();
             releaseFirst.await(5, TimeUnit.SECONDS);
             return new SyncPageResult("cursor-1", false);
@@ -333,18 +334,18 @@ class PlaidTransactionSyncServiceTest {
 
         service.syncItemAsync("item-1");
 
-        verify(plaidService, never()).fetchAndApplySyncPage(any());
+        verify(plaidService, never()).fetchAndApplySyncPage(any(), any());
         verify(syncLockService, never()).release(any(), any());
 
         // Once the distributed lease becomes available, a later run must
         // succeed instead of being blocked by a leaked local lock.
         when(syncLockService.acquireWithTimeout(any(), any(), any(), any())).thenReturn(true);
-        when(plaidService.fetchAndApplySyncPage("item-1"))
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
                 .thenReturn(new SyncPageResult("cursor-1", false));
 
         service.syncItemAsync("item-1");
 
-        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(1)).fetchAndApplySyncPage(eq("item-1"), anyString());
         verify(syncLockService, times(1)).release(eq("item-1"), any());
     }
 
@@ -353,7 +354,7 @@ class PlaidTransactionSyncServiceTest {
     @Test
     void syncItemAsync_syncThrowsException_releasesLockAndMarksError() {
         stubItem();
-        when(plaidService.fetchAndApplySyncPage("item-1")).thenThrow(new RuntimeException("Plaid error"));
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString())).thenThrow(new RuntimeException("Plaid error"));
 
         service.syncItemAsync("item-1");
 
@@ -368,13 +369,13 @@ class PlaidTransactionSyncServiceTest {
         when(plaidItemRepository.findByItemId(itemId)).thenReturn(Optional.of(item));
         when(syncLockService.acquireWithTimeout(eq(itemId), any(), any(), any()))
                 .thenThrow(new IllegalStateException("database unavailable")).thenReturn(true);
-        when(plaidService.fetchAndApplySyncPage(itemId)).thenReturn(new SyncPageResult("done", false));
+        when(plaidService.fetchAndApplySyncPage(eq(itemId), anyString())).thenReturn(new SyncPageResult("done", false));
         ExecutorService failedWorker = Executors.newSingleThreadExecutor();
         try {
             failedWorker.submit(() -> service.syncItemAsync(itemId)).get(5, TimeUnit.SECONDS);
             verify(plaidItemRepository).updateSyncError(eq(itemId), eq(true), any());
             service.syncItemAsync(itemId); // another thread must now be able to acquire
-            verify(plaidService).fetchAndApplySyncPage(itemId);
+            verify(plaidService).fetchAndApplySyncPage(eq(itemId), anyString());
         } finally {
             failedWorker.shutdownNow();
             assertTrue(failedWorker.awaitTermination(5, TimeUnit.SECONDS));
@@ -387,25 +388,35 @@ class PlaidTransactionSyncServiceTest {
     void syncItemAsync_multiPage_extendsLockLease() {
         stubItem();
         when(syncLockService.extend(any(), any(), any())).thenReturn(true);
-        when(plaidService.fetchAndApplySyncPage("item-1"))
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
                 .thenReturn(new SyncPageResult("cursor-1", true))
                 .thenReturn(new SyncPageResult("cursor-2", false));
 
         service.syncItemAsync("item-1");
 
-        verify(syncLockService, times(1)).extend(eq("item-1"), any(), any());
+        verify(syncLockService, times(2)).extend(eq("item-1"), any(), any());
         verify(syncLockService, times(1)).release(eq("item-1"), any());
     }
 
     @Test
-    void lostLeaseStopsBeforeFetchingAnotherPageAndMarksError() {
+    void lostLeaseStopsBeforeFetchingAnotherPageWithoutMarkingError() {
         stubItem();
-        when(plaidService.fetchAndApplySyncPage("item-1")).thenReturn(new SyncPageResult("c1", true));
-        when(syncLockService.extend(any(), any(), any())).thenReturn(false);
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString())).thenReturn(new SyncPageResult("c1", true));
+        when(syncLockService.extend(any(), any(), any())).thenReturn(true, false);
         service.syncItemAsync("item-1");
-        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
+        verify(plaidService, times(1)).fetchAndApplySyncPage(eq("item-1"), anyString());
         verify(syncLockService).release(eq("item-1"), any());
-        verify(plaidItemRepository).updateSyncError(eq("item-1"), eq(true), any());
+        verify(plaidItemRepository, never()).updateSyncError(any(), any(boolean.class), any());
+    }
+
+    @Test
+    void stalePageRejectionDoesNotMarkItemUnhealthy() {
+        stubItem();
+        when(plaidService.fetchAndApplySyncPage(eq("item-1"), anyString()))
+                .thenThrow(new StalePlaidSyncPageException("item-1"));
+        service.syncItemAsync("item-1");
+        verify(plaidItemRepository, never()).updateSyncError(any(), any(boolean.class), any());
+        verify(syncLockService).release(eq("item-1"), any());
     }
 
     // ── Different items must not serialize on each other's locks ─────────────
@@ -427,7 +438,7 @@ class PlaidTransactionSyncServiceTest {
         CountDownLatch item1Entered = new CountDownLatch(1);
         CountDownLatch item2Entered = new CountDownLatch(1);
         CountDownLatch releaseBoth = new CountDownLatch(1);
-        when(plaidService.fetchAndApplySyncPage(anyString())).thenAnswer(inv -> {
+        when(plaidService.fetchAndApplySyncPage(anyString(), anyString())).thenAnswer(inv -> {
             String id = inv.getArgument(0);
             (id.equals("item-1") ? item1Entered : item2Entered).countDown();
             releaseBoth.await(5, TimeUnit.SECONDS);
@@ -447,8 +458,8 @@ class PlaidTransactionSyncServiceTest {
             assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS), "syncs did not finish");
         }
 
-        verify(plaidService, times(1)).fetchAndApplySyncPage("item-1");
-        verify(plaidService, times(1)).fetchAndApplySyncPage("item-2");
+        verify(plaidService, times(1)).fetchAndApplySyncPage(eq("item-1"), anyString());
+        verify(plaidService, times(1)).fetchAndApplySyncPage(eq("item-2"), anyString());
         verify(syncLockService, times(1)).release(eq("item-1"), any());
         verify(syncLockService, times(1)).release(eq("item-2"), any());
     }

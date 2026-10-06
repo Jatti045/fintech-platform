@@ -125,10 +125,11 @@ public interface PlaidItemRepository extends JpaRepository<PlaidItem, String> {
                             update PlaidItem i
                             set i.syncLockExpiresAt = :expiresAt
                             where i.itemId = :itemId
-                              and i.syncLockToken = :token
+                              and i.syncLockToken = :token and i.syncLockExpiresAt > :now
                         """)
         int extendSyncLock(
                         @Param("itemId") String itemId,
                         @Param("token") String token,
-                        @Param("expiresAt") Instant expiresAt);
+                        @Param("expiresAt") Instant expiresAt,
+                        @Param("now") Instant now);
 }
