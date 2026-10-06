@@ -80,7 +80,7 @@ class InternalTransferAccountingIntegrationTest extends BaseIntegrationTest {
                 leg("rent", 500, "checking", "bank-1", 15, "RENT_AND_UTILITIES_RENT"),
                 leg("refund", -500, "checking", "bank-1", 15, "TRANSFER_IN_REFUND"));
         assertEquals(5, rows(user).size()); assertEquals(2, rows(user).stream().filter(Transaction::isTransfer).count());
-        assertEquals(1000, total(user, TransactionType.INCOME)); assertEquals(500, total(user, TransactionType.EXPENSE)); assertEquals(500, spent(user));
+        assertEquals(500, total(user, TransactionType.INCOME)); assertEquals(0, total(user, TransactionType.EXPENSE)); assertEquals(0, spent(user));
     }
 
     @Test void differentUsers_neverPairInRealRepository() {

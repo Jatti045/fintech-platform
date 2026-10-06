@@ -53,7 +53,7 @@ class PlaidInternalTransferReconciliationTest {
         rows(out, in); service.reconcile("user-1"); service.reconcile("user-1");
         assertTrue(out.isTransfer()); assertTrue(in.isTransfer()); assertNull(out.getBudget());
         assertEquals(TransactionType.EXPENSE, out.getType()); assertEquals(TransactionType.INCOME, in.getType());
-        verify(budgets, times(1)).decrementSpentClamped("budget-1", 500);
+        verify(budgets, times(1)).decrementSpent("budget-1", 500);
         verify(transactions, never()).delete(any(Transaction.class)); verify(transactions, times(2)).save(any());
     }
 
@@ -119,7 +119,7 @@ class PlaidInternalTransferReconciliationTest {
         Transaction c = leg("c", TransactionType.EXPENSE, 15), d = leg("d", TransactionType.INCOME, 15);
         rows(a, b, c, d); service.reconcile("user-1");
         assertFalse(a.isTransfer()); assertFalse(b.isTransfer()); assertFalse(c.isTransfer()); assertFalse(d.isTransfer());
-        verify(budgets, never()).decrementSpentClamped(anyString(), anyDouble());
+        verify(budgets, never()).decrementSpent(anyString(), anyDouble());
     }
 
     @Test void removalOfCounterpart_restoresLoneExpenseOnlyOnce() {
@@ -159,7 +159,7 @@ class PlaidInternalTransferReconciliationTest {
         Transaction incomplete = leg("old", TransactionType.EXPENSE, 15); incomplete.setOriginalAmount(null);
         rows(out, in, incomplete); service.reconcileHistory("user-1"); service.reconcileHistory("user-1");
         assertTrue(out.isTransfer()); assertFalse(incomplete.isTransfer());
-        verify(budgets).recalculateSpent("budget-1"); verify(budgets, times(1)).decrementSpentClamped("budget-1", 500);
+        verify(budgets).recalculateSpent("budget-1"); verify(budgets, times(1)).decrementSpent("budget-1", 500);
     }
 
     @Test void creditCardPaymentWithOwnedCounterpart_isTransfer() {

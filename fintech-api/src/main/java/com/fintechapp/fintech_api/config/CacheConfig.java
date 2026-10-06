@@ -40,8 +40,8 @@ public class CacheConfig implements CachingConfigurer {
 
     private static final Logger logger = LoggerFactory.getLogger(CacheConfig.class);
 
-    /** Month financial aggregates. Explicitly invalidated on financial mutations. */
-    public static final String FINANCIAL_SUMMARY_CACHE = "financialSummary";
+    /** Versioned to discard pre-refund-repair totals; invalidated on financial mutations. */
+    public static final String FINANCIAL_SUMMARY_CACHE = "financialSummary-v2";
 
     /** Detected recurring payments (time-sensitive, therefore the shorter TTL). */
     public static final String RECURRING_PAYMENTS_CACHE = "recurringPayments";

@@ -78,7 +78,7 @@ export default function MonthlyOverview({
           txDate.getUTCMonth() === targetMonth &&
           txDate.getUTCFullYear() === targetYear
         ) {
-          sum += Math.max(0, t.amount);
+          sum += t.amount;
         }
       }
       dailyTotals.push(sum);

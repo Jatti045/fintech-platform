@@ -52,8 +52,13 @@ public class Transaction {
     @Column(nullable = false)
     private TransactionType type;
 
+    /** Signed net expense: negative EXPENSE amounts reverse spending and never count as income. */
     @Column(nullable = false)
     private double amount;
+
+    public boolean isExpenseCredit() {
+        return type == TransactionType.EXPENSE && amount < 0;
+    }
 
     @Column(name = "base_currency")
     private String baseCurrency;

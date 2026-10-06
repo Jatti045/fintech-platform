@@ -66,7 +66,14 @@ public class PlaidTransactionIngestService {
             String plaidPfcDetailed,
             Boolean pending,
             String pendingTransactionId,
-            LocalDate postedDate) {
+            LocalDate postedDate,
+            String transactionCode) {
+        public PlaidTransaction(String transactionId, String name, Instant date, String category, double amount,
+                boolean transfer, String isoCurrencyCode, String unofficialCurrencyCode, String plaidAccountId,
+                String plaidItemId, String plaidPfcDetailed, Boolean pending, String pendingTransactionId, LocalDate postedDate) {
+            this(transactionId, name, date, category, amount, transfer, isoCurrencyCode, unofficialCurrencyCode,
+                    plaidAccountId, plaidItemId, plaidPfcDetailed, pending, pendingTransactionId, postedDate, null);
+        }
         public PlaidTransaction(String transactionId, String name, Instant date, String category,
                 double amount, boolean transfer, String isoCurrencyCode, String unofficialCurrencyCode,
                 String plaidAccountId, String plaidItemId, String plaidPfcDetailed) {
@@ -167,13 +174,18 @@ public class PlaidTransactionIngestService {
         String category = categoryFormatter.toReadableCategory(plaidTx.category());
         Instant txDate = plaidTx.date() != null ? plaidTx.date() : Instant.EPOCH;
         double originalAmount = Math.abs(plaidTx.amount());
-        TransactionType type = plaidTx.amount() >= 0 ? TransactionType.EXPENSE : TransactionType.INCOME;
+        boolean refund = PlaidRefundDetector.isRefund(plaidTx)
+                || (tx.isExpenseCredit() && plaidTx.amount() < 0 && !plaidTx.transfer()
+                    && !PlaidRefundDetector.hasIncomeEvidence(plaidTx));
+        TransactionType type = plaidTx.amount() >= 0 || refund ? TransactionType.EXPENSE : TransactionType.INCOME;
         String originalCurrency = resolveCurrency(plaidTx.isoCurrencyCode(), plaidTx.unofficialCurrencyCode(), user);
         String baseCurrency = aggregationCurrency(user);
-        double absoluteAmount = currencyConversionService.convert(originalAmount, originalCurrency, baseCurrency);
+        // Expense credits remain signed after normalization; income remains a positive magnitude.
+        double normalizedAmount = currencyConversionService.convert(originalAmount, originalCurrency, baseCurrency)
+                * (refund ? -1 : 1);
 
         // Classification is derived after the complete page, not reset by raw mapping.
-        boolean incomingTransfer = tx.isTransfer() || plaidTx.transfer();
+        boolean incomingTransfer = !refund && (tx.isTransfer() || plaidTx.transfer());
         boolean wasTransfer = tx.isTransfer();
         Budget oldBudget = tx.getBudget();
         double oldAmount = tx.getAmount();
@@ -182,7 +194,7 @@ public class PlaidTransactionIngestService {
         tx.setName(displayName(plaidTx, category));
         tx.setCategory(category);
         tx.setDate(txDate);
-        tx.setAmount(absoluteAmount);
+        tx.setAmount(normalizedAmount);
         tx.setType(type);
         tx.setBaseCurrency(baseCurrency);
         tx.setOriginalCurrency(originalCurrency);
@@ -199,9 +211,9 @@ public class PlaidTransactionIngestService {
         if (incomingTransfer) {
             // A transfer is movement of existing money — it must not count
             // toward any budget. Restore the contribution if the row previously
-            // was a budgeted expense. Atomic, zero-floored decrement.
+            // was a budgeted expense. Atomic signed decrement.
             if (!wasTransfer && oldBudget != null && oldType == TransactionType.EXPENSE) {
-                budgetRepository.decrementSpentClamped(oldBudget.getId(), oldAmount);
+                budgetRepository.decrementSpent(oldBudget.getId(), oldAmount);
             }
             tx.setBudget(null);
             transactionRepository.save(tx);
@@ -224,10 +236,10 @@ public class PlaidTransactionIngestService {
             if (wasTransfer) {
                 // Previously a transfer with no budget contribution; the full
                 // amount is now real activity. Atomic database-side increment.
-                budgetRepository.incrementSpent(budget.getId(), absoluteAmount);
+                budgetRepository.incrementSpent(budget.getId(), normalizedAmount);
                 return;
             }
-            reconcileBudgetOnUpdate(oldBudget, oldAmount, oldType, budget, absoluteAmount, type);
+            reconcileBudgetOnUpdate(oldBudget, oldAmount, oldType, budget, normalizedAmount, type);
         } else {
             // Income: detach from any budget it may previously have been
             // assigned to (e.g. rows written by the old behaviour).
@@ -235,7 +247,7 @@ public class PlaidTransactionIngestService {
             transactionRepository.save(tx);
             // If this row was previously a budgeted expense, its contribution
             // must be removed from the old budget's spent aggregate.
-            reconcileBudgetOnUpdate(oldBudget, oldAmount, oldType, null, absoluteAmount, type);
+            reconcileBudgetOnUpdate(oldBudget, oldAmount, oldType, null, normalizedAmount, type);
         }
     }
 
@@ -255,10 +267,13 @@ public class PlaidTransactionIngestService {
         String category = categoryFormatter.toReadableCategory(plaidTx.category());
         Instant txDate = plaidTx.date() != null ? plaidTx.date() : Instant.EPOCH;
         double originalAmount = Math.abs(plaidTx.amount());
-        TransactionType type = plaidTx.amount() >= 0 ? TransactionType.EXPENSE : TransactionType.INCOME;
+        boolean refund = PlaidRefundDetector.isRefund(plaidTx);
+        TransactionType type = plaidTx.amount() >= 0 || refund ? TransactionType.EXPENSE : TransactionType.INCOME;
         String originalCurrency = resolveCurrency(plaidTx.isoCurrencyCode(), plaidTx.unofficialCurrencyCode(), user);
         String baseCurrency = aggregationCurrency(user);
-        double absoluteAmount = currencyConversionService.convert(originalAmount, originalCurrency, baseCurrency);
+        // Expense credits remain signed after normalization; income remains a positive magnitude.
+        double normalizedAmount = currencyConversionService.convert(originalAmount, originalCurrency, baseCurrency)
+                * (refund ? -1 : 1);
         boolean transfer = plaidTx.transfer();
         // Income is not a budgeted activity: it must never create or attach
         // to a budget. Only expenses participate in budget tracking.
@@ -281,7 +296,7 @@ public class PlaidTransactionIngestService {
                 Timestamp.from(txDate),
                 category,
                 type.name(),
-                absoluteAmount,
+                normalizedAmount,
                 baseCurrency,
                 originalAmount,
                 originalCurrency,
@@ -308,7 +323,7 @@ public class PlaidTransactionIngestService {
             // Atomic database-side increment — safe against concurrent writers
             // (manual transaction creation or another sync page may touch the
             // same budget at the same time).
-            budgetRepository.incrementSpent(budget.getId(), absoluteAmount);
+            budgetRepository.incrementSpent(budget.getId(), normalizedAmount);
         }
     }
 
@@ -328,8 +343,8 @@ public class PlaidTransactionIngestService {
             return;
         }
         if (tx.getType() == TransactionType.EXPENSE && budget != null) {
-            // Atomic, zero-floored decrement — safe against concurrent writers.
-            budgetRepository.decrementSpentClamped(budget.getId(), tx.getAmount());
+            // Atomic signed decrement — safe against concurrent writers.
+            budgetRepository.decrementSpent(budget.getId(), tx.getAmount());
         }
         transactionRepository.delete(tx);
     }
@@ -415,8 +430,8 @@ public class PlaidTransactionIngestService {
 
         if (newType == TransactionType.EXPENSE) {
             if (oldBudget != null && oldType == TransactionType.EXPENSE && !sameBudget) {
-                // Atomic, zero-floored decrement.
-                budgetRepository.decrementSpentClamped(oldBudget.getId(), oldAmount);
+                // Atomic signed decrement.
+                budgetRepository.decrementSpent(oldBudget.getId(), oldAmount);
             }
             if (!sameBudget) {
                 // Atomic database-side increment.
@@ -428,13 +443,13 @@ public class PlaidTransactionIngestService {
                     if (diff > 0) {
                         budgetRepository.incrementSpent(newBudget.getId(), diff);
                     } else {
-                        budgetRepository.decrementSpentClamped(newBudget.getId(), -diff);
+                        budgetRepository.decrementSpent(newBudget.getId(), -diff);
                     }
                 }
             }
         } else if (oldBudget != null && oldType == TransactionType.EXPENSE) {
-            // Atomic, zero-floored decrement.
-            budgetRepository.decrementSpentClamped(oldBudget.getId(), oldAmount);
+            // Atomic signed decrement.
+            budgetRepository.decrementSpent(oldBudget.getId(), oldAmount);
         }
     }
 

@@ -88,6 +88,8 @@ public class FinancialSummaryService {
         // aggregation currency at ingestion time (Plaid sync, manual
         // create/update — see CurrencyConversionService). Never sum raw
         // original amounts across currencies.
+        // Signed expense credits (merchant refunds) reduce net spending and are
+        // structurally excluded from the separate earned-income query.
         double expenseTotal = transactionRepository.sumAmountByUserAndTypeAndDateBetween(
                 user.getId(), TransactionType.EXPENSE, from, to);
         double totalAmount = round2(expenseTotal);

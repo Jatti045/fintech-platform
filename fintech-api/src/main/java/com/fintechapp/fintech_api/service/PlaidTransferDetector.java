@@ -19,6 +19,7 @@ public final class PlaidTransferDetector {
     }
 
     public static boolean isCandidate(Transaction transaction) {
+        if (transaction.isExpenseCredit()) return false;
         // Contradictory, identifiable activity must not vanish even if Plaid's
         // transfer category is wrong. Names never positively establish a pair.
         if (transaction.getName() != null && NON_TRANSFER_NAME.matcher(transaction.getName()).find()) {

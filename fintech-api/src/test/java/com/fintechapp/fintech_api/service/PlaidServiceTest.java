@@ -150,6 +150,22 @@ class PlaidServiceTest {
         assertEquals("C2", current.getCursor());
     }
 
+    @Test
+    void refundCodeSurvivesMappingAndFinancialCachesAreInvalidated() throws Exception {
+        stubSyncPage(mapper.readTree("""
+                {"added":[{"transaction_id":"refund","merchant_name":"Merchant","name":"Card credit",
+                  "amount":-40,"date":"2026-10-15","transaction_code":"refund"}],
+                 "modified":[],"removed":[],"next_cursor":"C1","has_more":false}
+                """));
+        service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PlaidTransaction>> captured = ArgumentCaptor.forClass(List.class);
+        verify(ingestService).upsertAddedBatch(any(), captured.capture());
+        assertEquals("refund", captured.getValue().get(0).transactionCode());
+        assertTrue(PlaidRefundDetector.isRefund(captured.getValue().get(0)));
+        verify(cacheInvalidator).evictFinancialDataAfterCommit("user-1");
+    }
+
     private void stubSyncPage(JsonNode payload) {
         RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
         RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);

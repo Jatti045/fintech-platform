@@ -122,7 +122,7 @@ export default function RecentTransactions({
             tx.baseCurrency ||
             currencyCode
           ).toUpperCase();
-          const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE";
+          const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE" && amount >= 0;
           const isLast = i === recent.length - 1;
 
           return (
@@ -176,7 +176,7 @@ export default function RecentTransactions({
                   numberOfLines={1}
                 >
                   {isExpense ? "-" : "+"}
-                  {formatCurrency(amount, currency)}
+                  {formatCurrency(Math.abs(amount), currency)}
                 </Text>
                 <Text
                   style={{

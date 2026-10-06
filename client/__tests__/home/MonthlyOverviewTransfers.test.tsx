@@ -58,3 +58,16 @@ test("the current-day bar stays highlighted when an early month is left-padded",
     jest.useRealTimers();
   }
 });
+
+test("refund credits reduce the spending trend instead of increasing income", () => {
+  const netPurchases = [
+    { date: "2025-03-25T12:00:00Z", amount: 60, type: "EXPENSE" },
+    { date: "2025-03-26T12:00:00Z", amount: 30, type: "EXPENSE" },
+  ] as ITransaction[];
+  const ledger = [
+    { date: "2025-03-25T12:00:00Z", amount: 100, type: "EXPENSE" },
+    { date: "2025-03-25T12:00:00Z", amount: -40, type: "EXPENSE" },
+    { date: "2025-03-26T12:00:00Z", amount: 30, type: "EXPENSE" },
+  ] as ITransaction[];
+  expect(bars(ledger)).toEqual(bars(netPurchases));
+});

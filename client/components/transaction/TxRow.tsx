@@ -111,7 +111,7 @@ const TransactionRow = React.memo(function TransactionRow({
     return tx.category;
   }, [tx.budgetId, tx.budget, tx.category, budgets]);
 
-  const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE";
+  const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE" && Number(tx.amount) >= 0;
   const rowDate = useMemo(() => formatRowDate(tx.date), [tx.date]);
 
   return (
@@ -124,7 +124,7 @@ const TransactionRow = React.memo(function TransactionRow({
           onDelete(tx.id);
         }}
         accessibilityRole="button"
-        accessibilityLabel={`${capitalizeFirst(displayCategory)}, ${formatCurrency(amountToDisplay, currencyToDisplay)}`}
+        accessibilityLabel={`${capitalizeFirst(displayCategory)}, ${formatCurrency(Math.abs(amountToDisplay), currencyToDisplay)}`}
         style={{
           flexDirection: "row",
           alignItems: "center",
@@ -207,7 +207,7 @@ const TransactionRow = React.memo(function TransactionRow({
             ellipsizeMode="tail"
           >
             {isExpense ? "−" : "+"}
-            {formatCurrency(amountToDisplay, currencyToDisplay)}
+            {formatCurrency(Math.abs(amountToDisplay), currencyToDisplay)}
           </Text>
 
           <Feather

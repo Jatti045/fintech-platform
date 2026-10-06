@@ -439,7 +439,7 @@ class PlaidTransactionIngestServiceTest {
 
         upsert(plaidTx("dup-2", "Lunch", "Food", 25.0, Instant.now(), "USD", null));
 
-        verify(budgetRepository).decrementSpentClamped("b4", 15.0); // 50 - (40 - 25)
+        verify(budgetRepository).decrementSpent("b4", 15.0); // 50 - (40 - 25)
     }
 
     @Test
@@ -453,9 +453,9 @@ class PlaidTransactionIngestServiceTest {
         // or create a budget; it only detaches and restores spent.
 
         // Now the same transaction is an income (negative) — spent must be restored.
-        upsert(plaidTx("dup-3", "Refund", "Food", -80.0, Instant.now(), "USD", null));
+        upsert(plaidTx("dup-3", "Deposit", "Food", -80.0, Instant.now(), "USD", null));
 
-        verify(budgetRepository).decrementSpentClamped("b5", 80.0);
+        verify(budgetRepository).decrementSpent("b5", 80.0);
         verify(budgetRepository, never()).saveAndFlush(any(Budget.class));
     }
 
@@ -478,7 +478,7 @@ class PlaidTransactionIngestServiceTest {
         verify(budgetRepository, never()).saveAndFlush(any(Budget.class));
         verify(budgetRepository, never()).save(any(Budget.class));
         verify(budgetRepository, never()).incrementSpent(anyString(), anyDouble());
-        verify(budgetRepository, never()).decrementSpentClamped(anyString(), anyDouble());
+        verify(budgetRepository, never()).decrementSpent(anyString(), anyDouble());
     }
 
     @Test
@@ -496,7 +496,7 @@ class PlaidTransactionIngestServiceTest {
         verify(budgetRepository, never()).saveAndFlush(any(Budget.class));
         verify(budgetRepository, never()).save(any(Budget.class));
         verify(budgetRepository, never()).incrementSpent(anyString(), anyDouble());
-        verify(budgetRepository, never()).decrementSpentClamped(anyString(), anyDouble());
+        verify(budgetRepository, never()).decrementSpent(anyString(), anyDouble());
     }
 
     @Test
@@ -515,7 +515,7 @@ class PlaidTransactionIngestServiceTest {
         assertNull(stored.getBudget());
         verify(budgetRepository, never()).save(any(Budget.class));
         verify(budgetRepository, never()).incrementSpent(anyString(), anyDouble());
-        verify(budgetRepository, never()).decrementSpentClamped(anyString(), anyDouble());
+        verify(budgetRepository, never()).decrementSpent(anyString(), anyDouble());
     }
 
     @Test
@@ -534,7 +534,7 @@ class PlaidTransactionIngestServiceTest {
         assertTrue(stored.isTransfer());
         assertNull(stored.getBudget());
         // The old budget contribution is restored with an atomic decrement.
-        verify(budgetRepository).decrementSpentClamped("bt2", 2000.0);
+        verify(budgetRepository).decrementSpent("bt2", 2000.0);
     }
 
     // ── Same transaction synced twice ────────────────────────────────────────
@@ -620,7 +620,7 @@ class PlaidTransactionIngestServiceTest {
         verify(transactionRepository).save(stored); // reconciled as an update instead
         // Same amount -> no budget adjustment at all (no double increment).
         verify(budgetRepository, never()).incrementSpent(anyString(), anyDouble());
-        verify(budgetRepository, never()).decrementSpentClamped(anyString(), anyDouble());
+        verify(budgetRepository, never()).decrementSpent(anyString(), anyDouble());
     }
 
     // ── Removed transactions ─────────────────────────────────────────────────
@@ -634,8 +634,8 @@ class PlaidTransactionIngestServiceTest {
 
         service.removeByPlaidIds(List.of("rem-1"), "user-1");
 
-        // Atomic, zero-floored decrement restores the contribution.
-        verify(budgetRepository).decrementSpentClamped("b6", 40.0);
+        // Atomic signed decrement restores the contribution.
+        verify(budgetRepository).decrementSpent("b6", 40.0);
         verify(transactionRepository).delete(tx);
     }
 
@@ -664,14 +664,14 @@ class PlaidTransactionIngestServiceTest {
         service.removeByPlaidIds(List.of("r1", "r2"), "user-1");
 
         // Both reversals are applied atomically.
-        verify(budgetRepository).decrementSpentClamped("b8", 10.0);
-        verify(budgetRepository).decrementSpentClamped("b9", 20.0);
+        verify(budgetRepository).decrementSpent("b8", 10.0);
+        verify(budgetRepository).decrementSpent("b9", 20.0);
         verify(transactionRepository).delete(t1);
         verify(transactionRepository).delete(t2);
     }
 
     @Test
-    void removeByPlaidIds_expenseBudgetSpentFloorsAtZero() {
+    void removeByPlaidIds_subtractsSignedContribution() {
         Budget budget = budget("b10", 100.0, 5.0);
         Transaction tx = transaction("rem-3", 50.0, TransactionType.EXPENSE, budget);
         when(transactionRepository.findByPlaidTransactionIdInAndUser_Id(List.of("rem-3"), "user-1"))
@@ -679,7 +679,7 @@ class PlaidTransactionIngestServiceTest {
 
         service.removeByPlaidIds(List.of("rem-3"), "user-1");
 
-        verify(budgetRepository).decrementSpentClamped("b10", 50.0); // floored at zero
+        verify(budgetRepository).decrementSpent("b10", 50.0); // signed subtraction preserves outstanding expense credits
         verify(transactionRepository).delete(tx);
     }
 }

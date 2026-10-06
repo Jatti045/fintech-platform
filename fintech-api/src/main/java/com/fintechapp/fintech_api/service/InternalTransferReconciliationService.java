@@ -172,7 +172,7 @@ public class InternalTransferReconciliationService {
             }
             if (transfer) {
                 if (!tx.isTransfer() && oldBudget != null && tx.getType() == TransactionType.EXPENSE) {
-                    budgets.decrementSpentClamped(oldBudget.getId(), tx.getAmount());
+                    budgets.decrementSpent(oldBudget.getId(), tx.getAmount());
                     affectedBudgets.add(oldBudget.getId());
                 }
                 tx.setBudget(null);

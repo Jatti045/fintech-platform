@@ -379,6 +379,10 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
 
         TransactionType newType = request.type() != null ? parseType(request.type()) : existing.getType();
+        boolean expenseCredit = existing.isExpenseCredit();
+        if (expenseCredit && newType != TransactionType.EXPENSE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refunds must remain expense credits");
+        }
 
         double newAmount = existing.getAmount();
         if (request.amount() != null) {
@@ -443,7 +447,7 @@ public class TransactionService {
             }
         }
         if (resolvedOriginalAmount == null) {
-            resolvedOriginalAmount = newAmount;
+            resolvedOriginalAmount = expenseCredit ? Math.abs(newAmount) : newAmount;
         }
         if (!StringUtils.hasText(resolvedOriginalCurrency)) {
             resolvedOriginalCurrency = resolvedBaseCurrency;
@@ -454,6 +458,10 @@ public class TransactionService {
         if (request.amount() != null || request.originalAmount() != null || request.originalCurrency() != null) {
             newAmount = currencyConversionService.convert(
                     resolvedOriginalAmount, resolvedOriginalCurrency, resolvedBaseCurrency);
+        }
+
+        if (expenseCredit) {
+            newAmount = -Math.abs(newAmount);
         }
 
         Budget oldBudget = existing.getBudget();

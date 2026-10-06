@@ -107,7 +107,7 @@ function TransactionModal({
           userCurrency;
 
         setTxName(editingTransaction.name || "");
-        setTxAmount(String(existingOriginalAmount ?? ""));
+        setTxAmount(existingOriginalAmount == null ? "" : String(Math.abs(existingOriginalAmount)));
         setTxCurrency(existingOriginalCurrency);
         setTxDate(
           editingTransaction.date

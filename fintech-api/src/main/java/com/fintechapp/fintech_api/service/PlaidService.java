@@ -566,7 +566,8 @@ public class PlaidService {
                 pfcDetailed,
                 node.has("pending") ? node.path("pending").asBoolean(false) : null,
                 node.path("pending_transaction_id").asText(null),
-                parsePostedDate(node));
+                parsePostedDate(node),
+                node.path("transaction_code").asText(null));
     }
 
     /** @return personal_finance_category.detailed if present, otherwise null. */

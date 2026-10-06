@@ -929,7 +929,7 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Test
-    void refund_isNotTransfer_keepsExistingBehavior() {
+    void refund_isExpenseCreditNotIncomeOrTransfer() {
         User user = createUser();
         item("item-ref", user);
         Instant date = Instant.parse("2026-01-10T00:00:00Z");
@@ -941,9 +941,10 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
 
         reconciler.reconcile(user.getId());
 
-        // TEST 11 — refunds are never transfers; they stay money in.
+        // Refunds stay visible as expense credits, never earned income.
         assertFalse(userTransactions(user).get(0).isTransfer());
-        assertEquals(45.0, income(user, date.plusSeconds(1)));
+        assertEquals(0.0, income(user, date.plusSeconds(1)));
+        assertEquals(-45.0, userTransactions(user).get(0).getAmount());
 
         cleanup(user);
     }
@@ -1109,8 +1110,8 @@ class PlaidTransactionDedupIntegrationTest extends BaseIntegrationTest {
         List<Transaction> stored = userTransactions(user);
         assertFalse(byPlaidId(stored, "r-ref").isTransfer());
         assertFalse(byPlaidId(stored, "r-out").isTransfer());
-        assertEquals(100.0, income(user, date.plusSeconds(1)));
-        assertEquals(100.0, expenses(user, date.plusSeconds(1)));
+        assertEquals(0.0, income(user, date.plusSeconds(1)));
+        assertEquals(0.0, expenses(user, date.plusSeconds(1)));
 
         cleanup(user);
     }
