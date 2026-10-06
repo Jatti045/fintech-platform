@@ -183,7 +183,8 @@ public class UserService {
 
     @Transactional
     public UserDataResponse updateCurrency(AuthenticatedUser authenticatedUser, UpdateCurrencyRequest request) {
-        User user = requireCurrentUser(authenticatedUser);
+        // Share the financial writers' user-row lock before reading currency or checking state.
+        User user = requireLockedCurrentUser(authenticatedUser);
         if (request == null || !StringUtils.hasText(request.currency())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency code is required.");
         }
@@ -194,10 +195,12 @@ public class UserService {
         }
 
         if (!normalizedCurrency.equals(user.getCurrency())) {
-            if (transactionRepository.existsByUser_Id(user.getId())) {
+            if (transactionRepository.existsByUser_Id(user.getId())
+                    || budgetRepository.existsByUser_Id(user.getId())
+                    || monthlyIncomeService.existsForUser(user.getId())) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        "Cannot change currency when transactions already exist.");
+                        "Cannot change currency after financial data exists (transactions, budgets, or monthly income).");
             }
 
             user.setCurrency(normalizedCurrency);
@@ -216,7 +219,7 @@ public class UserService {
     public UserDataResponse updateMonthlyIncome(
             AuthenticatedUser authenticatedUser,
             UpdateMonthlyIncomeRequest request) {
-        User user = requireCurrentUser(authenticatedUser);
+        User user = requireLockedCurrentUser(authenticatedUser);
         if (request == null || request.monthlyIncome() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Monthly income is required.");
         }
@@ -239,6 +242,14 @@ public class UserService {
         cacheInvalidator.evictFinancialSummaryRegion(user.getId());
 
         return new UserDataResponse(true, "Monthly income updated successfully.", toUserSummary(user, year, month));
+    }
+
+    private User requireLockedCurrentUser(AuthenticatedUser authenticatedUser) {
+        if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        return userRepository.findByIdForUpdate(authenticatedUser.userId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
     }
 
     private User requireCurrentUser(AuthenticatedUser authenticatedUser) {

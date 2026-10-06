@@ -73,6 +73,8 @@ public class BudgetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category and limit are required");
         }
 
+        User user = lockUser(userId);
+
         boolean exists = budgetRepository.existsByUser_IdAndCategoryIgnoreCaseAndDateGreaterThanEqualAndDateLessThan(
                 userId,
                 canonicalCategory,
@@ -82,9 +84,6 @@ public class BudgetService {
         if (exists) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Budget for this category already exists");
         }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
 
         Budget budget = new Budget();
         budget.setUser(user);
@@ -126,6 +125,7 @@ public class BudgetService {
     @Transactional
     public BudgetIdResponse deleteBudget(AuthenticatedUser authenticatedUser, String budgetId) {
         String userId = requireUserId(authenticatedUser);
+        lockUser(userId);
 
         Budget budget = budgetRepository.findByIdAndUser_Id(budgetId, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Budget not found"));
@@ -156,6 +156,7 @@ public class BudgetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No update payload provided");
         }
 
+        lockUser(userId);
         Budget existing = budgetRepository.findByIdAndUser_Id(budgetId, userId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -267,6 +268,8 @@ public class BudgetService {
         Instant monthStart = monthStart(year, month);
         Instant nextMonth = nextMonthStart(year, month);
 
+        User user = lockUser(userId);
+
         // Target-month budgets indexed by lowercase category (first wins).
         Map<String, Budget> existingByCategory = new LinkedHashMap<>();
         for (Budget b : budgetRepository
@@ -308,8 +311,6 @@ public class BudgetService {
             }
 
             if (existing == null) {
-                User user = userRepository.findById(userId)
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
                 Budget budget = new Budget();
                 budget.setUser(user);
                 budget.setCategory(canonical);
@@ -331,6 +332,12 @@ public class BudgetService {
         return new ApplyBudgetSuggestionsResponse(true,
                 created + updated + " budget(s) applied", new ApplyBudgetSuggestionsResponse.Data(
                         year, month, created, updated, skippedCount, List.copyOf(skipped), List.copyOf(applied)));
+    }
+
+    private User lockUser(String userId) {
+        // Same row and lock mode used by transaction/Plaid financial writers.
+        return userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
     }
 
     private BudgetItemResponse toBudgetItem(Budget budget) {

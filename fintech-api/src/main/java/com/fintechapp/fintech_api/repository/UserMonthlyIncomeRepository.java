@@ -17,6 +17,8 @@ public interface UserMonthlyIncomeRepository extends JpaRepository<UserMonthlyIn
             String userId,
             Instant monthStart);
 
+    boolean existsByUser_Id(String userId);
+
     long deleteByUser_Id(String userId);
 }
 

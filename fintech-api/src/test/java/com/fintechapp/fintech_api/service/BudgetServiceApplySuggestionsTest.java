@@ -52,7 +52,7 @@ class BudgetServiceApplySuggestionsTest {
         service = new BudgetService(budgetRepository, transactionRepository, userRepository);
 
         user.setId("user-1");
-        lenient().when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        lenient().when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
     }
 
     private Budget budget(String category, double limit, boolean autoCreated, double spent) {

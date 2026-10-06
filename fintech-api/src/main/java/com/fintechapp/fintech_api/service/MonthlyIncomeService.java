@@ -12,14 +12,18 @@ import org.springframework.web.server.ResponseStatusException;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.model.UserMonthlyIncome;
 import com.fintechapp.fintech_api.repository.UserMonthlyIncomeRepository;
+import com.fintechapp.fintech_api.repository.UserRepository;
 
 @Service
 public class MonthlyIncomeService {
 
     private final UserMonthlyIncomeRepository userMonthlyIncomeRepository;
 
-    public MonthlyIncomeService(UserMonthlyIncomeRepository userMonthlyIncomeRepository) {
+    private final UserRepository userRepository;
+
+    public MonthlyIncomeService(UserMonthlyIncomeRepository userMonthlyIncomeRepository, UserRepository userRepository) {
         this.userMonthlyIncomeRepository = userMonthlyIncomeRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
@@ -40,18 +44,26 @@ public class MonthlyIncomeService {
     @Transactional
     public void upsertForMonth(User user, int year, int month, double income) {
         Instant targetMonthStart = monthStart(year, month);
+        // Serialize every income write with currency changes, including direct callers.
+        User lockedUser = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
         UserMonthlyIncome monthlyIncome = userMonthlyIncomeRepository
                 .findByUser_IdAndMonthStart(user.getId(), targetMonthStart)
                 .orElseGet(() -> {
                     UserMonthlyIncome created = new UserMonthlyIncome();
-                    created.setUser(user);
+                    created.setUser(lockedUser);
                     created.setMonthStart(targetMonthStart);
                     return created;
                 });
 
         monthlyIncome.setIncome(income);
         userMonthlyIncomeRepository.save(monthlyIncome);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsForUser(String userId) {
+        return userMonthlyIncomeRepository.existsByUser_Id(userId);
     }
 
     @Transactional

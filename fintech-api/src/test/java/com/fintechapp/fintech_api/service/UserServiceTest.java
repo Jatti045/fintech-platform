@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -93,8 +94,8 @@ class UserServiceTest {
     }
 
     @Test
-    void updateCurrency_success_whenNoTransactions_updatesCurrencyAndEvictsCaches() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+    void updateCurrency_success_whenNoFinancialData_updatesCurrencyAndEvictsCaches() {
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
         when(transactionRepository.existsByUser_Id("user-1")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -103,14 +104,19 @@ class UserServiceTest {
         assertNotNull(response);
         assertEquals("EUR", response.data().currency());
         assertEquals("EUR", user.getCurrency());
-        verify(userRepository).save(user);
+        var order = inOrder(userRepository, transactionRepository, budgetRepository, monthlyIncomeService);
+        order.verify(userRepository).findByIdForUpdate("user-1");
+        order.verify(transactionRepository).existsByUser_Id("user-1");
+        order.verify(budgetRepository).existsByUser_Id("user-1");
+        order.verify(monthlyIncomeService).existsForUser("user-1");
+        order.verify(userRepository).save(user);
         verify(cacheInvalidator).evictFinancialSummaryRegion("user-1");
         verify(cacheInvalidator).evictRecurringPayments("user-1");
     }
 
     @Test
     void updateCurrency_throwsBadRequest_whenTransactionsExist() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
         when(transactionRepository.existsByUser_Id("user-1")).thenReturn(true);
 
         ResponseStatusException exception = assertThrows(
@@ -118,7 +124,7 @@ class UserServiceTest {
                 () -> userService.updateCurrency(authUser, new UpdateCurrencyRequest("EUR")));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-        assertEquals("Cannot change currency when transactions already exist.", exception.getReason());
+        assertEquals("Cannot change currency after financial data exists (transactions, budgets, or monthly income).", exception.getReason());
         verify(userRepository, never()).save(any());
         verify(cacheInvalidator, never()).evictFinancialSummaryRegion(any());
         verify(cacheInvalidator, never()).evictRecurringPayments(any());
@@ -126,20 +132,22 @@ class UserServiceTest {
 
     @Test
     void updateCurrency_success_whenSameCurrencyEvenIfTransactionsExist() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
 
         UserDataResponse response = userService.updateCurrency(authUser, new UpdateCurrencyRequest("USD"));
 
         assertNotNull(response);
         assertEquals("USD", response.data().currency());
         verify(transactionRepository, never()).existsByUser_Id(any());
+        verify(budgetRepository, never()).existsByUser_Id(any());
+        verify(monthlyIncomeService, never()).existsForUser(any());
         verify(userRepository, never()).save(any());
         verify(cacheInvalidator, never()).evictFinancialSummaryRegion(any());
     }
 
     @Test
     void updateCurrency_throwsBadRequest_whenCurrencyCodeInvalid() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
@@ -151,7 +159,7 @@ class UserServiceTest {
 
     @Test
     void updateCurrency_throwsBadRequest_whenCurrencyBlank() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
@@ -160,4 +168,24 @@ class UserServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
         assertEquals("Currency code is required.", exception.getReason());
     }
+    @Test
+    void updateCurrency_throwsBadRequest_whenBudgetExistsWithoutTransactions() {
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
+        when(budgetRepository.existsByUser_Id("user-1")).thenReturn(true);
+        assertThrows(ResponseStatusException.class,
+                () -> userService.updateCurrency(authUser, new UpdateCurrencyRequest("CAD")));
+        assertEquals("USD", user.getCurrency());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateCurrency_throwsBadRequest_whenMonthlyIncomeExistsWithoutTransactions() {
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(Optional.of(user));
+        when(monthlyIncomeService.existsForUser("user-1")).thenReturn(true);
+        assertThrows(ResponseStatusException.class,
+                () -> userService.updateCurrency(authUser, new UpdateCurrencyRequest("CAD")));
+        assertEquals("USD", user.getCurrency());
+        verify(userRepository, never()).save(any());
+    }
+
 }

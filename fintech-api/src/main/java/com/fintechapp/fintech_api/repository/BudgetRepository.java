@@ -15,6 +15,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface BudgetRepository extends JpaRepository<Budget, String> {
 
+        boolean existsByUser_Id(String userId);
+
         /**
          * Atomically adds {@code amount} to the budget's persisted {@code spent}
          * aggregate. The increment is evaluated by the database in a single
