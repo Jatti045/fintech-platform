@@ -162,7 +162,7 @@ class PlaidSyncTransactionBoundaryTest {
             return null;
         }).when(ingestService).upsertAddedBatch(any(), any());
 
-        PlaidService.SyncPageResult result = plaidService.fetchAndApplySyncPage("item-1", "lease-1");
+        PlaidService.SyncPageResult result = plaidService.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
 
         // PROOF: HTTP call executed while no database transaction was active
         assertFalse(txActiveDuringHttp.get(),
@@ -196,7 +196,7 @@ class PlaidSyncTransactionBoundaryTest {
         when(encryptionService.decrypt("enc-token")).thenReturn("dec-token");
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> plaidService.fetchAndApplySyncPage("item-1", "lease-1"));
+                () -> plaidService.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
 
         assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
         assertFalse(TransactionSynchronizationManager.isActualTransactionActive(),
@@ -227,7 +227,7 @@ class PlaidSyncTransactionBoundaryTest {
             throw new RuntimeException("Database error during ingest");
         }).when(ingestService).upsertAddedBatch(any(), any());
 
-        assertThrows(RuntimeException.class, () -> plaidService.fetchAndApplySyncPage("item-1", "lease-1"));
+        assertThrows(RuntimeException.class, () -> plaidService.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
 
         assertFalse(TransactionSynchronizationManager.isActualTransactionActive(),
                 "Transaction must be rolled back and not left active");

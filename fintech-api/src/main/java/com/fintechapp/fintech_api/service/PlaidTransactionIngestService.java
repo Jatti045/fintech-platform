@@ -131,6 +131,12 @@ public class PlaidTransactionIngestService {
         }
     }
 
+    /** Preserve page ordering when several pages share one persistence transaction. */
+    @Transactional
+    public void flushPendingWrites() {
+        transactionRepository.flush();
+    }
+
     /**
      * Removes transactions identified by their Plaid ids and restores the
      * affected budget spent aggregates.

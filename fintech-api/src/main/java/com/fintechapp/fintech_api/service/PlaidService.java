@@ -63,6 +63,19 @@ public class PlaidService {
     public record SyncPageResult(String nextCursor, boolean hasMore) {
     }
 
+    /** Worker-local pages; no intermediate cursor or financial changes are durable. */
+    public static final class SyncAttempt {
+        private boolean initialized;
+        private String startCursor;
+        private String progressCursor;
+        private final List<JsonNode> pages = new ArrayList<>();
+
+        public void restart() {
+            pages.clear();
+            progressCursor = startCursor;
+        }
+    }
+
     private static final String PRODUCT_TRANSACTIONS = "transactions";
     private static final int SYNC_COUNT = 500;
     private static final DateTimeFormatter ISO_OFFSET = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
@@ -189,24 +202,28 @@ public class PlaidService {
     }
 
     /**
-     * Fetches a single /transactions/sync page for the item, applies
-     * added/modified/removed records idempotently, and advances the stored
-     * cursor.
+     * Stages a /transactions/sync page. Only the final page applies the complete
+     * sequence and advances the durable cursor, in one transaction.
      *
      * <p>
      * The external Plaid HTTP call executes strictly outside any database
      * transaction, without holding any row locks or database connections.
-     * The returned page is then persisted atomically within a short, dedicated
-     * database transaction. Before any mutations, the locked item must still
-     * have this worker's unexpired lease and the cursor used for the fetch.
+     * Completed pagination is persisted atomically in a dedicated transaction.
+     * Before any mutations, the locked item must still have this worker's
+     * unexpired lease and the durable cursor from which the sequence started.
      * </p>
      */
-    public SyncPageResult fetchAndApplySyncPage(String itemId, String leaseToken) {
+    public SyncPageResult fetchAndApplySyncPage(String itemId, String leaseToken, SyncAttempt attempt) {
         // Step 1: Read cursor and decrypt access token outside of any database
         // transaction.
         PlaidItem item = plaidItemRepository.findByItemId(itemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
-        String cursor = item.getCursor();
+        if (!attempt.initialized) {
+            attempt.startCursor = item.getCursor();
+            attempt.progressCursor = attempt.startCursor;
+            attempt.initialized = true;
+        }
+        String cursor = attempt.progressCursor;
         String userId = item.getUser().getId();
 
         String accessToken;
@@ -227,7 +244,18 @@ public class PlaidService {
         // Step 2: External Plaid HTTP call happens OUTSIDE of any database transaction.
         JsonNode response = post("/transactions/sync", body);
 
-        // Step 3: Persist the returned page in a short, dedicated database transaction.
+        String nextCursor = response.path("next_cursor").asString(null);
+        boolean hasMore = response.path("has_more").asBoolean(false);
+        if (hasMore && !StringUtils.hasText(nextCursor)) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid pagination cursor is missing.");
+        }
+        attempt.pages.add(response);
+        attempt.progressCursor = StringUtils.hasText(nextCursor) ? nextCursor : cursor;
+        if (hasMore) {
+            return new SyncPageResult(attempt.progressCursor, true);
+        }
+
+        // Step 3: Fence and persist the COMPLETE sequence in one transaction.
         return inTransaction(status -> {
             transferReconciliation.lockUser(userId);
             PlaidItem managedItem = plaidItemRepository.findByItemIdForUpdate(itemId)
@@ -239,50 +267,51 @@ public class PlaidService {
                     || !leaseToken.equals(managedItem.getSyncLockToken())
                     || managedItem.getSyncLockExpiresAt() == null
                     || !managedItem.getSyncLockExpiresAt().isAfter(Instant.now())
-                    || !Objects.equals(cursor, managedItem.getCursor())) {
+                    || !Objects.equals(attempt.startCursor, managedItem.getCursor())) {
                 throw new StalePlaidSyncPageException(itemId);
             }
 
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
-            List<String> removedIds = new ArrayList<>();
+            for (JsonNode stagedPage : attempt.pages) {
+                List<String> removedIds = new ArrayList<>();
 
-            List<PlaidTransaction> added = nodes(response, "added").stream()
-                    .map(node -> toPlaidTransaction(node, managedItem.getItemId()))
-                    .toList();
-            List<PlaidTransaction> modified = nodes(response, "modified").stream()
-                    .map(node -> toPlaidTransaction(node, managedItem.getItemId()))
-                    .toList();
-            ingestService.upsertAddedBatch(user, added);
-            for (PlaidTransaction plaidTx : modified) {
-                ingestService.upsertTransaction(user, plaidTx);
-            }
-            for (JsonNode node : nodes(response, "removed")) {
-                JsonNode txId = node.get("transaction_id");
-                if (txId != null && StringUtils.hasText(txId.asString())) {
-                    removedIds.add(txId.asString());
+                List<PlaidTransaction> added = nodes(stagedPage, "added").stream()
+                        .map(node -> toPlaidTransaction(node, managedItem.getItemId()))
+                        .toList();
+                List<PlaidTransaction> modified = nodes(stagedPage, "modified").stream()
+                        .map(node -> toPlaidTransaction(node, managedItem.getItemId()))
+                        .toList();
+                ingestService.upsertAddedBatch(user, added);
+                for (PlaidTransaction plaidTx : modified) {
+                    ingestService.upsertTransaction(user, plaidTx);
                 }
+                for (JsonNode node : nodes(stagedPage, "removed")) {
+                    JsonNode txId = node.get("transaction_id");
+                    if (txId != null && StringUtils.hasText(txId.asString())) {
+                        removedIds.add(txId.asString());
+                    }
+                }
+                if (!removedIds.isEmpty()) {
+                    ingestService.removeByPlaidIds(removedIds, userId);
+                }
+                // Flush JPA mutations before the next page's native upserts.
+                // This still participates in the one atomic sequence transaction.
+                ingestService.flushPendingWrites();
             }
-            if (!removedIds.isEmpty()) {
-                ingestService.removeByPlaidIds(removedIds, userId);
-            }
-
             transferReconciliation.reconcile(userId);
 
-            String nextCursor = response.path("next_cursor").asString(null);
-            boolean hasMore = response.path("has_more").asBoolean(false);
-
-            managedItem.setCursor(StringUtils.hasText(nextCursor) ? nextCursor : managedItem.getCursor());
+            managedItem.setCursor(attempt.progressCursor);
             managedItem.setLastSyncedAt(Instant.now());
             managedItem.setSyncError(false);
             plaidItemRepository.save(managedItem);
 
-            logger.info("Plaid sync payload received for item_id={}: added={}, modified={}, removed={}, new_cursor={}",
-                    itemId, added.size(), modified.size(), removedIds.size(), nextCursor);
+            logger.info("Plaid sync sequence applied for item_id={}: pages={}, new_cursor={}",
+                    itemId, attempt.pages.size(), managedItem.getCursor());
 
             cacheInvalidator.evictFinancialDataAfterCommit(userId);
 
-            registerCursorCommitMilestone(itemId, userId, cursor, managedItem.getCursor());
+            registerCursorCommitMilestone(itemId, userId, attempt.startCursor, managedItem.getCursor());
 
             return new SyncPageResult(managedItem.getCursor(), hasMore);
         });
@@ -478,6 +507,9 @@ public class PlaidService {
     private static ResponseStatusException plaidError(HttpStatus status, JsonNode body) {
         String code = body.path("error_code").asString("unknown");
         String message = body.path("error_message").asString("Plaid reported an error.");
+        if ("TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION".equals(code)) {
+            return new PlaidPaginationMutationException();
+        }
         return new ResponseStatusException(status, "Plaid error " + code + ": " + message);
     }
 

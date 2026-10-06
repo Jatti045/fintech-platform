@@ -40,7 +40,7 @@ import com.fintechapp.fintech_api.service.PlaidService.SyncPageResult;
 public class PlaidTransactionSyncService {
 
     private static final Logger logger = LoggerFactory.getLogger(PlaidTransactionSyncService.class);
-    private static final int MAX_PAGES_PER_RUN = 50;
+    private static final int MAX_PAGINATION_RESTARTS = 3;
 
     /**
      * Per-item in-process mutex, keyed by Plaid {@code item_id}.
@@ -114,29 +114,30 @@ public class PlaidTransactionSyncService {
         try {
             boolean hasMore = true;
             int page = 0;
-            while (hasMore && page < MAX_PAGES_PER_RUN) {
+            int restarts = 0;
+            PlaidService.SyncAttempt attempt = new PlaidService.SyncAttempt();
+            while (hasMore) {
                 if (!syncLockService.extend(itemId, lockToken, leaseDuration)) {
                     throw new StalePlaidSyncPageException(itemId);
                 }
-                // Steps B–E live in fetchAndApplySyncPage: it fetches Plaid HTTP
-                // outside the database transaction, then persists the page and
-                // cursor in a short dedicated transaction.
-                SyncPageResult result = plaidService.fetchAndApplySyncPage(itemId, lockToken);
-                hasMore = result.hasMore();
+                // HTTP and staging hold no database transaction. The final page
+                // commits the whole sequence after ownership/cursor fencing.
                 page++;
+                try {
+                    SyncPageResult result = plaidService.fetchAndApplySyncPage(itemId, lockToken, attempt);
+                    hasMore = result.hasMore();
+                } catch (PlaidPaginationMutationException ex) {
+                    if (restarts++ >= MAX_PAGINATION_RESTARTS) {
+                        throw ex;
+                    }
+                    attempt.restart();
+                    logger.info("Restarting Plaid pagination from its original cursor for item_id={}", itemId);
+                }
             }
             logger.info("Plaid sync finished for item_id={} pages={} hasMore={} durationMs={} (thread={})",
                     itemId, page, hasMore, System.currentTimeMillis() - runStart,
                     Thread.currentThread().getName());
-            // Surface success only when every page was applied (per-page
-            // commits already stamped lastSyncedAt).
-            if (hasMore) {
-                // The bounded run stopped with unapplied pages. Preserve its cursor
-                // and surface retry instead of reporting a complete healthy sync.
-                markSyncError(itemId);
-            } else {
-                clearSyncError(itemId);
-            }
+            clearSyncError(itemId);
         } catch (StalePlaidSyncPageException ex) {
             // A newer owner/cursor can continue from persisted state. This is not
             // a Plaid failure and must not mark the item unhealthy.

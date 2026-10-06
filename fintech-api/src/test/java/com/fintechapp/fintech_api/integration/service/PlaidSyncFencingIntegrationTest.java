@@ -8,6 +8,7 @@ import static org.mockito.Mockito.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,8 +19,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
@@ -62,7 +67,7 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
                         "removed":[{"transaction_id":"removable"}]
                         """);
             }, "C0");
-            var stale = pool.submit(() -> workerA.fetchAndApplySyncPage(item.getItemId(), "L1"));
+            var stale = pool.submit(() -> workerA.fetchAndApplySyncPage(item.getItemId(), "L1", new PlaidService.SyncAttempt()));
             assertTrue(fetched.await(10, TimeUnit.SECONDS));
             expire(item);
             assertFalse(leases.extend(item.getItemId(), "L1", Duration.ofMinutes(5)),
@@ -72,7 +77,7 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
                     "added":[{"transaction_id":"kept","amount":20,"date":"2026-10-01"},
                              {"transaction_id":"removable","amount":30,"date":"2026-10-01"}],
                     "modified":[],"removed":[]
-                    """), "C0").fetchAndApplySyncPage(item.getItemId(), "L2");
+                    """), "C0").fetchAndApplySyncPage(item.getItemId(), "L2", new PlaidService.SyncAttempt());
             var financialState = financialState(item);
             PlaidItem newer = items.findById(item.getId()).orElseThrow();
             assertEquals(2, transactionRepository.findByPlaidTransactionIdInAndUser_Id(
@@ -90,7 +95,7 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
             assertFalse(leases.release(item.getItemId(), "L1"));
             // The current owner can continue fetching from the committed cursor.
             service(() -> payload("C3", "\"added\":[],\"modified\":[],\"removed\":[]"), "C2")
-                    .fetchAndApplySyncPage(item.getItemId(), "L2");
+                    .fetchAndApplySyncPage(item.getItemId(), "L2", new PlaidService.SyncAttempt());
             assertEquals("C3", items.findById(item.getId()).orElseThrow().getCursor());
         } finally {
             resume.countDown();
@@ -111,7 +116,7 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
                 return payload("C1", "\"added\":[{\"transaction_id\":\"ghost\",\"amount\":99,\"date\":\"2026-10-01\"}],\"modified\":[],\"removed\":[]");
             }, "C0");
             assertThrows(StalePlaidSyncPageException.class,
-                    () -> worker.fetchAndApplySyncPage(item.getItemId(), "L1"));
+                    () -> worker.fetchAndApplySyncPage(item.getItemId(), "L1", new PlaidService.SyncAttempt()));
             assertEquals(before, financialState(item));
             PlaidItem current = items.findById(item.getId()).orElseThrow();
             assertEquals("C2", current.getCursor());
@@ -134,7 +139,7 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
                 return payload("C1", "\"added\":[{\"transaction_id\":\"ghost\",\"amount\":99,\"date\":\"2026-10-01\"}],\"modified\":[],\"removed\":[]");
             }, "C0");
             assertThrows(StalePlaidSyncPageException.class,
-                    () -> worker.fetchAndApplySyncPage(item.getItemId(), "L1"));
+                    () -> worker.fetchAndApplySyncPage(item.getItemId(), "L1", new PlaidService.SyncAttempt()));
             assertEquals(before, financialState(item));
             PlaidItem current = items.findById(item.getId()).orElseThrow();
             assertEquals("C0", current.getCursor());
@@ -155,12 +160,223 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
                 return payload("C1", "\"added\":[{\"transaction_id\":\"ghost\",\"amount\":99,\"date\":\"2026-10-01\"}],\"modified\":[],\"removed\":[]");
             }, "C0");
             assertThrows(StalePlaidSyncPageException.class,
-                    () -> worker.fetchAndApplySyncPage(item.getItemId(), "L1"));
+                    () -> worker.fetchAndApplySyncPage(item.getItemId(), "L1", new PlaidService.SyncAttempt()));
             assertEquals(before, financialState(item));
             assertEquals("C0", items.findById(item.getId()).orElseThrow().getCursor());
         } finally {
             cleanup(item);
         }
+    }
+
+    @Test
+    void paginationMutationDiscardsStagedPagesAndRestartsFromOriginalCursor() throws Exception {
+        PlaidItem item = createItem();
+        try {
+            assertTrue(leases.tryAcquire(item.getItemId(), "seed", Duration.ofMinutes(5)));
+            service(() -> payload("C0", """
+                    "added":[{"transaction_id":"changed","amount":20,"date":"2026-10-01"},
+                             {"transaction_id":"removed","amount":5,"date":"2026-10-01"}],
+                    "modified":[],"removed":[]
+                    """), "C0").fetchAndApplySyncPage(item.getItemId(), "seed", new PlaidService.SyncAttempt());
+            assertTrue(leases.release(item.getItemId(), "seed"));
+            items.updateSyncError(item.getItemId(), true, Instant.now());
+            var initial = financialState(item);
+            AtomicInteger responses = new AtomicInteger();
+            PlaidService fetcher = service(() -> {
+                int response = responses.incrementAndGet();
+                if (response <= 4) {
+                    assertEquals("C0", items.findById(item.getId()).orElseThrow().getCursor());
+                    assertEquals(initial, financialState(item), "Intermediate pages must make zero financial writes");
+                }
+                return switch (response) {
+                    case 1 -> page("C1", true, """
+                            "added":[{"transaction_id":"ghost","amount":999,"date":"2026-10-01"}],
+                            "modified":[{"transaction_id":"changed","amount":999,"date":"2026-10-01"}],
+                            "removed":[{"transaction_id":"removed"}]
+                            """);
+                    case 2 -> throw paginationMutation();
+                    case 3 -> page("R1", true, """
+                            "added":[{"transaction_id":"repeat","amount":10,"date":"2026-10-01"},
+                                     {"transaction_id":"pending","account_id":"a","amount":12,
+                                      "date":"2026-10-01","pending":true}],
+                            "modified":[{"transaction_id":"changed","amount":30,"date":"2026-10-01"}],
+                            "removed":[]
+                            """);
+                    case 4 -> page("C_FINAL", false, """
+                            "added":[{"transaction_id":"repeat","amount":10,"date":"2026-10-01"},
+                                     {"transaction_id":"posted","account_id":"a","amount":12,
+                                      "date":"2026-10-01","pending":false,"pending_transaction_id":"pending"}],
+                            "modified":[{"transaction_id":"changed","amount":40,"date":"2026-10-01"}],
+                            "removed":[{"transaction_id":"removed"},{"transaction_id":"pending"}]
+                            """);
+                    default -> throw new AssertionError("Unexpected sync request");
+                };
+            }, List.of("C0", "C1", "C0", "R1"));
+            var driver = new PlaidTransactionSyncService(items, fetcher, leases);
+            driver.syncItemAsync(item.getItemId());
+            assertEquals(4, responses.get());
+            PlaidItem current = items.findById(item.getId()).orElseThrow();
+            assertEquals("C_FINAL", current.getCursor());
+            assertFalse(current.isSyncError());
+            assertNull(current.getSyncLockToken());
+            assertEquals(List.of(Map.of("plaid_transaction_id", "changed", "amount", 40.0),
+                    Map.of("plaid_transaction_id", "posted", "amount", 12.0),
+                    Map.of("plaid_transaction_id", "repeat", "amount", 10.0)),
+                    jdbc.queryForList("SELECT plaid_transaction_id, amount FROM transactions WHERE user_id = ? ORDER BY plaid_transaction_id",
+                            item.getUser().getId()));
+            assertEquals(62.0, jdbc.queryForObject("SELECT SUM(spent) FROM budgets WHERE user_id = ?",
+                    Double.class, item.getUser().getId()));
+            // Replay the completed replacement sequence: no duplicates or aggregate drift.
+            responses.set(2);
+            PlaidService replay = service(() -> responses.incrementAndGet() == 3
+                    ? page("REPLAY1", true, """
+                        "added":[{"transaction_id":"repeat","amount":10,"date":"2026-10-01"},
+                                 {"transaction_id":"pending","account_id":"a","amount":12,"date":"2026-10-01","pending":true}],
+                        "modified":[{"transaction_id":"changed","amount":30,"date":"2026-10-01"}],"removed":[{"transaction_id":"repeat"}]
+                        """)
+                    : page("REPLAY_FINAL", false, """
+                        "added":[{"transaction_id":"repeat","amount":10,"date":"2026-10-01"},
+                                 {"transaction_id":"posted","account_id":"a","amount":12,"date":"2026-10-01",
+                                  "pending":false,"pending_transaction_id":"pending"}],
+                        "modified":[{"transaction_id":"changed","amount":40,"date":"2026-10-01"}],
+                        "removed":[{"transaction_id":"removed"},{"transaction_id":"pending"}]
+                        """), List.of("C_FINAL", "REPLAY1"));
+            new PlaidTransactionSyncService(items, replay, leases).syncItemAsync(item.getItemId());
+            assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM transactions WHERE user_id = ?",
+                    Integer.class, item.getUser().getId()));
+            assertEquals(62.0, jdbc.queryForObject("SELECT SUM(spent) FROM budgets WHERE user_id = ?",
+                    Double.class, item.getUser().getId()));
+            assertEquals("REPLAY_FINAL", items.findById(item.getId()).orElseThrow().getCursor());
+        } finally {
+            cleanup(item);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void paginationRecoveryStillFencesLeaseAndCursor(boolean replaceLease) throws Exception {
+        PlaidItem item = createItem();
+        try {
+            AtomicInteger responses = new AtomicInteger();
+            PlaidService fetcher = service(() -> {
+                return switch (responses.incrementAndGet()) {
+                    case 1 -> page("C1", true, "\"added\":[],\"modified\":[],\"removed\":[]");
+                    case 2 -> throw paginationMutation();
+                    case 3 -> {
+                        String token = items.findById(item.getId()).orElseThrow().getSyncLockToken();
+                        if (replaceLease) {
+                            assertTrue(leases.release(item.getItemId(), token));
+                            assertTrue(leases.tryAcquire(item.getItemId(), "L2", Duration.ofMinutes(5)));
+                            token = "L2";
+                        }
+                        String owner = token;
+                        service(() -> payload("C_NEW", """
+                                "added":[{"transaction_id":"new-owner","amount":77,"date":"2026-10-01"}],
+                                "modified":[],"removed":[]
+                                """), "C0").fetchAndApplySyncPage(item.getItemId(), owner, new PlaidService.SyncAttempt());
+                        yield payload("C_FINAL", """
+                                "added":[{"transaction_id":"stale","amount":999,"date":"2026-10-01"}],
+                                "modified":[],"removed":[]
+                                """);
+                    }
+                    default -> throw new AssertionError("Unexpected request");
+                };
+            }, List.of("C0", "C1", "C0"));
+            new PlaidTransactionSyncService(items, fetcher, leases).syncItemAsync(item.getItemId());
+            assertEquals(3, responses.get());
+            PlaidItem current = items.findById(item.getId()).orElseThrow();
+            assertEquals("C_NEW", current.getCursor());
+            assertEquals(replaceLease ? "L2" : null, current.getSyncLockToken());
+            assertFalse(current.isSyncError());
+            assertEquals(List.of(Map.of("plaid_transaction_id", "new-owner", "amount", 77.0)),
+                    jdbc.queryForList("SELECT plaid_transaction_id, amount FROM transactions WHERE user_id = ?",
+                            item.getUser().getId()));
+        } finally {
+            cleanup(item);
+        }
+    }
+
+    @Test
+    void repeatedPaginationMutationsAreBoundedAndLaterRunCanRecover() throws Exception {
+        PlaidItem item = createItem();
+        try {
+            AtomicInteger responses = new AtomicInteger();
+            PlaidService fetcher = service(() -> {
+                responses.incrementAndGet();
+                throw paginationMutation();
+            }, java.util.Collections.nCopies(4, "C0"));
+            new PlaidTransactionSyncService(items, fetcher, leases).syncItemAsync(item.getItemId());
+            assertEquals(4, responses.get());
+            assertEquals("C0", items.findById(item.getId()).orElseThrow().getCursor());
+            assertTrue(items.findById(item.getId()).orElseThrow().isSyncError());
+            assertTrue(financialState(item).stream().allMatch(List::isEmpty));
+            PlaidService retry = service(() -> payload("C_FINAL", "\"added\":[],\"modified\":[],\"removed\":[]"), "C0");
+            new PlaidTransactionSyncService(items, retry, leases).syncItemAsync(item.getItemId());
+            assertEquals("C_FINAL", items.findById(item.getId()).orElseThrow().getCursor());
+            assertFalse(items.findById(item.getId()).orElseThrow().isSyncError());
+        } finally {
+            cleanup(item);
+        }
+    }
+
+    @Test
+    void networkFailureAfterIntermediatePageKeepsOriginalCursorAndFinancialState() throws Exception {
+        PlaidItem item = createItem();
+        try {
+            AtomicInteger responses = new AtomicInteger();
+            PlaidService fetcher = service(() -> {
+                if (responses.incrementAndGet() == 1) {
+                    return page("C1", true, """
+                            "added":[{"transaction_id":"ghost","amount":999,"date":"2026-10-01"}],
+                            "modified":[],"removed":[]
+                            """);
+                }
+                throw new org.springframework.web.client.RestClientException("timeout");
+            }, List.of("C0", "C1"));
+            new PlaidTransactionSyncService(items, fetcher, leases).syncItemAsync(item.getItemId());
+            assertEquals(2, responses.get());
+            PlaidItem current = items.findById(item.getId()).orElseThrow();
+            assertEquals("C0", current.getCursor());
+            assertNull(current.getLastSyncedAt());
+            assertTrue(current.isSyncError());
+            assertTrue(financialState(item).stream().allMatch(List::isEmpty));
+            assertNull(current.getSyncLockToken());
+        } finally {
+            cleanup(item);
+        }
+    }
+
+    @Test
+    void validPaginationBeyondFiftyPagesCommitsOnlyAtCompletion() throws Exception {
+        PlaidItem item = createItem();
+        try {
+            AtomicInteger responses = new AtomicInteger();
+            List<String> inputs = java.util.stream.IntStream.range(0, 51)
+                    .mapToObj(i -> i == 0 ? "C0" : "PAGE" + i).toList();
+            PlaidService fetcher = service(() -> {
+                assertEquals("C0", items.findById(item.getId()).orElseThrow().getCursor());
+                int page = responses.incrementAndGet();
+                return page("PAGE" + page, page < 51, "\"added\":[],\"modified\":[],\"removed\":[]");
+            }, inputs);
+            new PlaidTransactionSyncService(items, fetcher, leases).syncItemAsync(item.getItemId());
+            assertEquals(51, responses.get());
+            PlaidItem current = items.findById(item.getId()).orElseThrow();
+            assertEquals("PAGE51", current.getCursor());
+            assertFalse(current.isSyncError());
+            assertNull(current.getSyncLockToken());
+        } finally {
+            cleanup(item);
+        }
+    }
+
+    private RestClientResponseException paginationMutation() {
+        return new RestClientResponseException("400 Bad Request", 400, "Bad Request", HttpHeaders.EMPTY,
+                "{\"error_type\":\"TRANSACTIONS_ERROR\",\"error_code\":\"TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION\"}"
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private JsonNode page(String cursor, boolean hasMore, String changes) throws Exception {
+        return objectMapper.readTree("{" + changes + ",\"next_cursor\":\"" + cursor + "\",\"has_more\":" + hasMore + "}");
     }
 
     private PlaidItem createItem() {
@@ -185,6 +401,11 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
     }
 
     private PlaidService service(Callable<JsonNode> response, String expectedCursor) {
+        return service(response, List.of(expectedCursor));
+    }
+
+    private PlaidService service(Callable<JsonNode> response, List<String> expectedCursors) {
+        AtomicInteger requests = new AtomicInteger();
         RestClient client = mock(RestClient.class);
         RestClient.RequestBodyUriSpec post = mock(RestClient.RequestBodyUriSpec.class);
         RestClient.RequestBodySpec body = mock(RestClient.RequestBodySpec.class);
@@ -193,7 +414,7 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
         when(post.uri(anyString())).thenReturn(body);
         when(body.contentType(any(MediaType.class))).thenReturn(body);
         when(body.body(any(Object.class))).thenAnswer(inv -> {
-            assertEquals(expectedCursor, ((Map<?, ?>) inv.getArgument(0)).get("cursor"));
+            assertEquals(expectedCursors.get(requests.getAndIncrement()), ((Map<?, ?>) inv.getArgument(0)).get("cursor"));
             return body;
         });
         when(body.retrieve()).thenReturn(result);
