@@ -490,14 +490,13 @@ public class PlaidService {
             // exception; log the full body and surface the actual error code and
             // message instead of a generic "unavailable" 502 that hides the cause.
             String errorBody = ex.getResponseBodyAsString();
-            logger.error("Plaid request '{}' failed with HTTP {}: {}",
-                    path, ex.getStatusCode().value(),
-                    StringUtils.hasText(errorBody) ? errorBody : ex.getMessage());
+            logger.error("Plaid request '{}' failed with HTTP {}",
+                    path, ex.getStatusCode().value());
             throw plaidError(HttpStatus.BAD_GATEWAY, errorBody);
         } catch (RestClientException ex) {
             // Network-level failure (connect timeout, DNS, connection refused) —
             // not a Plaid error response.
-            logger.error("Plaid request '{}' failed: {}", path, ex.getMessage(), ex);
+            logger.error("Plaid request '{}' failed ({})", path, ex.getClass().getSimpleName());
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY, "Plaid is temporarily unavailable, please try again.");
         }

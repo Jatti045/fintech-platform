@@ -269,8 +269,16 @@ export default function BankConnections({
                       Connected {formatDate(item.createdAt)}
                       {item.lastSyncedAt
                         ? ` · Last synced ${formatRelativeTime(item.lastSyncedAt)}`
-                        : ""}
+                      : ""}
                     </Text>
+                    {item.syncStatus !== "SUCCEEDED" && item.syncStatus !== "ACTION_REQUIRED" && (
+                      <Text style={{ color: theme.primary, fontSize: 11, marginTop: 2 }}>
+                        {item.syncStatus === "QUEUED" ? "Sync queued"
+                          : item.syncStatus === "SYNCING" ? "Syncing transactions"
+                          : item.syncStatus === "RETRYING" ? "Sync failed; retry scheduled"
+                          : item.syncStatus === "FAILED" ? "Sync failed; tap to retry" : ""}
+                      </Text>
+                    )}
                   </View>
 
                   <TouchableOpacity

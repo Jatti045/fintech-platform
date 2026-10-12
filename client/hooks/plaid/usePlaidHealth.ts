@@ -3,7 +3,7 @@
 // refreshes the item list, runs the update-mode (re-auth) Plaid Link flow, and
 // triggers manual transaction syncs.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   useAppDispatch,
   useAppSelector,
@@ -24,7 +24,10 @@ export function usePlaidHealth() {
 
   const plaidState = useAppSelector((state) => state.plaid);
   const items = plaidState.items;
-  const syncingItemIds = plaidState.syncingItemIds;
+  const syncingItemIds = Array.from(new Set([
+    ...plaidState.syncingItemIds,
+    ...items.filter((item) => item.syncStatus === "QUEUED" || item.syncStatus === "SYNCING").map((item) => item.id),
+  ]));
 
   /** Re-auth is in flight (update-mode Plaid Link open) for this item id. */
   const [reauthingItemId, setReauthingItemId] = useState<string | null>(null);
@@ -33,7 +36,11 @@ export function usePlaidHealth() {
   const reauthItems = items.filter((it) => it.status === "REQUIRES_REAUTH");
 
   /** Items whose last sync failed — drives the retry warning. */
-  const retryableItems = items.filter((it) => it.syncError);
+  const retryableItems = items.filter((it) =>
+    it.status !== "REQUIRES_REAUTH"
+    && it.syncStatus !== "ACTION_REQUIRED"
+    && (it.syncError || it.syncStatus === "FAILED" || it.syncStatus === "RETRYING"),
+  );
 
   /** Newest successful sync across all connections (for "Last synced"). */
   const lastSyncedAt = items.reduce<string | null>((latest, item) => {
@@ -52,6 +59,13 @@ export function usePlaidHealth() {
       // Handled by the slice; the UI stays usable and polling will retry.
     }
   }, [dispatch]);
+
+  const hasPendingSync = items.some((item) => item.syncStatus === "QUEUED" || item.syncStatus === "SYNCING");
+  useEffect(() => {
+    if (!hasPendingSync) return;
+    const timer = setInterval(() => { void dispatch(fetchPlaidItems()); }, 5000);
+    return () => clearInterval(timer);
+  }, [dispatch, hasPendingSync]);
 
   /**
    * Runs the update-mode Plaid Link flow for an item that needs re-auth.
@@ -136,7 +150,8 @@ export function usePlaidHealth() {
   const retrySync = useCallback(
     async (item: IPlaidItem) => {
       try {
-        await dispatch(triggerManualSync(item.id));
+        await dispatch(triggerManualSync(item.id)).unwrap();
+        await refreshItems();
       } catch (e) {
         showAlert({
           title: "Sync Failed",
@@ -144,7 +159,7 @@ export function usePlaidHealth() {
         });
       }
     },
-    [dispatch, showAlert],
+    [dispatch, refreshItems, showAlert],
   );
 
   return {

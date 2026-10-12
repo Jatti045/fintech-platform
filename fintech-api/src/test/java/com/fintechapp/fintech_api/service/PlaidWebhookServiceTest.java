@@ -35,7 +35,7 @@ import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 class PlaidWebhookServiceTest {
 
     @Mock
-    private PlaidTransactionSyncService syncService;
+    private PlaidSyncJobService syncJobs;
 
     @Mock
     private PlaidItemRepository plaidItemRepository;
@@ -47,7 +47,7 @@ class PlaidWebhookServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PlaidWebhookService(syncService, plaidItemRepository, failedWebhookRepository);
+        service = new PlaidWebhookService(syncJobs, plaidItemRepository, failedWebhookRepository);
     }
 
     private Map<String, Object> payload(String type, String code, String itemId) {
@@ -76,13 +76,13 @@ class PlaidWebhookServiceTest {
     @Test
     void handleWebhook_nullPayload_isNoOp() {
         service.handleWebhook(null);
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     @Test
     void handleWebhook_emptyPayload_isNoOp() {
         service.handleWebhook(Map.of());
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     @Test
@@ -102,13 +102,13 @@ class PlaidWebhookServiceTest {
     @Test
     void handleWebhook_nonTransactionType_isIgnored() {
         service.handleWebhook(payload("ITEM", "WEBHOOK_UPDATE_ACKNOWLEDGED", "item-1"));
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     @Test
     void handleWebhook_lowercaseType_isIgnored() {
         service.handleWebhook(payload("transactions", "SYNC_UPDATES_AVAILABLE", "item-1"));
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     // ── Sync trigger code dispatches async sync ───────────────────────────────
@@ -116,7 +116,7 @@ class PlaidWebhookServiceTest {
     @Test
     void handleWebhook_syncUpdatesAvailable_dispatchesAsyncSync() {
         service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-42"));
-        verify(syncService).syncItemAsync("item-42");
+        verify(syncJobs).requestSync("item-42", false);
     }
 
     // ── Legacy /transactions/get webhooks (except DEFAULT_UPDATE) are ignored ──
@@ -125,13 +125,13 @@ class PlaidWebhookServiceTest {
     @ValueSource(strings = {"INITIAL_UPDATE", "HISTORICAL_UPDATE", "TRANSACTIONS_REMOVED"})
     void handleWebhook_legacyGetWebhookCodes_areIgnored(String code) {
         service.handleWebhook(payload("TRANSACTIONS", code, "item-42"));
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     @Test
     void handleWebhook_defaultUpdate_dispatchesAsyncSync() {
         service.handleWebhook(payload("TRANSACTIONS", "DEFAULT_UPDATE", "item-42"));
-        verify(syncService).syncItemAsync("item-42");
+        verify(syncJobs).requestSync("item-42", false);
     }
 
     // ── Non-sync codes are acknowledged but not dispatched ───────────────────
@@ -139,13 +139,13 @@ class PlaidWebhookServiceTest {
     @Test
     void handleWebhook_unknownSyncCode_isIgnored() {
         service.handleWebhook(payload("TRANSACTIONS", "SOME_FUTURE_CODE", "item-1"));
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     @Test
     void handleWebhook_unknownWebhookType_isIgnored() {
         service.handleWebhook(payload("UNKNOWN_TYPE", "SYNC_UPDATES_AVAILABLE", "item-1"));
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     // ── Repeated SYNC_UPDATES_AVAILABLE webhooks are each dispatched ─────────
@@ -156,21 +156,21 @@ class PlaidWebhookServiceTest {
         service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-1"));
         service.handleWebhook(payload("TRANSACTIONS", "HISTORICAL_UPDATE", "item-1"));
         service.handleWebhook(payload("TRANSACTIONS", "TRANSACTIONS_REMOVED", "item-1"));
-        verify(syncService, times(1)).syncItemAsync("item-1");
+        verify(syncJobs, times(1)).requestSync("item-1", false);
     }
 
     @Test
     void handleWebhook_twoSyncWebhooks_dispatchTwice() {
         service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-1"));
         service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", "item-1"));
-        verify(syncService, times(2)).syncItemAsync("item-1");
+        verify(syncJobs, times(2)).requestSync("item-1", false);
     }
 
     @Test
     void handleWebhook_syncTriggerMissingItemId_doesNotDispatch() {
         assertThrows(ResponseStatusException.class,
                 () -> service.handleWebhook(payload("TRANSACTIONS", "SYNC_UPDATES_AVAILABLE", null)));
-        verify(syncService, never()).syncItemAsync(org.mockito.ArgumentMatchers.anyString());
+        verify(syncJobs, never()).requestSync(org.mockito.ArgumentMatchers.anyString(), any(Boolean.class));
     }
 
     // ── ITEM lifecycle webhooks ─────────────────────────────────────────────
@@ -184,7 +184,7 @@ class PlaidWebhookServiceTest {
         service.handleWebhook(payload("ITEM", "USER_PERMISSION_REVOKED", "item-1"));
 
         verify(plaidItemRepository).delete(item);
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     @Test
@@ -194,13 +194,13 @@ class PlaidWebhookServiceTest {
         service.handleWebhook(payload("ITEM", "USER_PERMISSION_REVOKED", "item-1"));
 
         verify(plaidItemRepository, never()).delete(any());
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     @Test
     void handleWebhook_itemError_doesNotTriggerSync() {
         service.handleWebhook(payload("ITEM", "ERROR", "item-1"));
-        verifyNoInteractions(syncService);
+        verifyNoInteractions(syncJobs);
     }
 
     // ── ITEM_LOGIN_REQUIRED / LOGIN_REPAIRED item health ─────────────────────
@@ -214,7 +214,7 @@ class PlaidWebhookServiceTest {
 
         verify(plaidItemRepository).markRequiresReauth(eq("item-1"), eq(PlaidItemStatus.REQUIRES_REAUTH), any());
         verify(plaidItemRepository, never()).save(any());
-        verifyNoInteractions(syncService);
+        verify(syncJobs).markActionRequired("item-1");
     }
 
     @Test
@@ -237,7 +237,7 @@ class PlaidWebhookServiceTest {
         verify(plaidItemRepository).clearRequiresReauth(eq("item-1"), eq(PlaidItemStatus.ACTIVE),
                 eq(PlaidItemStatus.REQUIRES_REAUTH), any());
         verify(plaidItemRepository, never()).save(any());
-        verifyNoInteractions(syncService);
+        verify(syncJobs).requestSync("item-1", false);
     }
 
     // ── Dead-lettering ────────────────────────────────────────────────────────

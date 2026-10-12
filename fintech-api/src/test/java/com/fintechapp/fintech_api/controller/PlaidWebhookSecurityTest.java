@@ -29,7 +29,7 @@ import com.fintechapp.fintech_api.security.JsonAuthenticationEntryPoint;
 import com.fintechapp.fintech_api.security.JwtAuthenticationFilter;
 import com.fintechapp.fintech_api.security.JwtService;
 import com.fintechapp.fintech_api.service.PlaidService;
-import com.fintechapp.fintech_api.service.PlaidTransactionSyncService;
+import com.fintechapp.fintech_api.service.PlaidSyncJobService;
 import com.fintechapp.fintech_api.service.PlaidWebhookService;
 import com.fintechapp.fintech_api.service.PlaidWebhookVerificationService;
 
@@ -63,7 +63,7 @@ class PlaidWebhookSecurityTest {
     private PlaidService plaidService;
 
     @MockitoBean
-    private PlaidTransactionSyncService syncService;
+    private PlaidSyncJobService syncJobs;
 
     @MockitoBean
     private PlaidWebhookService webhookService;

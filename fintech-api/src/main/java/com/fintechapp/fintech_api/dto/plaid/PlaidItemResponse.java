@@ -15,5 +15,14 @@ public record PlaidItemResponse(
         String status,
         boolean syncError,
         Instant lastSyncedAt,
-        Instant reauthRequestedAt) {
+        Instant reauthRequestedAt,
+        String syncStatus,
+        Integer syncAttempts,
+        Instant nextSyncAttemptAt) {
+
+    public PlaidItemResponse(String id, String itemId, String institutionName, Instant createdAt, String status,
+            boolean syncError, Instant lastSyncedAt, Instant reauthRequestedAt) {
+        this(id, itemId, institutionName, createdAt, status, syncError, lastSyncedAt, reauthRequestedAt,
+                lastSyncedAt == null ? "QUEUED" : "SUCCEEDED", 0, null);
+    }
 }

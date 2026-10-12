@@ -2,6 +2,7 @@
 
 /** Health status of a linked bank connection. */
 export type PlaidItemStatus = "ACTIVE" | "REQUIRES_REAUTH";
+export type PlaidSyncStatus = "QUEUED" | "SYNCING" | "SUCCEEDED" | "RETRYING" | "ACTION_REQUIRED" | "FAILED";
 
 /** Shape returned by our backend `/plaid/link-token` endpoint. */
 export interface ILinkTokenResponse {
@@ -22,6 +23,10 @@ export interface IPlaidItem {
   lastSyncedAt: string | null;
   /** ISO timestamp ITEM_LOGIN_REQUIRED was received, or null. */
   reauthRequestedAt: string | null;
+  /** Durable backend sync-job state, independent from bank connection health. */
+  syncStatus: PlaidSyncStatus;
+  syncAttempts: number | null;
+  nextSyncAttemptAt: string | null;
 }
 
 /** Result of exchanging the Public Token returned by the Plaid Link SDK. */
@@ -58,5 +63,6 @@ export interface IReauthCompleteResponse {
 /** Result of `POST /plaid/sync/{itemId}`. */
 export interface IManualSyncResponse {
   itemId: string;
+  status: PlaidSyncStatus;
+  nextAttemptAt: string | null;
 }
-
