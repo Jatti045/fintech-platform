@@ -332,6 +332,23 @@ export const api = createApi({
       ],
     }),
 
+    getFinancialReport: build.query<import("@/types/financialSummary/types").IFinancialReport, MonthArgs>({
+      queryFn: async (args) => {
+        try {
+          const response = await financialSummaryAPI.fetchReport(args);
+          if (!response.success || !response.data || response.data.month !== args.currentMonth || response.data.year !== args.currentYear) {
+            throw new Error("Financial report unavailable");
+          }
+          return { data: response.data };
+        } catch (e) { return { error: toError(e) }; }
+      },
+      providesTags: (_r, _e, arg) => [
+        { type: "Summary", id: monthTagId(argsMonth(arg)) },
+        { type: "Budgets", id: monthTagId(argsMonth(arg)) },
+        { type: "Summary", id: "reports" },
+      ],
+    }),
+
     getFinancialSummary: build.query<IFinancialSummary, MonthArgs>({
       queryFn: async (args) => {
         try {
@@ -408,6 +425,7 @@ export const api = createApi({
         return [
           ...monthTags("Budgets", [...fromArgs, monthOfDate(tx.date)]),
           ...monthTags("Summary", [...fromArgs, monthOfDate(tx.date)]),
+          { type: "Summary", id: "reports" },
           { type: "Recurring", id: "all" },
         ];
       },
@@ -531,6 +549,7 @@ export const {
   useGetTransactionsQuery,
   useGetBudgetsQuery,
   useGetFinancialSummaryQuery,
+  useGetFinancialReportQuery,
   useGetMonthlyInsightMutation,
   useGetAiPrivacyQuery,
   useUpdateAiPrivacyMutation,

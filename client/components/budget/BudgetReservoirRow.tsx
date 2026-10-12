@@ -46,7 +46,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
   const limit = safeAmount(displayLimit ?? budget.limit);
   const spent = safeAmount(displaySpent ?? budget.spent);
   const ratio = limit > 0 ? spent / limit : 0;
-  const percent = Math.min(999, Math.round(ratio * 100));
+  const percent = Math.round(ratio * 100);
 
   // Semantic color: green (<= 80%), gold (81-100%), red (> 100%)
   const statusColor =
@@ -73,7 +73,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
           }}
           accessibilityRole="button"
           accessibilityState={{ expanded }}
-          accessibilityLabel={`${capitalizeFirst(budget.category)} budget, ${percent}% used`}
+          accessibilityLabel={`${capitalizeFirst(budget.category)} budget, ${limit > 0 ? `${percent}% used` : "no limit configured"}`}
           style={{
             paddingHorizontal: 16,
             paddingVertical: 14,
@@ -139,7 +139,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
                     marginRight: 4,
                   }}
                 >
-                  {percent}%
+                  {limit > 0 ? `${percent}%` : "No limit"}
                 </Text>
                 <Feather
                   name="chevron-right"
@@ -164,7 +164,7 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
               <View
                 style={{
                   height: "100%",
-                  width: `${Math.min(100, percent)}%`,
+                  width: `${Math.max(0, Math.min(100, percent))}%`,
                   backgroundColor: statusColor,
                   borderRadius: 2.5,
                 }}

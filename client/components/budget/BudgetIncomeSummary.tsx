@@ -29,7 +29,7 @@ export default function BudgetIncomeSummary({
 }: BudgetIncomeSummaryProps) {
   const { THEME } = useTheme();
   const displayIncome = Math.max(0, income);
-  const remaining = Math.max(0, displayIncome - totalSpent);
+  const remaining = displayIncome - totalSpent;
   const ratio = displayIncome > 0 ? Math.min(1, totalSpent / displayIncome) : 0;
   const percent = Math.round(ratio * 100);
 
@@ -121,7 +121,7 @@ export default function BudgetIncomeSummary({
         <View
           style={{
             height: "100%",
-            width: `${percent}%`,
+            width: `${Math.max(0, Math.min(100, percent))}%`,
             backgroundColor: THEME.success,
             borderRadius: 3.5,
           }}

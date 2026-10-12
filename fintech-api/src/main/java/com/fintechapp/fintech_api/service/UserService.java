@@ -73,6 +73,7 @@ public class UserService {
         return new UserDataResponse(true, "Current user fetched successfully.", toUserSummary(user));
     }
 
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public UserDataResponse getMonthlyIncomeForMonth(
             AuthenticatedUser authenticatedUser,
             String monthRaw,

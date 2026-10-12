@@ -61,10 +61,11 @@ public class IncomeCalculationService {
     @Transactional(readOnly = true)
     public double resolveEffectiveForMonth(User user, int year, int month) {
         double actual = resolveActualForMonth(user, year, month);
-        if (actual > 0) {
-            return actual;
-        }
-        return resolveExpectedForMonth(user, year, month);
+        return effectiveIncome(actual, actual > 0 ? 0 : resolveExpectedForMonth(user, year, month));
+    }
+
+    public static double effectiveIncome(double actual, double expected) {
+        return actual > 0 ? actual : expected;
     }
 
     /** Effective income for the current month. */

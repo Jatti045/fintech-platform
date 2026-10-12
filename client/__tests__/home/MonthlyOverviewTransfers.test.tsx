@@ -1,6 +1,7 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
+import { buildDailySpendTotals } from "@/utils/transaction/helpers";
 import type { ITransaction } from "@/types/transaction/types";
 
 jest.mock("@/hooks/useRedux", () => ({
@@ -10,7 +11,7 @@ jest.mock("@/hooks/useRedux", () => ({
 function bars(transactions: ITransaction[]) {
   let tree!: renderer.ReactTestRenderer;
   act(() => { tree = renderer.create(<MonthlyOverview monthlyIncome={1000} totalSpent={30}
-    monthLabel="March" currencyCode="USD" isCurrentMonth={false} month={2} year={2025} transactions={transactions} />); });
+    monthLabel="March" currencyCode="USD" isCurrentMonth={false} month={2} year={2025} daily={buildDailySpendTotals(transactions, 2, 2025).map(p => ({ day: p.day, netSpent: p.total }))} />); });
   const heights = tree.root.findAllByType("View" as any)
     .map((node) => node.props.style)
     .filter((style) => style?.width === 5 && (style.backgroundColor === "bar" || style.backgroundColor === "success"))
@@ -47,7 +48,7 @@ test("the current-day bar stays highlighted when an early month is left-padded",
   try {
     act(() => { tree = renderer.create(<MonthlyOverview monthlyIncome={1000} totalSpent={30}
       monthLabel="March" currencyCode="USD" isCurrentMonth month={2} year={2025}
-      transactions={[{ date: "2025-03-01T00:00:00Z", amount: 30, type: "EXPENSE" } as ITransaction]} />); });
+      daily={[{ day: 1, netSpent: 30 }]} />); });
     const styles = tree.root.findAllByType("View" as any).map(node => node.props.style)
       .filter(style => style?.width === 5 && ["bar", "success"].includes(style.backgroundColor));
     expect(styles).toHaveLength(8);

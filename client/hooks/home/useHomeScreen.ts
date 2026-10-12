@@ -8,10 +8,11 @@ import { nextMonth, prevMonth } from "@/store/slices/calendarSlice";
 import {
   defaultTransactionArgs,
   useGetBudgetsQuery,
-  useGetFinancialSummaryQuery,
+
   useGetRecurringPaymentsQuery,
   useGetTransactionsQuery,
 } from "@/store/api/apiSlice";
+import { useFinancialReport } from "@/hooks/reporting/useFinancialReport";
 import { useRefresh } from "@/hooks/useRefresh";
 import { useTransactionDisplayAmounts } from "@/hooks/transaction/useTransactionDisplayAmounts";
 import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
@@ -66,14 +67,11 @@ export const useHomeScreen = () => {
     currentMonth: calendar.month,
     currentYear: calendar.year,
   });
-  const financialSummaryQuery = useGetFinancialSummaryQuery({
-    currentMonth: calendar.month,
-    currentYear: calendar.year,
-  });
+  const financialSummaryQuery = useFinancialReport(calendar.month, calendar.year);
 
   const transactions = transactionsQuery.data?.transaction ?? NO_TRANSACTIONS;
   const budgets = budgetsQuery.data ?? NO_BUDGETS;
-  const financialSummary = financialSummaryQuery.data ?? null;
+  const financialSummary = financialSummaryQuery.report?.summary ?? null;
 
   // ── Upcoming Bills ─────────────────────────────────────────────────────
   // Predictions are day-scoped (`today` busts the cache at midnight) and
@@ -177,6 +175,7 @@ export const useHomeScreen = () => {
   }, []);
 
   return {
+    reporting: financialSummaryQuery,
     transactions,
     displayTransactions,
     displayBudgets,

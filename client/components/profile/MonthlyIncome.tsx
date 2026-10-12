@@ -14,7 +14,10 @@ export interface MonthlyIncomeProps {
   saving: boolean;
   onSave: () => void;
   /** Actual inflow (sum of INCOME transactions) for the selected month. */
-  actualIncome?: number;
+  actualIncome?: number | null;
+  loading?: boolean;
+  error?: boolean;
+  currencyCode?: string;
 }
 
 /**
@@ -30,19 +33,21 @@ export default function MonthlyIncome({
   setInput,
   saving,
   onSave,
-  actualIncome = 0,
+  actualIncome = null,
+  loading = false,
+  error = false,
+  currencyCode = "USD",
 }: MonthlyIncomeProps) {
   const { selectedTheme, THEME: reduxTheme } = useTheme();
   const theme = propTheme || reduxTheme;
   const saveBtnTextColor = selectedTheme === "Light" ? "#FFFFFF" : "#0B0B0D";
 
   const expected = Number(input) || 0;
-  const actual = Number(actualIncome) || 0;
+  const actual = actualIncome;
 
-  const earnedText =
-    expected > 0
-      ? `${formatCurrency(actual, "USD")} of ${formatCurrency(expected, "USD")}`
-      : `${formatCurrency(actual, "USD")} (no target set)`;
+  const earnedText = actual == null
+    ? loading ? "Loading recorded income…" : "Recorded income unavailable. Pull to refresh."
+    : `${error ? "Cached income; refresh failed. " : ""}${formatCurrency(actual, currencyCode)}${expected > 0 ? ` of ${formatCurrency(expected, currencyCode)} expected` : " (no positive target)"}`;
 
   return (
     <View
@@ -153,7 +158,7 @@ export default function MonthlyIncome({
       {/* Save Button */}
       <TouchableOpacity
         onPress={onSave}
-        disabled={saving}
+        disabled={saving || loading}
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityLabel="Save monthly income"

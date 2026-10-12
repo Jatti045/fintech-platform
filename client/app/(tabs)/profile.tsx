@@ -38,6 +38,8 @@ export default function ProfileScreen() {
     handleSaveMonthlyIncome,
     monthlyIncomeSaving,
     actualMonthlyIncome,
+    monthlyIncomeLoading,
+    monthlyIncomeError,
     changeOpen,
     closeChangeModal,
     handleChangePassword,
@@ -191,6 +193,9 @@ export default function ProfileScreen() {
           saving={monthlyIncomeSaving}
           onSave={handleSaveMonthlyIncome}
           actualIncome={actualMonthlyIncome}
+          loading={monthlyIncomeLoading}
+          error={monthlyIncomeError}
+          currencyCode={user?.currency || "USD"}
         />
 
         {/* ── Security & Account Section ───────────────────────────────── */}

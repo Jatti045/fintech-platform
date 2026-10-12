@@ -19,6 +19,7 @@ export interface BudgetHaloProps {
   monthLabel: string;
   year?: number;
   currencyCode: string;
+  monthlySpent?: number;
 }
 
 /**
@@ -33,6 +34,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
   monthLabel,
   year,
   currencyCode,
+  monthlySpent,
 }: BudgetHaloProps) {
   const { THEME } = useTheme();
   const displayYear = year ?? new Date().getUTCFullYear();
@@ -69,18 +71,19 @@ const BudgetHalo = React.memo(function BudgetHalo({
       }
     }
 
+    totalSpent = monthlySpent ?? totalSpent;
     return {
       totalLimit,
       totalSpent,
-      remaining: Math.max(0, totalLimit - totalSpent),
-      utilization: totalLimit > 0 ? Math.min(1, totalSpent / totalLimit) : 0,
+      remaining: totalLimit - totalSpent,
+      utilization: totalLimit > 0 ? Math.max(0, Math.min(1, totalSpent / totalLimit)) : 0,
       onTrack,
       nearLimit,
       overLimit,
       categoriesWithLimits,
       budgetCount: budgets.length,
     };
-  }, [budgets]);
+  }, [budgets, monthlySpent]);
 
   const segments: RingSegmentSpec[] = useMemo(() => {
     if (stats.totalSpent <= 0) return [];
