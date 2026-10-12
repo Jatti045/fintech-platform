@@ -29,8 +29,14 @@ public record TransactionsResponse(
                         String originalCurrency,
                         String description,
                         BudgetInfo budget,
-                        String budgetId) {
+                        String budgetId, Classification classification) {
+            public TransactionItem(String id, String name, Instant date, String category, TransactionType type, boolean isTransfer,
+                    double amount, String baseCurrency, Double originalAmount, String originalCurrency, String description, BudgetInfo budget, String budgetId) {
+                this(id,name,date,category,type,isTransfer,amount,baseCurrency,originalAmount,originalCurrency,description,budget,budgetId,null);
+            }
         }
+        public record Classification(String providerName, String providerCategory, String nameSource, String categorySource,
+                String budgetSource, String ruleId, Long ruleVersion, String ruleTitle, boolean legacyPreserved, boolean rulesDisabled, String accountId) {}
 
         public record BudgetInfo(
                         String id,

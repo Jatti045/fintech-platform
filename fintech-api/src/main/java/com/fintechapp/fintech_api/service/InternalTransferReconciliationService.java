@@ -30,6 +30,8 @@ import com.fintechapp.fintech_api.repository.UserRepository;
  */
 @Service
 public class InternalTransferReconciliationService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private TransactionClassificationService classification;
     private final TransactionRepository transactions;
     private final BudgetRepository budgets;
     private final UserRepository users;
@@ -93,6 +95,8 @@ public class InternalTransferReconciliationService {
                         && posted.getPlaidItemId().equals(pending.getPlaidItemId())
                         && StringUtils.hasText(posted.getPlaidAccountId())
                         && posted.getPlaidAccountId().equals(pending.getPlaidAccountId())) {
+                    TransactionClassificationService.inherit(pending, posted);
+                    if (classification != null) classification.classify(posted, false);
                     retiredPendingIds.add(pending.getPlaidTransactionId());
                 }
             }

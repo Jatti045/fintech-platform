@@ -20,6 +20,7 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AlertProvider } from "@/utils/themedAlert";
+import rulesApi from "@/api/categorizationRules";
 import transactionApi from "@/api/transaction";
 import budgetApi from "@/api/budget";
 import financialSummaryApi from "@/api/financialSummary";
@@ -35,6 +36,8 @@ import type { TransactionItem } from "@/types/transaction/types";
 const textMock = Text as unknown as jest.Mock;
 const textInputMock = TextInput as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
+
+jest.mock("@/api/categorizationRules", () => ({ __esModule: true, default: { reset: jest.fn(), list: jest.fn(), accounts: jest.fn(), history: jest.fn() } }));
 
 jest.mock("@/api/transaction", () => ({
   __esModule: true,
@@ -580,4 +583,17 @@ describe("TxModal - Budget Reassignment & Regression Tests", () => {
     },
   );
 
+});
+
+
+test("classification explanation and provider reset use the durable server decision", async () => {
+  const store=makeStore(); store.dispatch(setMonthYear({month:1,year:2026})); const close=jest.fn();
+  (rulesApi.reset as jest.Mock).mockResolvedValue({data:{category:"Food"}});
+  let tree!:renderer.ReactTestRenderer;
+  await renderer.act(async () => { tree=renderer.create(<Provider store={store}><AlertProvider><TransactionModal openSheet setOpenSheet={close} editingTransaction={{id:"classified",name:"My coffee",amount:10,date:"2026-02-10T12:00:00Z",category:"Coffee",type:"EXPENSE",budgetId:"b-groceries",classification:{categorySource:"RULE",ruleTitle:"Coffee rule",providerName:"Starbucks"}}} /></AlertProvider></Provider>); });
+  expect(renderedText("Matching rule")).toBe(true); expect(renderedText("Coffee rule")).toBe(true);
+  const reset=lastProps(touchableOpacityMock,p=>p.accessibilityLabel === "Reset classification to bank data");
+  await renderer.act(async () => { await reset!.onPress(); await flush(); });
+  expect(rulesApi.reset).toHaveBeenCalledWith("classified"); expect(close).toHaveBeenCalledWith(false);
+  await renderer.act(async () => tree.unmount()); store.dispatch(api.util.resetApiState());
 });

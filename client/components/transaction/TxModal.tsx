@@ -1,4 +1,6 @@
-import { useBudgets, useTheme, useFinancialSummary } from "@/hooks/useRedux";
+import RulesManager from "@/components/rules/RulesManager";
+import { api } from "@/store/api/apiSlice";
+import { useAppDispatch, useBudgets, useTheme, useFinancialSummary } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -40,6 +42,9 @@ function TransactionModal({
   editingTransaction?: any;
   onClose?: () => void;
 }) {
+  const dispatch = useAppDispatch();
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [resettingClassification, setResettingClassification] = useState(false);
   const budgets = useBudgets();
   const financialSummary = useFinancialSummary();
   const { THEME } = useTheme();
@@ -663,6 +668,24 @@ function TransactionModal({
                   </Text>
                 </View>
 
+                {editingTransaction && <View style={{ paddingVertical: 12 }}>
+                  <Text style={{ color: THEME.textSecondary }}>Classification: {({ USER: "Your choice", RULE: "Matching rule", PROVIDER: "Bank category", LEGACY_UNKNOWN: "Preserved historical category", FALLBACK: "Uncategorized" } as Record<string, string>)[editingTransaction.classification?.categorySource] || "Existing classification"}{editingTransaction.classification?.ruleTitle ? ` · ${editingTransaction.classification.ruleTitle}` : ""}</Text>
+                  <Text style={{ color: THEME.textSecondary }}>Update Transaction applies only to this transaction. Create a rule separately to automate future matches.</Text>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Create rule for future matching transactions" onPress={() => setRulesOpen(true)} style={{ paddingVertical: 12 }}>
+                    <Text style={{ color: THEME.primary }}>Create rule for future matching transactions</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Reset classification to bank data" disabled={resettingClassification} style={{ paddingVertical: 12 }} onPress={async () => {
+                    setResettingClassification(true);
+                    try {
+                      await dispatch(api.endpoints.resetTransactionClassification.initiate(editingTransaction.id)).unwrap();
+                      setOpenSheet(false);
+                    } catch (error) { showAlert({ title: "Could not reset classification", message: error instanceof Error ? error.message : "Please try again." }); }
+                    finally { setResettingClassification(false); }
+                  }}>
+                    <Text style={{ color: THEME.primary }}>{resettingClassification ? "Resetting…" : "Reset classification to bank data"}</Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: THEME.textSecondary }}>Reset removes name, category and budget overrides and bypasses rules for this transaction. If bank metadata is unavailable, the category becomes Uncategorized.</Text>
+                </View>}
                 <View className="mb-12">
                   <TouchableOpacity
                     onPress={async () => {
@@ -835,6 +858,11 @@ function TransactionModal({
               </View>
             </Modal>
           )}
+          {rulesOpen && <RulesManager visible onClose={() => setRulesOpen(false)} seed={{
+            title: `Classify ${txName}`.slice(0, 80), matchText: editingTransaction?.classification?.providerName || editingTransaction?.name || txName,
+            category: txSelectedCategoryAndId?.name || null, budgetCategory: budgets.find(b => b.id === txSelectedCategoryAndId?.id)?.category || null,
+            direction: type,
+          }} />}
         </SafeAreaView>
       </View>
     </Modal>

@@ -15,11 +15,14 @@
 
 import { configureStore } from "@reduxjs/toolkit";
 import transactionApi from "@/api/transaction";
+import rulesApi from "@/api/categorizationRules";
 import budgetApi from "@/api/budget";
 import financialSummaryApi from "@/api/financialSummary";
 import api from "@/store/api/apiSlice";
 import insightApi from "@/api/insight";
 import type { GetTransactionsArgs } from "@/store/api/apiSlice";
+
+jest.mock("@/api/categorizationRules", () => ({ __esModule: true, default: { apply: jest.fn(), undo: jest.fn(), reset: jest.fn() } }));
 
 jest.mock("@/api/transaction", () => ({
   __esModule: true,
@@ -745,4 +748,35 @@ it("creating an expense never automatically regenerates an AI explanation", asyn
     subscription.reset();
     store.dispatch(api.util.resetApiState());
   }
+});
+
+
+describe("classification changes", () => {
+  test("replace cached later pages with authoritative page one, without generating AI", async () => {
+    const store=makeStore();
+    mockedTxFetch.mockResolvedValue(txResponse([makeTx("old")],2,40));
+    await store.dispatch(api.endpoints.getTransactions.initiate({currentMonth:4,currentYear:2026,page:2}));
+    mockedTxFetch.mockResolvedValue(txResponse([{...makeTx("new"),category:"Coffee"}],1,1));
+    (rulesApi.apply as jest.Mock).mockResolvedValue({data:{applicationId:"batch",changed:1}});
+    await store.dispatch(api.endpoints.applyCategorizationRule.initiate({id:"rule",token:"token"}));
+    await new Promise(r => setTimeout(r,0));
+    const data=api.endpoints.getTransactions.select({currentMonth:4,currentYear:2026,page:1})(store.getState()).data;
+    expect(data?.transaction.map(t=>t.id)).toEqual(["new"]);
+    expect(mockedTxFetch).toHaveBeenLastCalledWith(expect.objectContaining({page:1}));
+    expect(insightApi.fetchMonthlyInsight).not.toHaveBeenCalled();
+    store.dispatch(api.util.resetApiState());
+  });
+});
+
+
+test("classification refresh cancels an older in-flight page response", async () => {
+  const store=makeStore(); let release!: (v:any)=>void;
+  mockedTxFetch.mockImplementationOnce(()=>new Promise(r=>{release=r;}));
+  const stale=store.dispatch(api.endpoints.getTransactions.initiate({currentMonth:4,currentYear:2026,page:2}));
+  mockedTxFetch.mockResolvedValue(txResponse([{...makeTx("fresh"),category:"Coffee"}],1,1));
+  (rulesApi.reset as jest.Mock).mockResolvedValue({data:{}});
+  await store.dispatch(api.endpoints.resetTransactionClassification.initiate("tx")); await new Promise(r=>setTimeout(r,0));
+  release(txResponse([makeTx("stale")],2,40)); await stale; await new Promise(r=>setTimeout(r,0));
+  expect(api.endpoints.getTransactions.select({currentMonth:4,currentYear:2026,page:1})(store.getState()).data?.transaction.map(t=>t.id)).toEqual(["fresh"]);
+  store.dispatch(api.util.resetApiState());
 });

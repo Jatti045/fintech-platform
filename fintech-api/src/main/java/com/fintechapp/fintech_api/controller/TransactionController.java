@@ -28,6 +28,8 @@ import com.fintechapp.fintech_api.service.TransactionService;
 @RequestMapping({ "/api/transactions", "/api/transaction" })
 public class TransactionController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.fintechapp.fintech_api.service.CategorizationRuleService rules;
     private final TransactionService transactionService;
 
     public TransactionController(TransactionService transactionService) {
@@ -89,4 +91,10 @@ public class TransactionController {
             @Valid @RequestBody UpdateTransactionRequest request) {
         return transactionService.updateTransaction(authenticatedUser, transactionId, request);
     }
+    @PostMapping("/{id}/classification/reset")
+    public CategorizationRuleController.Result<?> reset(@AuthenticationPrincipal AuthenticatedUser auth,
+            @PathVariable String id, @RequestParam(defaultValue="false") boolean automatic) {
+        return new CategorizationRuleController.Result<>(true, rules.reset(auth,id,automatic));
+    }
+
 }

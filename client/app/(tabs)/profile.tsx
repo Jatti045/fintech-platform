@@ -1,5 +1,6 @@
-import React from "react";
-import { View, Text, ScrollView, RefreshControl } from "react-native";
+import RulesManager from "@/components/rules/RulesManager";
+import React, { useState } from "react";
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useProfile } from "@/hooks/profile/useProfile";
 import { DEFAULT_CURRENCY } from "@/constants/Currencies";
@@ -18,6 +19,7 @@ import PostConnectionDialog from "@/components/plaid/PostConnectionDialog";
 import AiPrivacyPreference from "@/components/privacy/AiPrivacyPreference";
 
 export default function ProfileScreen() {
+  const [rulesOpen, setRulesOpen] = useState(false);
   const {
     user,
     THEME,
@@ -203,9 +205,14 @@ export default function ProfileScreen() {
           title="Security & Account"
           subtitle="Manage your login and data"
         />
+        <ProfileSectionHeader title="Transaction rules" subtitle="Automate categories and budget assignments" />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Manage transaction rules" onPress={() => setRulesOpen(true)} style={{ padding: 16 }}>
+          <Text style={{ color: THEME.primary }}>Manage transaction rules</Text>
+        </TouchableOpacity>
         <SettingsList THEME={THEME} items={settingsItems} />
       </ScrollView>
 
+      {rulesOpen && <RulesManager visible onClose={() => setRulesOpen(false)} />}
       {/* ── Modals & Overlays ─────────────────────────────────────────── */}
       <ChangePasswordModal
         THEME={THEME}

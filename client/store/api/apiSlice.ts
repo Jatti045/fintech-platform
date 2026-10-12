@@ -1,4 +1,5 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
+import rulesAPI from "@/api/categorizationRules";
 import transactionAPI from "@/api/transaction";
 import budgetAPI from "@/api/budget";
 import financialSummaryAPI from "@/api/financialSummary";
@@ -139,6 +140,19 @@ function mergeTransactions(
   // never fabricated client-side, so cached months can't claim false
   // `totalPages` / `hasNextPage`.
   if (incoming.pagination) current.pagination = incoming.pagination;
+}
+
+async function refreshClassificationQueries(_arg: unknown, { dispatch, getState, queryFulfilled }: any): Promise<void> {
+  try { await queryFulfilled; } catch { return; }
+  const entries = Object.values(getState().api.queries ?? {}) as any[];
+  for (const entry of entries) {
+    if (entry?.endpointName !== "getTransactions" || !entry.originalArgs) continue;
+    const running = dispatch(api.util.getRunningQueryThunk("getTransactions", entry.originalArgs));
+    if (running) { running.abort(); await running; }
+    dispatch(api.endpoints.getTransactions.initiate(
+      { ...entry.originalArgs, page: 1 }, { forceRefetch: true, subscribe: false },
+    ));
+  }
 }
 
 export const api = createApi({
@@ -387,6 +401,31 @@ export const api = createApi({
           return { error: toError(e) };
         }
       },
+    }),
+
+    applyCategorizationRule: build.mutation<{ applicationId: string; changed: number }, { id: string; token: string }>({
+      queryFn: async ({ id, token }) => {
+        try { return { data: (await rulesAPI.apply(id, token)).data }; }
+        catch (e: any) { return { error: toError(e) }; }
+      },
+      onQueryStarted: refreshClassificationQueries,
+      invalidatesTags: ["Budgets", "Summary", "Recurring", "Suggestions"],
+    }),
+    undoCategorizationRule: build.mutation<{ applicationId: string; changed: number }, string>({
+      queryFn: async (id) => {
+        try { return { data: (await rulesAPI.undo(id)).data }; }
+        catch (e: any) { return { error: toError(e) }; }
+      },
+      onQueryStarted: refreshClassificationQueries,
+      invalidatesTags: ["Budgets", "Summary", "Recurring", "Suggestions"],
+    }),
+    resetTransactionClassification: build.mutation<unknown, string>({
+      queryFn: async (id) => {
+        try { return { data: (await rulesAPI.reset(id)).data }; }
+        catch (e: any) { return { error: toError(e) }; }
+      },
+      onQueryStarted: refreshClassificationQueries,
+      invalidatesTags: ["Budgets", "Summary", "Recurring", "Suggestions"],
     }),
 
     createTransaction: build.mutation<

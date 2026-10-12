@@ -36,6 +36,9 @@ public interface TransactionRepository
                         + "AND (t.plaidTransactionId IS NOT NULL OR t.transfer = true)")
         List<Transaction> findTransferCandidates(@Param("userId") String userId);
 
+        boolean existsByUser_IdAndPlaidItemIdAndPlaidAccountIdAndPlaidPendingTransactionIdAndPlaidPendingFalse(
+                String userId, String itemId, String accountId, String pendingId);
+
         long countByBudget_IdAndUser_Id(String budgetId, String userId);
 
         long deleteByUser_Id(String userId);
