@@ -4,6 +4,7 @@ import budgetAPI from "@/api/budget";
 import financialSummaryAPI from "@/api/financialSummary";
 import recurringAPI from "@/api/recurring";
 import insightAPI from "@/api/insight";
+import aiPrivacyAPI, { type AiPrivacyPreference } from "@/api/aiPrivacy";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import type {
   ITransaction,
@@ -152,6 +153,7 @@ export const api = createApi({
     "Suggestions",
     "Recurring",
     "Insights",
+    "AiPrivacy",
   ],
   /**
    * Cold-start revalidation strategy: hydrated cache entries are seeded via
@@ -344,13 +346,22 @@ export const api = createApi({
       ],
     }),
 
-    /**
-     * "Explain my month" — AI-generated explanation for a month, produced by
-     * the backend from Budgee's deterministic financial services. Fetched
-     * lazily (only when the user taps the action) and cached per month so
-     * repeated taps and month switches reuse the same explanation.
-     */
-    getMonthlyInsight: build.query<IMonthlyInsight, MonthArgs>({
+    getAiPrivacy: build.query<AiPrivacyPreference, void>({
+      queryFn: async () => {
+        try { return { data: (await aiPrivacyAPI.get()).data }; }
+        catch (e) { return { error: toError(e) }; }
+      },
+      providesTags: ["AiPrivacy"],
+    }),
+    updateAiPrivacy: build.mutation<AiPrivacyPreference, { enabled: boolean; disclosureVersion?: string }>({
+      queryFn: async (value) => {
+        try { return { data: (await aiPrivacyAPI.update(value)).data }; }
+        catch (e) { return { error: toError(e) }; }
+      },
+      invalidatesTags: ["AiPrivacy"],
+    }),
+    // Explicit actions only: financial invalidation must never send data to AI.
+    getMonthlyInsight: build.mutation<IMonthlyInsight, MonthArgs>({
       queryFn: async (args) => {
         try {
           const response = await insightAPI.fetchMonthlyInsight(args);
@@ -359,12 +370,6 @@ export const api = createApi({
           return { error: toError(e) };
         }
       },
-      providesTags: (_result, _error, arg) => [
-        { type: "Insights", id: monthTagId(argsMonth(arg)) },
-        // Explanations derive from this summary. Financial mutations must not
-        // leave an already-requested explanation describing old totals.
-        { type: "Summary", id: monthTagId(argsMonth(arg)) },
-      ],
     }),
 
     createTransaction: build.mutation<
@@ -526,8 +531,9 @@ export const {
   useGetTransactionsQuery,
   useGetBudgetsQuery,
   useGetFinancialSummaryQuery,
-  useGetMonthlyInsightQuery,
-  useLazyGetMonthlyInsightQuery,
+  useGetMonthlyInsightMutation,
+  useGetAiPrivacyQuery,
+  useUpdateAiPrivacyMutation,
   useGetBudgetSuggestionsQuery,
   useApplyBudgetSuggestionsMutation,
   useGetRecurringPaymentsQuery,

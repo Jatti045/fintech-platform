@@ -18,13 +18,15 @@ export const WHEN_PASSCODE_SET_THIS_DEVICE_ONLY =
 export const WHEN_UNLOCKED_THIS_DEVICE_ONLY_USE_DATA_PROTECTION_WHEN_AVAILABLE =
   "whenUnlockedThisDeviceOnlyUseDataProtectionWhenAvailable";
 
-export const setItemAsync = jest.fn().mockResolvedValue(undefined);
-export const getItemAsync = jest.fn().mockResolvedValue(null);
-export const deleteItemAsync = jest.fn().mockResolvedValue(undefined);
+export const storage = new Map<string, string>();
+export const setItemAsync = jest.fn(async (key: string, value: string) => { storage.set(key, value); });
+export const getItemAsync = jest.fn(async (key: string) => storage.get(key) ?? null);
+export const deleteItemAsync = jest.fn(async (key: string) => { storage.delete(key); });
 
 export function __resetSecureStore() {
   setItemAsync.mockClear();
   getItemAsync.mockClear();
   deleteItemAsync.mockClear();
-  getItemAsync.mockResolvedValue(null);
+  storage.clear();
+  getItemAsync.mockImplementation(async key => storage.get(key) ?? null);
 }

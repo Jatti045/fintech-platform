@@ -1,10 +1,9 @@
 import { createListenerMiddleware } from "@reduxjs/toolkit";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./apiSlice";
 import type { GetTransactionsArgs, TransactionsEnvelope } from "./apiSlice";
 import { monthTagId, defaultTransactionArgs } from "./apiSlice";
-import { USER_DATA_STORAGE_KEY } from "@/constants/storageKeys";
-import { sessionGeneration, withSessionGeneration } from "@/utils/session";
+import { sessionGeneration, withSessionGeneration, getSessionIdentity } from "@/utils/session";
+import { readEncryptedCache, writeEncryptedCache } from "@/utils/encryptedStorage";
 import { logger } from "@/utils/logger";
 
 /**
@@ -12,7 +11,7 @@ import { logger } from "@/utils/logger";
  *
  * Replaces the old hand-rolled `utils/cache.ts`. Mirrors only unfiltered
  * page-1 results for the transactions query and all budgets results into
- * AsyncStorage, using versioned keys cleared by the centralized session cleanup.
+ * an authenticated encrypted cache cleared by centralized session cleanup.
  *
  * Crucially, the persisted value now contains the backend-authoritative
  * pagination envelope — the root fix for the cached-pagination bug where the
@@ -30,9 +29,7 @@ const budgetKey = (userId: string, year: number, month: number) =>
 
 export const getStoredUserId = async (): Promise<string | null> => {
   try {
-    const raw = await AsyncStorage.getItem(USER_DATA_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw)?.id ?? null;
+    return (await getSessionIdentity())?.userId ?? null;
   } catch {
     return null;
   }
@@ -71,12 +68,12 @@ apiCachePersistenceMiddleware.startListening({
       if (!userId) return;
       // Legacy entries were bare arrays; skip anything without metadata.
       if (!isSeedableEnvelope(action.payload)) return;
-      await withSessionGeneration(generation, () => AsyncStorage.setItem(
+      await withSessionGeneration(generation, () => writeEncryptedCache(userId,
         txKey(userId, arg.currentYear, arg.currentMonth),
-        JSON.stringify({ ts: Date.now(), data: action.payload }),
+        { ts: Date.now(), data: action.payload },
       ));
     } catch (e) {
-      logger.warn("cachePersistence", "Failed to persist transactions", e);
+      logger.warn("cachePersistence", "Failed to persist transactions");
     }
   },
 });
@@ -89,12 +86,12 @@ apiCachePersistenceMiddleware.startListening({
     try {
       const userId = await getStoredUserId();
       if (!userId) return;
-      await withSessionGeneration(generation, () => AsyncStorage.setItem(
+      await withSessionGeneration(generation, () => writeEncryptedCache(userId,
         budgetKey(userId, arg.currentYear, arg.currentMonth),
-        JSON.stringify({ ts: Date.now(), data: action.payload ?? [] }),
+        { ts: Date.now(), data: action.payload ?? [] },
       ));
     } catch (e) {
-      logger.warn("cachePersistence", "Failed to persist budgets", e);
+      logger.warn("cachePersistence", "Failed to persist budgets");
     }
   },
 });
@@ -117,8 +114,8 @@ export const hydrateApiCache = async (store: {
     if (!userId) return;
 
     const [txRaw, budgetRaw] = await Promise.all([
-      AsyncStorage.getItem(txKey(userId, year, month)),
-      AsyncStorage.getItem(budgetKey(userId, year, month)),
+      readEncryptedCache(userId, txKey(userId, year, month)),
+      readEncryptedCache(userId, budgetKey(userId, year, month)),
     ]);
 
     if (generation !== sessionGeneration()) return;
@@ -164,13 +161,13 @@ export const hydrateApiCache = async (store: {
       ]),
     );
   } catch (e) {
-    logger.warn("cachePersistence", "Failed to hydrate api cache", e);
+    logger.warn("cachePersistence", "Failed to hydrate api cache");
   }
 };
 
-const safeParse = (raw: string): any => {
+const safeParse = (raw: unknown): any => {
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: any = raw;
     return parsed && typeof parsed === "object" && "data" in parsed
       ? parsed.data
       : parsed;

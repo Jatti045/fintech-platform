@@ -36,11 +36,10 @@ export function AppRoutes() {
 
   useEffect(() => {
     // Attempt to load stored auth on app start
-    dispatch(loadUserFromStorage());
+    void dispatch(loadUserFromStorage()).then(() => hydrateApiCache(store));
     dispatch(loadThemeFromStorage());
     // Seed the RTK Query cache with last-known month data for instant,
     // offline-friendly cold starts (revalidated against the network after).
-    void hydrateApiCache(store);
   }, [dispatch]);
 
   // Only a loading session RESTORE (the user is not yet authenticated) may

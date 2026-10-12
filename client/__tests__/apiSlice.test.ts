@@ -695,7 +695,7 @@ describe("getTransactions – canonical query arguments & cache keys", () => {
 });
 
 describe("reconciliation cache coverage", () => {
-  it.each(["update", "delete"])("%s refreshes counterpart-month totals and AI insights", async (mutation) => {
+  it.each(["update", "delete"])("%s refreshes totals without automatically calling the AI provider", async (mutation) => {
     const store = makeStore();
     const insightFetch = insightApi.fetchMonthlyInsight as jest.Mock;
     insightFetch.mockResolvedValue({ data: {} });
@@ -722,15 +722,15 @@ describe("reconciliation cache coverage", () => {
       }
       expect(mockedSummaryFetch).toHaveBeenCalledWith(counterpartMonth);
       expect(mockedBudgetFetch).toHaveBeenCalledWith(counterpartMonth);
-      expect(insightFetch).toHaveBeenCalledWith(counterpartMonth);
+      expect(insightFetch).not.toHaveBeenCalled();
     } finally {
-      subscriptions.forEach(s => s.unsubscribe());
+      subscriptions.forEach(s => { if ("unsubscribe" in s) s.unsubscribe(); else s.reset(); });
       store.dispatch(api.util.resetApiState());
     }
   });
 });
 
-it("creating an expense invalidates the already-requested explanation for that month", async () => {
+it("creating an expense never automatically regenerates an AI explanation", async () => {
   const store = makeStore();
   const insightFetch = insightApi.fetchMonthlyInsight as jest.Mock;
   insightFetch.mockResolvedValue({ data: {} });
@@ -740,9 +740,9 @@ it("creating an expense invalidates the already-requested explanation for that m
     await subscription;
     insightFetch.mockClear();
     await store.dispatch(api.endpoints.createTransaction.initiate({ ...makeTx("new"), type: "EXPENSE" as any }));
-    expect(insightFetch).toHaveBeenCalledTimes(1);
+    expect(insightFetch).not.toHaveBeenCalled();
   } finally {
-    subscription.unsubscribe();
+    subscription.reset();
     store.dispatch(api.util.resetApiState());
   }
 });

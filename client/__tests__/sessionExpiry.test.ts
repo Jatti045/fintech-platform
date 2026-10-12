@@ -7,6 +7,8 @@ import api from "@/store/api/apiSlice";
 import { userAPI } from "@/api/user";
 import { loadUserFromStorage, loginUser, selectIsAuthenticated } from "@/store/slices/userSlice";
 import { establishSession, invalidateSession, getSessionIdentity, withSessionGeneration } from "@/utils/session";
+import { readEncryptedCache } from "@/utils/encryptedStorage";
+import { FINANCIAL_CACHE_KEY, writeEncryptedCache } from "@/utils/encryptedStorage";
 
 const user = { id: "user-A", email: "a@example.com" };
 let token: string | null;
@@ -20,15 +22,81 @@ async function authenticate(value: string) {
 }
 
 beforeEach(async () => {
-  (SecureStore.getItemAsync as jest.Mock).mockImplementation(async () => token);
-  (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (_key, value) => { token = value; });
-  (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async () => { token = null; });
+  const protectedValues = new Map<string, string>();
+  (SecureStore.getItemAsync as jest.Mock).mockImplementation(async key => key === "authToken" ? token : protectedValues.get(key) ?? null);
+  (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (key, value) => { if (key === "authToken") token = value; else protectedValues.set(key, value); });
+  (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async key => { if (key === "authToken") token = null; else protectedValues.delete(key); });
   await invalidateSession();
   await AsyncStorage.clear();
   jest.clearAllMocks();
 });
 
 afterAll(async () => { await invalidateSession(); });
+
+test("key loss refetches the authoritative profile while retaining the valid token", async () => {
+  await authenticate("A");
+  await SecureStore.deleteItemAsync(FINANCIAL_CACHE_KEY);
+  const previous = apiClient.defaults.adapter;
+  const calls: string[] = [];
+  apiClient.defaults.adapter = async config => {
+    calls.push(config.url!);
+    return { status: 200, statusText: "OK", headers: {}, config, data: { success: true, data: user } };
+  };
+  try {
+    expect(await userAPI.getStoredUser()).toEqual(user);
+    expect(calls).toEqual(["/auth/me"]);
+    expect(token).toBe("A");
+  } finally { apiClient.defaults.adapter = previous; }
+});
+
+test("switching accounts destroys A's snapshots before B can hydrate", async () => {
+  await authenticate("A");
+  await writeEncryptedCache(user.id, "budget", [{ amount: 123 }]);
+  const other = { id: "user-B", email: "b@example.com" };
+  await establishSession("B", other);
+  expect(await readEncryptedCache(user.id, "budget")).toBeNull();
+  expect(await readEncryptedCache(other.id, "profile")).toEqual(other);
+  expect((await getSessionIdentity())?.userId).toBe(other.id);
+});
+
+test("a successful password change clears the protected cache and session", async () => {
+  await authenticate("A");
+  const previous = apiClient.defaults.adapter;
+  apiClient.defaults.adapter = async config => ({ status: 200, statusText: "OK", headers: {}, config, data: { success: true } });
+  try {
+    await userAPI.changePassword({ currentPassword: "old", newPassword: "new", confirmPassword: "new" });
+    expect(token).toBeNull();
+    expect(await SecureStore.getItemAsync(FINANCIAL_CACHE_KEY)).toBeNull();
+    expect(await AsyncStorage.getAllKeys()).toEqual([]);
+  } finally { apiClient.defaults.adapter = previous; }
+});
+
+test("HTTP failures do not log raw financial responses or authentication material", async () => {
+  await authenticate("PRIVATE_AUTH_TOKEN");
+  const log = jest.spyOn(console, "error").mockImplementation(() => {});
+  const previous = apiClient.defaults.adapter;
+  apiClient.defaults.adapter = async config => {
+    throw new AxiosError("unavailable", "ERR_BAD_RESPONSE", config, undefined,
+      { status: 500, statusText: "Error", headers: {}, config, data: { message: "unavailable", financial: "PRIVATE_FINANCIAL_PAYLOAD" } });
+  };
+  try {
+    await expect(userAPI.updateCurrency("USD")).rejects.toThrow();
+    expect(JSON.stringify(log.mock.calls)).not.toContain("PRIVATE_");
+  } finally { apiClient.defaults.adapter = previous; log.mockRestore(); }
+});
+
+test("password-reset verification preserves the session; completing the reset clears it", async () => {
+  await authenticate("A");
+  const previous = apiClient.defaults.adapter;
+  apiClient.defaults.adapter = async config => ({ status: 200, statusText: "OK", headers: {}, config, data: { success: true } });
+  try {
+    await userAPI.resetPassword({ email: user.email, otp: "123456", verifyOnly: true });
+    expect(token).toBe("A");
+    await userAPI.resetPassword({ email: user.email, otp: "123456", newPassword: "new", confirmPassword: "new" });
+    expect(token).toBeNull();
+    expect(await SecureStore.getItemAsync(FINANCIAL_CACHE_KEY)).toBeNull();
+  } finally { apiClient.defaults.adapter = previous; }
+});
 
 test("expired restored session resets auth, API and persisted financial caches", async () => {
   await establishSession("expired", user);
@@ -66,7 +134,7 @@ test("late A 401 cannot invalidate newly logged in B", async () => {
   await caught;
   expect(token).toBe("B");
   expect(store.getState().user).toMatchObject({ token: "B", isAuthenticated: true });
-  expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+  expect(token).toBe("B");
 });
 
 test("generation protects a new login even if the backend reuses the same token", async () => {
@@ -89,7 +157,7 @@ test("simultaneous 401 responses clean up only once", async () => {
   await started;
   pending.forEach(reject => reject());
   await Promise.all(requests);
-  expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(1);
+  expect((SecureStore.deleteItemAsync as jest.Mock).mock.calls.filter(([key]) => key === "authToken")).toHaveLength(1);
   expect(store.getState().user.isAuthenticated).toBe(false);
 });
 
@@ -123,7 +191,8 @@ test("cleanup and new login persistence are serialized even while storage is sta
   await Promise.all([expiry, login]);
   expect(token).toBe("B");
   expect(store.getState().user.isAuthenticated).toBe(true);
-  expect(await AsyncStorage.getItem("userData")).toBe(JSON.stringify(user));
+  expect(await AsyncStorage.getItem("userData")).toBeNull();
+  expect(await readEncryptedCache(user.id, "profile")).toEqual(user);
 });
 
 test("late cache persistence cannot resurrect an expired session's data", async () => {

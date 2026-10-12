@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useLazyGetMonthlyInsightQuery } from "@/store/api/apiSlice";
+import { useGetMonthlyInsightMutation, useGetAiPrivacyQuery, useUpdateAiPrivacyMutation } from "@/store/api/apiSlice";
+import AiPrivacyDisclosure from "@/components/privacy/AiPrivacyDisclosure";
 import { useTheme } from "@/hooks/useRedux";
 import { hexToRgba } from "@/utils/helper";
 import DashboardCard from "./DashboardCard";
@@ -27,17 +28,33 @@ const GENERATION_ERROR =
  */
 export default function MonthlyInsightCard({ month, year }: Props) {
   const { THEME, selectedTheme } = useTheme();
-  const [fetchInsight, { data, isLoading, isFetching, error }] =
-    useLazyGetMonthlyInsightQuery();
+  const [fetchInsight, { data, isLoading, error, reset }] = useGetMonthlyInsightMutation();
+  const { data: privacy, isLoading: privacyLoading, error: privacyError, refetch } = useGetAiPrivacyQuery();
+  const [updatePrivacy, { isLoading: privacySaving }] = useUpdateAiPrivacyMutation();
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const [consentError, setConsentError] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
+  useEffect(() => { reset(); }, [month, year, reset]);
+  useEffect(() => { if (!privacy?.enabled) reset(); }, [privacy?.enabled, reset]);
+
   const handlePress = () => {
+    if (!privacy) { void refetch(); return; }
+    if (!privacy.enabled) { setDisclosureOpen(true); return; }
     setCollapsed(false);
     fetchInsight({ currentMonth: month, currentYear: year });
   };
 
-  const showLoading = isLoading || isFetching;
-  const showResult = Boolean(data?.summary) && !collapsed;
+  const enableAi = async () => {
+    setConsentError(false);
+    try {
+      await updatePrivacy({ enabled: true, disclosureVersion: privacy?.disclosureVersion }).unwrap();
+      setDisclosureOpen(false);
+    } catch { setConsentError(true); }
+  };
+
+  const showLoading = isLoading || privacyLoading;
+  const showResult = Boolean(data?.summary) && !collapsed && Boolean(privacy?.enabled);
   const showError = Boolean(error) && !showResult;
 
   const actionIconColor = selectedTheme === "Light" ? "#FFFFFF" : "#111113";
@@ -106,7 +123,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               }}
             >
               {showLoading
-                ? "Generating your explanation…"
+                ? privacyLoading ? "Loading AI preference…" : "Generating your explanation…"
                 : "Explain my month"}
             </Text>
             <Text
@@ -117,7 +134,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
                 marginTop: 2,
               }}
             >
-              Get a quick read on your spending,{"\n"}habits, and opportunities.
+              {privacy?.enabled ? "Get a quick read on your spending, habits, and opportunities." : "AI is off. Review how your data is used to enable explanations."}
             </Text>
           </View>
 
@@ -220,6 +237,9 @@ export default function MonthlyInsightCard({ month, year }: Props) {
         </View>
       )}
 
+      {(privacyError || consentError) && <Text style={{ color: THEME.danger, marginTop: 10 }}>Could not save or load AI privacy. Try again.</Text>}
+      <AiPrivacyDisclosure visible={disclosureOpen} preference={privacy} saving={privacySaving} error={consentError}
+        onCancel={() => setDisclosureOpen(false)} onAccept={() => { void enableAi(); }} />
       {showError && (
         <View
           style={{

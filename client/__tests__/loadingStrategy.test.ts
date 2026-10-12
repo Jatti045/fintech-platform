@@ -46,7 +46,8 @@ import api, { defaultTransactionArgs } from "@/store/api/apiSlice";
 import type { GetTransactionsArgs } from "@/store/api/apiSlice";
 import { hydrateApiCache } from "@/store/api/cachePersistence";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
-import { USER_DATA_STORAGE_KEY } from "@/constants/storageKeys";
+import { establishSession, invalidateSession } from "@/utils/session";
+import { writeEncryptedCache } from "@/utils/encryptedStorage";
 
 // ── API module mocks ──────────────────────────────────────────────────────────
 
@@ -175,6 +176,7 @@ const txScreenDefaultArgs = (
 });
 
 beforeEach(async () => {
+  await invalidateSession();
   await AsyncStorage.clear();
   mockedTxFetch.mockReset();
   mockedBudgetFetch.mockReset();
@@ -623,18 +625,15 @@ describe("Cold-start hydration — hydrateApiCache", () => {
     opts: { tx?: boolean; budget?: boolean } = {},
   ) {
     // User lookup key used by getStoredUserId().
-    await AsyncStorage.setItem(
-      USER_DATA_STORAGE_KEY,
-      JSON.stringify({ id: USER_ID }),
-    );
+    await establishSession("hydration-token", { id: USER_ID });
 
     if (opts.tx !== false) {
       const txData = txEnvelope([
         { id: "seeded-tx", name: "Seed", amount: 50 },
       ]);
-      await AsyncStorage.setItem(
+      await writeEncryptedCache(USER_ID,
         `rtkq:v2:transactions:${USER_ID}:${SEED_YEAR}-${SEED_MONTH}`,
-        JSON.stringify({ ts: Date.now(), data: txData }),
+        { ts: Date.now(), data: txData },
       );
     }
 
@@ -642,9 +641,9 @@ describe("Cold-start hydration — hydrateApiCache", () => {
       const budgetData = [
         { id: "seeded-budget", category: "Food", limit: 500 },
       ];
-      await AsyncStorage.setItem(
+      await writeEncryptedCache(USER_ID,
         `rtkq:v2:budgets:${USER_ID}:${SEED_YEAR}-${SEED_MONTH}`,
-        JSON.stringify({ ts: Date.now(), data: budgetData }),
+        { ts: Date.now(), data: budgetData },
       );
     }
   }
@@ -654,9 +653,9 @@ describe("Cold-start hydration — hydrateApiCache", () => {
     jest.setSystemTime(new Date("2027-01-01T00:30:00Z"));
     const store = makeStore();
     try {
-      await AsyncStorage.setItem(USER_DATA_STORAGE_KEY, JSON.stringify({ id: USER_ID }));
-      await AsyncStorage.setItem(`rtkq:v2:budgets:${USER_ID}:2027-0`,
-        JSON.stringify({ ts: Date.now(), data: [{ id: "boundary-budget", limit: 500 }] }));
+      await establishSession("hydration-token", { id: USER_ID });
+      await writeEncryptedCache(USER_ID, `rtkq:v2:budgets:${USER_ID}:2027-0`,
+        { ts: Date.now(), data: [{ id: "boundary-budget", limit: 500 }] });
       await hydrateApiCache(store as any);
       expect(queryKeys(store).filter((k) => k.includes("getBudgets"))).toEqual([
         expect.stringContaining('"currentYear":2027'),
@@ -803,16 +802,11 @@ describe("Cold-start hydration — hydrateApiCache", () => {
   });
 
   it("does not seed transactions when the stored envelope has no pagination (legacy format guard)", async () => {
-    // Legacy storage format stored bare arrays; these must be rejected.
-    await AsyncStorage.setItem(
-      USER_DATA_STORAGE_KEY,
-      JSON.stringify({ id: USER_ID }),
-    );
+    await establishSession("token", { id: USER_ID });
     // Bare array (no pagination envelope) — isSeedableEnvelope() returns false.
-    await AsyncStorage.setItem(
+    await writeEncryptedCache(USER_ID,
       `rtkq:v2:transactions:${USER_ID}:${SEED_YEAR}-${SEED_MONTH}`,
-      JSON.stringify({ ts: Date.now(), data: [{ id: "bare-tx" }] }),
-    );
+      { ts: Date.now(), data: [{ id: "bare-tx" }] });
 
     const store = makeStore();
     await hydrateApiCache(store as any);

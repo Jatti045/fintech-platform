@@ -15,6 +15,7 @@ import SettingsList from "@/components/profile/SettingsList";
 import ChangePasswordModal from "@/components/profile/ChangePasswordModal";
 import CurrencyPickerModal from "@/components/profile/CurrencyPickerModal";
 import PostConnectionDialog from "@/components/plaid/PostConnectionDialog";
+import AiPrivacyPreference from "@/components/privacy/AiPrivacyPreference";
 
 export default function ProfileScreen() {
   const {
@@ -176,6 +177,7 @@ export default function ProfileScreen() {
           onOpenSettings={openNotificationSettings}
         />
 
+        <AiPrivacyPreference />
         {/* ── Income Section ───────────────────────────────────────────── */}
         <ProfileSectionHeader
           title="Income"

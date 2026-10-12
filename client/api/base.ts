@@ -20,7 +20,6 @@ export default class BaseAPI {
       logger.error(
         "BaseAPI",
         `Request failed for endpoint: ${endpoint}`,
-        error,
       );
 
       // Handle axios error structure

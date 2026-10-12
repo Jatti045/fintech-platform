@@ -31,6 +31,7 @@ module.exports = {
     "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.ts",
     "^expo-localization$": "<rootDir>/__mocks__/expo-localization.ts",
     "^expo-secure-store$": "<rootDir>/__mocks__/expo-secure-store.ts",
+    "^expo-crypto$": "<rootDir>/__mocks__/expo-crypto.ts",
     "^@react-native-async-storage/async-storage$":
       "<rootDir>/node_modules/@react-native-async-storage/async-storage/jest/async-storage-mock",
     "^@react-native-community/datetimepicker$":

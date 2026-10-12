@@ -7,14 +7,16 @@
 // sync, and no schema change is warranted for v1. Keys are stable normalized
 // merchant names from the backend.
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { readEncryptedCache, writeEncryptedCache } from "@/utils/encryptedStorage";
+import { getSessionIdentity, withSessionGeneration } from "@/utils/session";
 
 const STORAGE_KEY = "dismissedRecurringSeries";
 
 export async function loadDismissedSeries(): Promise<string[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
+    const identity = await getSessionIdentity();
+    if (!identity?.userId) return [];
+    const parsed = await readEncryptedCache(identity.userId, STORAGE_KEY);
     return Array.isArray(parsed) ? parsed.filter((k) => typeof k === "string") : [];
   } catch {
     return [];
@@ -23,7 +25,9 @@ export async function loadDismissedSeries(): Promise<string[]> {
 
 export async function saveDismissedSeries(keys: string[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+    const identity = await getSessionIdentity();
+    if (!identity?.userId) return;
+    await withSessionGeneration(identity.generation, () => writeEncryptedCache(identity.userId!, STORAGE_KEY, keys));
   } catch {
     // Persistence is best-effort; a failed write costs one re-shown card.
   }

@@ -4,13 +4,13 @@ import BaseAPI from "./base";
 import type { IApiResponse } from "@/types/api/types";
 import {
   AUTH_TOKEN_STORAGE_KEY,
-  USER_DATA_STORAGE_KEY,
 } from "@/constants/storageKeys";
 import {
   getAuthToken,
   setAuthToken,
 } from "@/utils/secureStorage";
-import { establishSession, invalidateSession, getSessionIdentity } from "@/utils/session";
+import { establishSession, invalidateSession, getSessionIdentity, sessionGeneration, persistSessionUser, restoreSessionUser } from "@/utils/session";
+import { readEncryptedCache, migrateLegacyFinancialCache } from "@/utils/encryptedStorage";
 import { logger } from "@/utils/logger";
 import {
   type ILoginData,
@@ -69,6 +69,7 @@ class UserAPI extends BaseAPI {
     userId: string,
     imageFile: any,
   ): Promise<IApiResponse<IUser>> {
+    const generation = sessionGeneration();
     const formData = new FormData();
     formData.append("profilePicture", imageFile);
 
@@ -81,16 +82,14 @@ class UserAPI extends BaseAPI {
     );
 
     if (response?.data?.data) {
-      await AsyncStorage.setItem(
-        USER_DATA_STORAGE_KEY,
-        JSON.stringify(response.data.data),
-      );
+      await persistSessionUser(response.data.data, generation);
     }
 
     return response.data;
   }
 
   async deleteProfilePictureById(userId: string): Promise<IApiResponse<IUser>> {
+    const generation = sessionGeneration();
     const response = await this.makeRequest<IUser>(
       `/users/${userId}/profile-picture`,
       { method: "DELETE" },
@@ -98,15 +97,11 @@ class UserAPI extends BaseAPI {
 
     if (response?.data) {
       try {
-        await AsyncStorage.setItem(
-          USER_DATA_STORAGE_KEY,
-          JSON.stringify(response.data),
-        );
+        await persistSessionUser(response.data, generation);
       } catch (error) {
         logger.warn(
           "UserAPI",
           "Failed to persist profile picture deletion",
-          error,
         );
       }
     }
@@ -119,10 +114,13 @@ class UserAPI extends BaseAPI {
     newPassword: string;
     confirmPassword: string;
   }): Promise<IApiResponse<any>> {
-    return this.makeRequest<any>("/users/me/password", {
+    const identity = await getSessionIdentity();
+    const response = await this.makeRequest<any>("/users/me/password", {
       method: "PATCH",
       data: payload,
     });
+    if (response.success) await invalidateSession(identity);
+    return response;
   }
 
   async forgotPassword(email: { email: string }): Promise<IApiResponse<any>> {
@@ -139,13 +137,20 @@ class UserAPI extends BaseAPI {
     confirmPassword?: string;
     verifyOnly?: boolean;
   }): Promise<IApiResponse<any>> {
-    return this.makeRequest<any>("/auth/reset-password", {
+    const identity = await getSessionIdentity();
+    const profile = identity?.userId ? await readEncryptedCache<IUser>(identity.userId, "profile") : null;
+    const response = await this.makeRequest<any>("/auth/reset-password", {
       method: "POST",
       data: payload,
     });
+    if (response.success && !payload.verifyOnly && profile?.email?.toLowerCase() === payload.email.toLowerCase()) {
+      await invalidateSession(identity);
+    }
+    return response;
   }
 
   async updateCurrency(currency: string): Promise<IApiResponse<IUser>> {
+    const generation = sessionGeneration();
     const response = await this.makeRequest<IUser>("/users/me/currency", {
       method: "PATCH",
       data: { currency },
@@ -153,12 +158,9 @@ class UserAPI extends BaseAPI {
 
     if (response?.data) {
       try {
-        await AsyncStorage.setItem(
-          USER_DATA_STORAGE_KEY,
-          JSON.stringify(response.data),
-        );
+        await persistSessionUser(response.data, generation);
       } catch (error) {
-        logger.warn("UserAPI", "Failed to persist updated currency", error);
+        logger.warn("UserAPI", "Failed to persist updated currency");
       }
     }
 
@@ -176,6 +178,7 @@ class UserAPI extends BaseAPI {
       year: number;
     },
   ): Promise<IApiResponse<IUser>> {
+    const generation = sessionGeneration();
     const response = await this.makeRequest<IUser>("/users/me/monthly-income", {
       method: "PATCH",
       data: { monthlyIncome, month, year },
@@ -183,12 +186,9 @@ class UserAPI extends BaseAPI {
 
     if (response?.data) {
       try {
-        await AsyncStorage.setItem(
-          USER_DATA_STORAGE_KEY,
-          JSON.stringify(response.data),
-        );
+        await persistSessionUser(response.data, generation);
       } catch (error) {
-        logger.warn("UserAPI", "Failed to persist monthly income", error);
+        logger.warn("UserAPI", "Failed to persist monthly income");
       }
     }
 
@@ -213,6 +213,9 @@ class UserAPI extends BaseAPI {
     try {
       const token = await getAuthToken();
       if (token) {
+        await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {
+          logger.warn("UserAPI", "Legacy token cleanup will be retried");
+        });
         return token;
       }
 
@@ -220,23 +223,32 @@ class UserAPI extends BaseAPI {
       const legacyToken = await AsyncStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
       if (legacyToken) {
         await setAuthToken(legacyToken);
-        await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+        await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {
+          logger.warn("UserAPI", "Legacy token cleanup will be retried");
+        });
         return legacyToken;
       }
 
       return null;
     } catch (error) {
-      logger.warn("UserAPI", "Failed to read token from storage", error);
+      logger.warn("UserAPI", "Failed to read token from storage");
       return null;
     }
   }
 
   async getStoredUser(): Promise<IUser | null> {
     try {
-      const userData = await AsyncStorage.getItem(USER_DATA_STORAGE_KEY);
-      return userData ? JSON.parse(userData) : null;
+      try { await migrateLegacyFinancialCache(); } catch { /* Retry on the next cache operation. */ }
+      const identity = await getSessionIdentity();
+      if (!identity) return null;
+      if (identity.userId) {
+        const cached = await readEncryptedCache<IUser>(identity.userId, "profile");
+        if (cached?.id === identity.userId && identity.generation === sessionGeneration()) return cached;
+      }
+      const response = await this.makeRequest<IUser>("/auth/me", { method: "GET" });
+      return await restoreSessionUser(identity, response.data) ? response.data : null;
     } catch (error) {
-      logger.warn("UserAPI", "Failed to read user profile from storage", error);
+      logger.warn("UserAPI", "Failed to read user profile from storage");
       return null;
     }
   }
@@ -250,8 +262,6 @@ class UserAPI extends BaseAPI {
         }
     )
 
-    console.log("Google auth: ", response)
-
     await establishSession(response.data.token, response.data.user);
 
     return response
@@ -260,4 +270,3 @@ class UserAPI extends BaseAPI {
 
 // Export singleton instance
 export const userAPI = new UserAPI();
-
