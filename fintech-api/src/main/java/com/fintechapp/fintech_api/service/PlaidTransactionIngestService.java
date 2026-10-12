@@ -51,6 +51,10 @@ import com.fintechapp.fintech_api.repository.TransactionRepository;
 @Service
 public class PlaidTransactionIngestService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private TransactionClassificationService classification;
+    @org.springframework.beans.factory.annotation.Autowired private PendingClassificationBridge pendingChoices;
+
     /** A normalized transaction carried from a Plaid /transactions/sync page. */
     public record PlaidTransaction(
             String transactionId,
@@ -122,6 +126,7 @@ public class PlaidTransactionIngestService {
         if (plaidTx == null || !StringUtils.hasText(plaidTx.transactionId())) {
             return;
         }
+        if (classification != null) classification.lock(user.getId());
         insert(user, plaidTx);
     }
 
@@ -153,6 +158,7 @@ public class PlaidTransactionIngestService {
         if (plaidTransactionIds == null || plaidTransactionIds.isEmpty()) {
             return;
         }
+        if (classification != null) classification.lock(userId);
         List<Transaction> transactions = transactionRepository.findByPlaidTransactionIdInAndUser_Id(plaidTransactionIds,
                 userId);
         for (Transaction tx : transactions) {
@@ -191,8 +197,9 @@ public class PlaidTransactionIngestService {
         double oldAmount = tx.getAmount();
         TransactionType oldType = tx.getType();
 
-        tx.setName(displayName(plaidTx, category));
-        tx.setCategory(category);
+        tx.setProviderName(plaidTx.name()); tx.setProviderCategory(plaidTx.category()!=null?category:null);
+        if (!tx.isLegacyClassification()) { tx.setName(tx.getNameOverride() != null ? tx.getNameOverride() : displayName(plaidTx, category)); tx.setCategory(tx.getCategoryOverride() != null ? tx.getCategoryOverride() : category); }
+        category = tx.getCategory();
         tx.setDate(txDate);
         tx.setAmount(normalizedAmount);
         tx.setType(type);
@@ -217,6 +224,7 @@ public class PlaidTransactionIngestService {
             }
             tx.setBudget(null);
             transactionRepository.save(tx);
+            finishClassification(tx);
             if (wasTransfer && oldBudget != null) {
                 // A legacy manual edit may have linked an excluded transfer to a
                 // budget. Rebuild before losing that old link during the upsert.
@@ -237,6 +245,7 @@ public class PlaidTransactionIngestService {
                 // Previously a transfer with no budget contribution; the full
                 // amount is now real activity. Atomic database-side increment.
                 budgetRepository.incrementSpent(budget.getId(), normalizedAmount);
+                finishClassification(tx);
                 return;
             }
             reconcileBudgetOnUpdate(oldBudget, oldAmount, oldType, budget, normalizedAmount, type);
@@ -249,6 +258,7 @@ public class PlaidTransactionIngestService {
             // must be removed from the old budget's spent aggregate.
             reconcileBudgetOnUpdate(oldBudget, oldAmount, oldType, null, normalizedAmount, type);
         }
+        finishClassification(tx);
     }
 
     /**
@@ -288,7 +298,7 @@ public class PlaidTransactionIngestService {
                     base_currency, original_amount, original_currency,
                     plaid_transaction_id, plaid_account_id, plaid_item_id, is_transfer,
                     plaid_pfc_detailed, plaid_pending, plaid_pending_transaction_id, plaid_posted_date, description, user_id, budget_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NOW(), NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, CLOCK_TIMESTAMP(), CLOCK_TIMESTAMP())
                 ON CONFLICT DO NOTHING
                 """,
                 UUID.randomUUID().toString(),
@@ -325,6 +335,16 @@ public class PlaidTransactionIngestService {
             // same budget at the same time).
             budgetRepository.incrementSpent(budget.getId(), normalizedAmount);
         }
+        if (classification != null) {
+            transactionRepository.findByPlaidTransactionIdAndUser_Id(plaidTx.transactionId(), user.getId()).ifPresent(tx -> {
+                tx.setProviderName(plaidTx.name()); tx.setProviderCategory(plaidTx.category()!=null?category:null); finishClassification(tx);
+            });
+        }
+    }
+
+    private void finishClassification(Transaction tx) {
+        if (pendingChoices != null) pendingChoices.inherit(tx);
+        if (classification != null) classification.classify(tx,false);
     }
 
     private String displayName(PlaidTransaction plaidTx, String formattedCategory) {
@@ -333,6 +353,7 @@ public class PlaidTransactionIngestService {
 
     /** Deletes one transaction and restores its budget spent contribution. */
     private void removeTransaction(Transaction tx) {
+        if (pendingChoices != null) pendingChoices.retain(tx);
         Budget budget = tx.getBudget();
         if (tx.isTransfer() && budget != null) {
             // A legacy flag/link does not tell us whether cached spent already

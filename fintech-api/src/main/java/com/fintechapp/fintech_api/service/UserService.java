@@ -31,6 +31,9 @@ import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 @Service
 public class UserService {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.CategorizationRuleRepository categorizationRules;
+    @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.RuleApplicationRepository ruleApplications;
+    @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.PendingClassificationHandoffRepository pendingChoices;
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
@@ -98,6 +101,9 @@ public class UserService {
         User existingUser = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
+        if (pendingChoices != null) pendingChoices.deleteByUser_Id(userId);
+        if (ruleApplications != null) ruleApplications.deleteByUser_Id(userId);
+        if (categorizationRules != null) categorizationRules.deleteByUser_Id(userId);
         transactionRepository.deleteByUser_Id(userId);
         budgetRepository.deleteByUser_Id(userId);
         passwordResetTokenRepository.deleteByUser_Id(userId);

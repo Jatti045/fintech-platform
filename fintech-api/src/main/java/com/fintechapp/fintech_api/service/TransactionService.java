@@ -39,6 +39,7 @@ import jakarta.persistence.criteria.Predicate;
 @Service
 public class TransactionService {
 
+    @org.springframework.beans.factory.annotation.Autowired private TransactionClassificationService classification;
     private static final int DEFAULT_PAGE = 1;
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 20;
@@ -274,6 +275,8 @@ public class TransactionService {
         transaction.setOriginalAmount(originalAmount);
         transaction.setDescription(normalizeOptional(request.description()));
         transaction.setBudget(budget);
+        transaction.setNameOverride(transaction.getName()); transaction.setCategoryOverride(transaction.getCategory());
+        if (budget != null) { transaction.setBudgetOverrideId(budget.getId()); transaction.setBudgetOverrideCategory(budget.getCategory()); }
 
         Transaction saved = transactionRepository.save(transaction);
 
@@ -494,6 +497,7 @@ public class TransactionService {
 
         if (request.name() != null) {
             existing.setName(request.name().trim());
+            existing.setNameOverride(existing.getName());
         }
         if (request.date() != null) {
             existing.setDate(newDate);
@@ -508,8 +512,10 @@ public class TransactionService {
                 existing.setPlaidPfcDetailed(null);
             }
             existing.setCategory(category);
+            existing.setCategoryOverride(category);
         } else if (newBudget != null) {
             existing.setCategory(newBudget.getCategory());
+            if (request.budgetId() != null) existing.setCategoryOverride(existing.getCategory());
         }
         if (request.type() != null) {
             existing.setType(newType);
@@ -524,6 +530,12 @@ public class TransactionService {
         existing.setOriginalAmount(resolvedOriginalAmount);
 
         existing.setBudget(newBudget);
+        if (request.budgetId() != null) {
+            Budget intent = newBudget;
+            if (intent == null && StringUtils.hasText(request.budgetId())) intent = budgetRepository.findByIdAndUser_Id(request.budgetId(),userId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"Budget not found"));
+            existing.setBudgetOverrideId(intent != null ? intent.getId() : null);
+            existing.setBudgetOverrideCategory(intent != null ? intent.getCategory() : null);
+        }
 
         Transaction updated = transactionRepository.save(existing);
         if (existing.isTransfer() && oldBudget != null) {
@@ -537,6 +549,7 @@ public class TransactionService {
             }
         }
 
+        if (classification != null) classification.classify(updated,false);
         // The update can move the transaction across a month boundary — evict
         // both the old and the new month's aggregate.
         cacheInvalidator.evictFinancialSummaryForDate(userId, oldDate);
@@ -573,7 +586,12 @@ public class TransactionService {
                 transaction.getOriginalCurrency(),
                 transaction.getDescription(),
                 budgetInfo,
-                budget != null ? budget.getId() : null);
+                budget != null ? budget.getId() : null,
+                new TransactionsResponse.Classification(transaction.getProviderName(),transaction.getProviderCategory(),
+                    transaction.getNameOverride()!=null?"USER":transaction.getRuleDisplayName()!=null?"RULE":transaction.isLegacyClassification()?"LEGACY_UNKNOWN":transaction.getProviderName()!=null?"PROVIDER":"FALLBACK",
+                    transaction.getCategoryOverride()!=null?"USER":transaction.getRuleCategory()!=null?"RULE":transaction.isLegacyClassification()?"LEGACY_UNKNOWN":transaction.getProviderCategory()!=null?"PROVIDER":"FALLBACK",
+                    budget==null?"NOT_APPLICABLE":transaction.getBudgetOverrideCategory()!=null || transaction.getBudgetOverrideId()!=null?"USER":transaction.getRuleBudgetCategory()!=null?"RULE":transaction.isLegacyClassification() && transaction.getLegacyBudgetCategory()!=null?"LEGACY_UNKNOWN":transaction.getCategoryOverride()!=null?"USER":transaction.getRuleCategory()!=null?"RULE":transaction.getProviderCategory()!=null?"PROVIDER":"FALLBACK",
+                    transaction.getAppliedRuleId(),transaction.getAppliedRuleVersion(),transaction.getRuleTitle(),transaction.isLegacyClassification(),transaction.isRulesDisabled(),transaction.getPlaidAccountId()));
     }
 
     private Specification<Transaction> userIdEquals(String userId) {

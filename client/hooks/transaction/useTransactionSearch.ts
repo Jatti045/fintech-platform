@@ -101,7 +101,10 @@ export function useTransactionSearch({
       if (
         (entry?.endpointName === "createTransaction" ||
           entry?.endpointName === "updateTransaction" ||
-          entry?.endpointName === "deleteTransaction") &&
+          entry?.endpointName === "deleteTransaction" ||
+          entry?.endpointName === "applyCategorizationRule" ||
+          entry?.endpointName === "undoCategorizationRule" ||
+          entry?.endpointName === "resetTransactionClassification") &&
         entry.status !== "pending"
       ) {
         count += 1;

@@ -7,6 +7,7 @@ export enum TransactionType {
 
 /** Full transaction shape as returned by the API / stored in Redux slices. */
 export interface ITransaction {
+  classification?: { providerName: string | null; providerCategory: string | null; nameSource: string; categorySource: string; budgetSource: string; ruleId: string | null; ruleVersion: number | null; ruleTitle: string | null; legacyPreserved: boolean; rulesDisabled: boolean; accountId: string | null };
   id?: string;
   name: string;
   month: number;

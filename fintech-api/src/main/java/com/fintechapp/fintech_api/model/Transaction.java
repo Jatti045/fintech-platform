@@ -128,6 +128,26 @@ public class Transaction {
     @JoinColumn(name = "budget_id")
     private Budget budget;
 
+    @Column(name = "legacy_name") private String legacyName;
+    @Column(name = "legacy_category") private String legacyCategory;
+    @Column(name = "legacy_budget_category") private String legacyBudgetCategory;
+    @org.hibernate.annotations.ColumnDefault("false")
+    @Column(name = "rules_disabled", nullable = false) private boolean rulesDisabled;
+    @Column(name = "provider_name") private String providerName;
+    @Column(name = "provider_category") private String providerCategory;
+    @Column(name = "name_override") private String nameOverride;
+    @Column(name = "category_override") private String categoryOverride;
+    @Column(name = "budget_override_id") private String budgetOverrideId;
+    @Column(name = "budget_override_category") private String budgetOverrideCategory;
+    @org.hibernate.annotations.ColumnDefault("false")
+    @Column(name = "legacy_classification", nullable = false) private boolean legacyClassification;
+    @Column(name = "applied_rule_id") private String appliedRuleId;
+    @Column(name = "applied_rule_version") private Long appliedRuleVersion;
+    @Column(name = "rule_title") private String ruleTitle;
+    @Column(name = "rule_display_name") private String ruleDisplayName;
+    @Column(name = "rule_category") private String ruleCategory;
+    @Column(name = "rule_budget_category") private String ruleBudgetCategory;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
