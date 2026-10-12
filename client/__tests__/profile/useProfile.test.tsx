@@ -20,7 +20,7 @@ import { router } from "expo-router";
 import { useProfile } from "@/hooks/profile/useProfile";
 import userReducer, { loginUser } from "@/store/slices/userSlice";
 import themeReducer from "@/store/slices/themeSlice";
-import calendarReducer from "@/store/slices/calendarSlice";
+import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
 import notificationReducer from "@/store/slices/notificationSlice";
 import api from "@/store/api/apiSlice";
 import { clearRatesCache } from "@/utils/currencyConverter";
@@ -312,5 +312,37 @@ describe("useProfile currency change", () => {
 
     expect(userAPI.hasAnyTransactions).not.toHaveBeenCalled();
     expect(userAPI.updateCurrency).not.toHaveBeenCalled();
+  });
+});
+
+describe("Profile financial reporting states", () => {
+  it("failed initial income load is unavailable rather than recorded zero", async () => {
+    mockedGetMonthlyIncome.mockRejectedValue(new Error("unavailable"));
+    const { captured } = setup();
+    await renderer.act(async () => { await flush(); });
+    expect(captured.current!.actualMonthlyIncome).toBeNull();
+    expect(captured.current!.monthlyIncomeError).toBe(true);
+    mockedGetMonthlyIncome.mockResolvedValue({ data: { monthlyIncome: 0, actualMonthlyIncome: 0 } });
+    await renderer.act(async () => { await captured.current!.onRefresh(); });
+    expect(captured.current!.actualMonthlyIncome).toBe(0);
+    expect(captured.current!.monthlyIncomeError).toBe(false);
+  });
+  it("failed refresh retains known income with an explicit error state", async () => {
+    const { captured } = setup();
+    await renderer.act(async () => { await flush(); });
+    mockedGetMonthlyIncome.mockRejectedValue(new Error("unavailable"));
+    await renderer.act(async () => { await captured.current!.onRefresh(); });
+    expect(captured.current!.actualMonthlyIncome).toBe(2900);
+    expect(captured.current!.monthlyIncomeError).toBe(true);
+  });
+  it("a late response cannot replace another selected month's income", async () => {
+    const old = gatedResponse({ data: { monthlyIncome: 1000, actualMonthlyIncome: 1000 } });
+    mockedGetMonthlyIncome.mockReturnValueOnce(old.promise);
+    const { captured, store } = setup();
+    mockedGetMonthlyIncome.mockResolvedValue({ data: { monthlyIncome: 5000, actualMonthlyIncome: 5000 } });
+    await renderer.act(async () => { store.dispatch(setMonthYear({ month: 1, year: 2026 })); await flush(); });
+    expect(captured.current!.actualMonthlyIncome).toBe(5000);
+    await renderer.act(async () => { old.resolve({ data: { monthlyIncome: 1000, actualMonthlyIncome: 1000 } }); await flush(); });
+    expect(captured.current!.actualMonthlyIncome).toBe(5000);
   });
 });

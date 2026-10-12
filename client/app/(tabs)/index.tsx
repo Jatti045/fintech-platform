@@ -11,6 +11,7 @@ import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
 import MonthSelector from "@/components/home/MonthSelector";
+import ReportStatus from "@/components/reporting/ReportStatus";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
 import FinancialMetrics from "@/components/home/FinancialMetrics";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
@@ -31,7 +32,7 @@ import QuickActions from "@/components/home/QuickActions";
  */
 export default function Index() {
   const {
-    transactions,
+    reporting,
     displayTransactions,
     activeCurrency,
     monthlyIncome,
@@ -98,13 +99,15 @@ export default function Index() {
         />
 
         {/* 3. Main Monthly Overview: $2,005 left to spend, progress bar, spending trend */}
+        <ReportStatus report={reporting.report} loading={reporting.isFetching} error={reporting.error} stale={reporting.stale} onRetry={() => { void reporting.refetch(); }} />
+        {reporting.report && <>
         <MonthlyOverview
           monthlyIncome={monthlyIncome}
           totalSpent={expenseTotal}
           monthLabel={monthLabel}
-          currencyCode={activeCurrency}
+          currencyCode={reporting.report.currency}
           isCurrentMonth={isCurrentMonth}
-          transactions={transactions}
+          daily={reporting.report.daily}
           month={month}
           year={year}
         />
@@ -113,8 +116,10 @@ export default function Index() {
         <FinancialMetrics
           monthlyIncome={monthlyIncome}
           totalSpent={expenseTotal}
-          currencyCode={activeCurrency}
+          currencyCode={reporting.report.currency}
+          report={reporting.report}
         />
+        </>}
 
         {/* 5. Explain My Month: AI feature panel */}
         <MonthlyInsightCard month={month} year={year} />

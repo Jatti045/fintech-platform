@@ -5,6 +5,7 @@
 // held in memory, so banner visibility stays correct across syncs/webhooks.
 
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
+import api from "@/store/api/apiSlice";
 import { plaidAPI } from "@/api/plaid";
 import type { IPlaidItem, PlaidItemStatus } from "@/types/plaid/types";
 import { extractErrorMessage } from "@/utils/extractErrorMessage";
@@ -33,9 +34,13 @@ const initialState: PlaidState = {
 /** Refreshes the user's linked bank connections (status, sync health). */
 export const fetchPlaidItems = createAsyncThunk(
   "plaid/fetchItems",
-  async (_, { rejectWithValue }) => {
+  async (_, { rejectWithValue, getState, dispatch }) => {
     try {
+      const previous = (getState() as { plaid?: { items: IPlaidItem[] } }).plaid?.items ?? [];
       const response = await plaidAPI.fetchItems();
+      if (response.data.items.some(item => item.lastSyncedAt && previous.find(p => p.id === item.id)?.lastSyncedAt !== item.lastSyncedAt)) {
+        dispatch(api.util.invalidateTags([{ type: "Summary", id: "reports" }]));
+      }
       return response.data.items;
     } catch (error: unknown) {
       return rejectWithValue(

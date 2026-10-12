@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   useCalendar,
+  useAppDispatch,
   useTransactions,
   useUser,
 } from "@/hooks/useRedux";
-import { useGetBudgetsQuery } from "@/store/api/apiSlice";
+import { api, useGetBudgetsQuery } from "@/store/api/apiSlice";
 import { useRefresh } from "@/hooks/useRefresh";
 import { useBudgetDisplayAmounts } from "./useBudgetDisplayAmounts";
 import { useBudgetOperations } from "./useBudgetOperation";
@@ -35,6 +36,7 @@ const NO_BUDGETS: IBudget[] = [];
  */
 export const useBudgetScreen = () => {
   // ── Redux selectors ─────────────────────────────────────────────────────
+  const dispatch = useAppDispatch();
   const user = useUser();
   const activeCurrency = user?.currency || "USD";
   const calendar = useCalendar();
@@ -70,7 +72,10 @@ export const useBudgetScreen = () => {
   const isSearching = searchQuery.trim().length > 0;
   const isInitialLoading = isLoading && budgets.length === 0 && !isSearching;
 
-  const { refreshing, onRefresh } = useRefresh(() => budgetsQuery.refetch());
+  const { refreshing, onRefresh } = useRefresh(async () => {
+    dispatch(api.util.invalidateTags([{ type: "Summary", id: "reports" }]));
+    await budgetsQuery.refetch();
+  });
 
   // ── Derived data ──────────────────────────────────────────────────────
 

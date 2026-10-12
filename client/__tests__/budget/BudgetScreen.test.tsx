@@ -59,6 +59,15 @@ jest.mock("@/api/transaction", () => ({
   },
 }));
 
+jest.mock("@/api/financialSummary", () => ({ __esModule: true, default: {
+  fetchSummary: jest.fn(),
+  fetchReport: jest.fn(async (args) => {
+    await Promise.resolve();
+    const result = await (require("@/api/budget").default.fetchAll.mock.results.at(-1)?.value ?? { data: [] });
+    return { success: true, data: { year: args.currentYear, month: args.currentMonth, currency: "USD", generatedAt: new Date().toISOString(), incomeBasis: "UNCONFIGURED", expectedIncomeConfigured: false, transactionCount: 1, summary: { monthlyIncome: 0, netSpent: result.data.reduce((s: number, b: any) => s + b.spent, 0) }, daily: [], categories: [], budgets: result.data, previousPeriod: {} } };
+  }),
+} }));
+
 const mockedFetchAll = budgetApi.fetchAll as jest.Mock;
 
 const makeBudget = (overrides: Partial<IBudget> = {}): IBudget => ({

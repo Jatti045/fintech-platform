@@ -97,7 +97,7 @@ public class FinancialSummaryService {
         double actualIncome = incomeCalculationService.resolveActualForMonth(user, year, month);
         // Net calculations use effective income: actual inflow when present,
         // otherwise the expected baseline the user set on their profile.
-        double monthlyIncome = actualIncome > 0 ? actualIncome : expectedIncome;
+        double monthlyIncome = IncomeCalculationService.effectiveIncome(actualIncome, expectedIncome);
 
         double netRemaining = round2(monthlyIncome - totalAmount);
         double spentPercentage = monthlyIncome > 0 ? round2((totalAmount / monthlyIncome) * 100) : 0;

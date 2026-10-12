@@ -9,6 +9,7 @@ export interface FinancialMetricsProps {
   monthlyIncome: number;
   totalSpent: number;
   currencyCode: string;
+  report?: import("@/types/financialSummary/types").IFinancialReport;
 }
 
 /**
@@ -20,11 +21,12 @@ export default function FinancialMetrics({
   monthlyIncome,
   totalSpent,
   currencyCode,
+  report,
 }: FinancialMetricsProps) {
   const { THEME } = useTheme();
 
   const income = Math.max(0, monthlyIncome || 0);
-  const spent = Math.max(0, totalSpent || 0);
+  const spent = totalSpent;
   const net = income - spent;
 
   const formattedIncome = formatCurrency(income, currencyCode);
@@ -95,20 +97,9 @@ export default function FinancialMetrics({
               fontWeight: "600",
             }}
           >
-            ↗ +12%
+            {report?.previousPeriod.incomeChangePercentage == null ? "No prior income basis" : `${report.previousPeriod.incomeChangePercentage > 0 ? "+" : ""}${report.previousPeriod.incomeChangePercentage}% recorded income vs. last month`}
           </Text>
-          <Text
-            style={{
-              color: THEME.placeholderText,
-              fontSize: 10.5,
-              fontWeight: "400",
-              marginLeft: 2,
-            }}
-            numberOfLines={1}
-          >
-            {" "}
-            vs. last mo
-          </Text>
+
         </View>
       </DashboardCard>
 
@@ -168,20 +159,9 @@ export default function FinancialMetrics({
               fontWeight: "600",
             }}
           >
-            ↗ +8%
+            {report?.previousPeriod.spendingChangePercentage == null ? "No prior spending basis" : `${report.previousPeriod.spendingChangePercentage > 0 ? "+" : ""}${report.previousPeriod.spendingChangePercentage}% net spending vs. last month`}
           </Text>
-          <Text
-            style={{
-              color: THEME.placeholderText,
-              fontSize: 10.5,
-              fontWeight: "400",
-              marginLeft: 2,
-            }}
-            numberOfLines={1}
-          >
-            {" "}
-            vs. last mo
-          </Text>
+
         </View>
       </DashboardCard>
 
@@ -245,20 +225,9 @@ export default function FinancialMetrics({
               fontWeight: "600",
             }}
           >
-            ↗ +4%
+            {report?.incomeBasis === "EXPECTED" ? "Using expected income" : "Income less net spending"}
           </Text>
-          <Text
-            style={{
-              color: THEME.placeholderText,
-              fontSize: 10.5,
-              fontWeight: "400",
-              marginLeft: 2,
-            }}
-            numberOfLines={1}
-          >
-            {" "}
-            vs. last mo
-          </Text>
+
         </View>
       </DashboardCard>
     </View>

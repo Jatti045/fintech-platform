@@ -3,7 +3,7 @@
 // handler logic.  The profile screen composes dumb sub-components that
 // receive slices of this hook's return value as props.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Linking } from "react-native";
 import { router } from "expo-router";
 
@@ -87,7 +87,9 @@ export interface UseProfileReturn {
   handleSaveMonthlyIncome: () => Promise<void>;
   monthlyIncomeSaving: boolean;
   /** Actual inflow (sum of income transactions) for the selected month. */
-  actualMonthlyIncome: number;
+  actualMonthlyIncome: number | null;
+  monthlyIncomeLoading: boolean;
+  monthlyIncomeError: boolean;
 
   /** Change-password modal state & handler */
   changeOpen: boolean;
@@ -148,7 +150,12 @@ export function useProfile(): UseProfileReturn {
   const [pwSaving, setPwSaving] = useState(false);
   const [monthlyIncomeSaving, setMonthlyIncomeSaving] = useState(false);
   const [monthlyIncomeInput, setMonthlyIncomeInput] = useState("");
-  const [actualMonthlyIncome, setActualMonthlyIncome] = useState(0);
+  const [actualMonthlyIncome, setActualMonthlyIncome] = useState<number | null>(null);
+  const [monthlyIncomeLoading, setMonthlyIncomeLoading] = useState(false);
+  const [monthlyIncomeError, setMonthlyIncomeError] = useState(false);
+  const [loadedIncomeKey, setLoadedIncomeKey] = useState<string | null>(null);
+  const incomeRequest = useRef(0);
+  const incomeKey = `${user?.id}:${calendar.year}-${calendar.month}`;
   const selectedMonthLabel = `${calendar.year}-${String(calendar.month + 1).padStart(2, "0")}`;
 
   // ── bank connection (Plaid Link) state ────────────────────────────────────
@@ -274,21 +281,25 @@ export function useProfile(): UseProfileReturn {
       return;
     }
 
+    const request = ++incomeRequest.current;
+    setMonthlyIncomeLoading(true); setMonthlyIncomeError(false);
     try {
-      const response = await userAPI.getMonthlyIncome({
-        month: calendar.month,
-        year: calendar.year,
-      });
-      setMonthlyIncomeInput(String(Number(response?.data?.monthlyIncome ?? 0)));
-      setActualMonthlyIncome(Number(response?.data?.actualMonthlyIncome ?? 0));
+      const response = await userAPI.getMonthlyIncome({ month: calendar.month, year: calendar.year });
+      if (request !== incomeRequest.current) return;
+      if (!Number.isFinite(response?.data?.monthlyIncome) || !Number.isFinite(response?.data?.actualMonthlyIncome)) throw new Error("Income unavailable");
+      setMonthlyIncomeInput(String(response.data.monthlyIncome));
+      setActualMonthlyIncome(response.data.actualMonthlyIncome!);
+      setLoadedIncomeKey(incomeKey);
     } catch {
-      setMonthlyIncomeInput("");
-      setActualMonthlyIncome(0);
+      if (request === incomeRequest.current) setMonthlyIncomeError(true);
+    } finally {
+      if (request === incomeRequest.current) setMonthlyIncomeLoading(false);
     }
-  }, [user?.id, calendar.month, calendar.year]);
+  }, [user?.id, calendar.month, calendar.year, incomeKey]);
 
   useEffect(() => {
-    loadMonthlyIncomeForSelectedMonth();
+    void loadMonthlyIncomeForSelectedMonth();
+    return () => { incomeRequest.current++; };
   }, [loadMonthlyIncomeForSelectedMonth]);
 
   // ── show Redux-level errors as alerts ────────────────────────────────────
@@ -609,7 +620,7 @@ export function useProfile(): UseProfileReturn {
 
   const handleSaveMonthlyIncome = useCallback(async () => {
     const parsed = Number(monthlyIncomeInput);
-    if (isNaN(parsed) || parsed < 0) {
+    if (!monthlyIncomeInput.trim() || !Number.isFinite(parsed) || parsed < 0) {
       showAlert({
         title: "Invalid monthly income",
         message: "Please enter a non-negative number.",
@@ -634,7 +645,6 @@ export function useProfile(): UseProfileReturn {
           api.util.invalidateTags([
             {
               type: "Summary",
-              id: `${calendar.year}-${calendar.month}`,
             },
           ]),
         );
@@ -816,11 +826,13 @@ export function useProfile(): UseProfileReturn {
     setCurrencyPickerOpen,
     handleCurrencySelect,
     selectedMonthLabel,
-    monthlyIncomeInput,
+    monthlyIncomeInput: loadedIncomeKey === incomeKey ? monthlyIncomeInput : "",
     setMonthlyIncomeInput,
     handleSaveMonthlyIncome,
     monthlyIncomeSaving,
-    actualMonthlyIncome,
+    actualMonthlyIncome: loadedIncomeKey === incomeKey ? actualMonthlyIncome : null,
+    monthlyIncomeLoading: monthlyIncomeLoading || (!monthlyIncomeError && loadedIncomeKey !== incomeKey),
+    monthlyIncomeError,
     changeOpen,
     closeChangeModal,
     openChangeModal,

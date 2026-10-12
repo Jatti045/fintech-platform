@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useFinancialSummary, useTheme } from "@/hooks/useRedux";
+import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
-import { safeAmount } from "@/utils/transaction/helpers";
+import { useFinancialReport } from "@/hooks/reporting/useFinancialReport";
+import ReportStatus from "@/components/reporting/ReportStatus";
 import BudgetHalo from "./BudgetHalo";
 import BudgetIncomeSummary from "./BudgetIncomeSummary";
 import BudgetReservoirRow from "./BudgetReservoirRow";
@@ -41,16 +42,10 @@ export interface BudgetContentProps {
  * 4. Lightweight Unbudgeted Spending section
  */
 export default function BudgetContent({
-  isInitialLoading,
-  hasBudgets,
   searchQuery,
-  filteredBudgets,
-  budgetedBudgets,
-  unbudgetedBudgets,
   selectedBudget,
   monthLabel,
   activeCurrency,
-  transactions,
   month,
   year,
   onToggle,
@@ -60,64 +55,40 @@ export default function BudgetContent({
   onSetup,
 }: BudgetContentProps) {
   const [showAllCategories, setShowAllCategories] = useState(false);
-  const financialSummary = useFinancialSummary();
+  const reporting = useFinancialReport(month, year);
+  const report = reporting.report;
   const { THEME } = useTheme();
   const isSearching = searchQuery.trim().length > 0;
 
-  if (isInitialLoading) {
-    return (
-      <View style={{ paddingVertical: 80, alignItems: "center" }}>
-        <ActivityIndicator size="large" color={THEME.primary} />
-      </View>
-    );
-  }
-
-  if (!hasBudgets) {
-    return <EmptyBudgetState onSetup={onSetup} />;
-  }
-
-  if (filteredBudgets.length === 0) {
-    return (
-      <View style={{ paddingVertical: 48, alignItems: "center" }}>
-        <Text style={{ color: THEME.textSecondary, fontSize: 14 }}>
-          No budgets match “{searchQuery}”
-        </Text>
-      </View>
-    );
-  }
-
-  // Aggregate financial metrics
-  const totalSpent = filteredBudgets.reduce(
-    (sum, b) => sum + safeAmount(b.displaySpent),
-    0,
-  );
-  const totalLimit = filteredBudgets.reduce(
-    (sum, b) => sum + safeAmount(b.displayLimit),
-    0,
-  );
-
-  const monthlyIncome = Number(
-    financialSummary?.monthlyIncome ||
-      financialSummary?.actualIncome ||
-      financialSummary?.expectedIncome ||
-      (totalLimit > 0 ? totalLimit * 1.25 : totalSpent * 1.5) ||
-      0,
-  );
+  const status = <ReportStatus report={report} loading={reporting.isFetching} error={reporting.error} stale={reporting.stale} onRetry={() => { void reporting.refetch(); }} />;
+  if (!report) return status;
+  if (!report.budgets.length) return <>{status}<EmptyBudgetState onSetup={onSetup} /></>;
+  const allBudgets: DisplayBudget[] = report.budgets.map(b => ({
+    ...b, date: new Date(b.date), displayLimit: b.limit, displaySpent: b.spent, displayCurrency: report.currency,
+  }));
+  const matching = allBudgets.filter(b => b.category.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+  const limited = matching.filter(b => !b.autoCreated && !(b.limit <= 0 && b.spent > 0));
+  const unbudgeted = matching.filter(b => b.autoCreated || b.limit <= 0 && b.spent > 0);
+  const totalSpent = report.summary.netSpent;
+  const totalLimit = report.budgets.reduce((sum, b) => sum + b.limit, 0);
+  const monthlyIncome = report.summary.monthlyIncome;
 
   // Initial display limit: show 6 categories unless expanded or searching
   const categoriesToShow =
     showAllCategories || isSearching
-      ? budgetedBudgets
-      : budgetedBudgets.slice(0, 6);
+      ? limited
+      : limited.slice(0, 6);
 
   return (
     <>
+      {status}
       {/* ── 1. Monthly Overview Card ────────────────────────────────────── */}
       <BudgetHalo
-        budgets={filteredBudgets}
+        budgets={allBudgets}
+        monthlySpent={totalSpent}
         monthLabel={monthLabel}
         year={year}
-        currencyCode={activeCurrency}
+        currencyCode={report.currency}
       />
 
       {/* ── 2. Income / Main Budget Summary Card ────────────────────────── */}
@@ -125,7 +96,7 @@ export default function BudgetContent({
         income={monthlyIncome}
         totalSpent={totalSpent}
         totalLimit={totalLimit}
-        currencyCode={activeCurrency}
+        currencyCode={report.currency}
         onPressLimit={onSetup}
       />
 
@@ -163,13 +134,14 @@ export default function BudgetContent({
         </View>
 
         <Text style={{ color: THEME.textSecondary, fontSize: 13 }}>
-          Total spent{" "}
+          {isSearching ? "Matching categories spent" : "Total category spending"}{" "}
           <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>
-            {formatCurrency(totalSpent, activeCurrency)}
+            {formatCurrency(matching.reduce((sum, b) => sum + b.spent, 0), report.currency)}
           </Text>
         </Text>
       </View>
 
+      {!matching.length && <Text style={{ color: THEME.textSecondary }}>No budgets match “{searchQuery}”</Text>}
       {/* ── Unified Categories List Container ───────────────────────────── */}
       <View
         style={{
@@ -184,7 +156,7 @@ export default function BudgetContent({
         {categoriesToShow.map((budget, index) => {
           const isLast =
             index === categoriesToShow.length - 1 &&
-            (budgetedBudgets.length <= 6 || showAllCategories || isSearching);
+            (limited.length <= 6 || showAllCategories || isSearching);
 
           return (
             <BudgetReservoirRow
@@ -203,7 +175,7 @@ export default function BudgetContent({
         })}
 
         {/* "Show all categories >" expandable toggle */}
-        {budgetedBudgets.length > 6 && !isSearching && (
+        {limited.length > 6 && !isSearching && (
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => setShowAllCategories((prev) => !prev)}
@@ -233,7 +205,7 @@ export default function BudgetContent({
               >
                 {showAllCategories
                   ? "Show less"
-                  : `Show all categories (${budgetedBudgets.length})`}
+                  : `Show all categories (${limited.length})`}
               </Text>
             </View>
 
@@ -247,9 +219,9 @@ export default function BudgetContent({
       </View>
 
       {/* ── 4. Lightweight Unbudgeted Spending Section ─────────────────── */}
-      {unbudgetedBudgets.length > 0 && (
+      {unbudgeted.length > 0 && (
         <UnbudgetedBudgetSection
-          budgets={unbudgetedBudgets}
+          budgets={unbudgeted}
           onSetLimit={onSetLimit}
           onUseSuggestions={onSetup}
         />

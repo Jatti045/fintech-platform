@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { formatCurrency } from "@/utils/helper";
 import { useTheme } from "@/hooks/useRedux";
-import type { ITransaction } from "@/types/transaction/types";
 import DashboardCard from "./DashboardCard";
 
 export interface MonthlyOverviewProps {
@@ -12,7 +11,7 @@ export interface MonthlyOverviewProps {
   monthLabel: string;
   currencyCode: string;
   isCurrentMonth: boolean;
-  transactions?: ITransaction[];
+  daily?: { day: number; netSpent: number }[];
   month?: number;
   year?: number;
 }
@@ -28,15 +27,15 @@ export default function MonthlyOverview({
   monthlyIncome,
   totalSpent,
   currencyCode,
-  transactions = [],
+  daily = [],
   month,
   year,
 }: MonthlyOverviewProps) {
   const income = Math.max(0, monthlyIncome || 0);
-  const spent = Math.max(0, totalSpent || 0);
-  const net = Math.max(0, income - spent);
+  const spent = totalSpent;
+  const net = income - spent;
 
-  const spentRatio = income > 0 ? Math.min(1, spent / income) : 0;
+  const spentRatio = income > 0 ? spent / income : 0;
   const spentPercent = Math.round(spentRatio * 100);
 
   const formattedLeft = formatCurrency(net, currencyCode).replace(/\.00$/, "");
@@ -45,16 +44,8 @@ export default function MonthlyOverview({
     "",
   );
 
-  // Build 8 trend bars based on recent days or graceful pattern
+  // Render the authoritative daily series for the last eight reporting days.
   const trendBars = useMemo(() => {
-    const fallbackHeights = [16, 26, 18, 32, 46, 22, 36, 20];
-    if (!transactions || transactions.length === 0) {
-      return fallbackHeights.map((h, i) => ({
-        height: h,
-        isHighlight: i === 4,
-      }));
-    }
-
     const now = new Date();
     const targetMonth = month ?? now.getUTCMonth();
     const targetYear = year ?? now.getUTCFullYear();
@@ -69,18 +60,7 @@ export default function MonthlyOverview({
 
     const dailyTotals: number[] = [];
     for (let d = startDay; d <= endDay; d++) {
-      let sum = 0;
-      for (const t of transactions) {
-        if (t.isTransfer || (t.type ?? "EXPENSE").toUpperCase() !== "EXPENSE") continue;
-        const txDate = new Date(t.date);
-        if (
-          txDate.getUTCDate() === d &&
-          txDate.getUTCMonth() === targetMonth &&
-          txDate.getUTCFullYear() === targetYear
-        ) {
-          sum += t.amount;
-        }
-      }
+      const sum = daily.find(point => point.day === d)?.netSpent ?? 0;
       dailyTotals.push(sum);
     }
 
@@ -88,17 +68,19 @@ export default function MonthlyOverview({
       dailyTotals.unshift(0);
     }
 
-    const maxVal = Math.max(1, ...dailyTotals);
+    const maxVal = Math.max(1, ...dailyTotals.map(Math.abs));
     const highlightIdx = dailyTotals.length - 1;
 
     return dailyTotals.map((val, idx) => {
-      const h = val > 0 ? Math.max(10, Math.round((val / maxVal) * 44)) : 12;
+      const h = val !== 0 ? Math.max(2, Math.round((Math.abs(val) / maxVal) * 44)) : 0;
       return {
         height: h,
+        value: val,
+        day: startDay + idx - (8 - (endDay - startDay + 1)),
         isHighlight: idx === highlightIdx,
       };
     });
-  }, [transactions, month, year]);
+  }, [daily, month, year]);
 
   const { THEME } = useTheme();
 
@@ -190,7 +172,7 @@ export default function MonthlyOverview({
               marginBottom: 18,
             }}
           >
-            left to spend
+            {net < 0 ? "over income" : "income remaining"}
           </Text>
 
           {/* Horizontal Progress Bar */}
@@ -205,7 +187,7 @@ export default function MonthlyOverview({
           >
             <View
               style={{
-                width: `${spentPercent}%`,
+                width: `${Math.max(0, Math.min(100, spentPercent))}%`,
                 height: 6,
                 borderRadius: 3,
                 backgroundColor: THEME.success,
@@ -229,7 +211,7 @@ export default function MonthlyOverview({
                 fontWeight: "500",
               }}
             >
-              {spentPercent}% of income spent
+              {income > 0 ? `${spentPercent}% of income spent` : "No income available for percentage"}
             </Text>
             <Text
               style={{
@@ -263,6 +245,8 @@ export default function MonthlyOverview({
             {trendBars.map((bar, i) => (
               <View
                 key={i}
+                accessible={bar.day > 0}
+                accessibilityLabel={`Day ${bar.day}: ${formatCurrency(bar.value, currencyCode)} net spending`}
                 style={{
                   alignItems: "center",
                   justifyContent: "flex-end",
@@ -289,7 +273,7 @@ export default function MonthlyOverview({
                     width: 5,
                     height: bar.height,
                     borderRadius: 2.5,
-                    backgroundColor: bar.isHighlight
+                    backgroundColor: bar.value < 0 ? THEME.warning : bar.isHighlight
                       ? THEME.success
                       : THEME.surfaceHover,
                   }}

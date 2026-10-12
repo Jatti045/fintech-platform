@@ -38,10 +38,13 @@ jest.mock("@/api/transaction", () => ({
   default: { fetchAll: jest.fn() },
 }));
 
-jest.mock("@/api/financialSummary", () => ({
-  __esModule: true,
-  default: { fetchSummary: jest.fn() },
-}));
+jest.mock("@/api/financialSummary", () => {
+  const fetchSummary = jest.fn();
+  return { __esModule: true, default: { fetchSummary, fetchReport: jest.fn(async (args) => {
+    const result = await fetchSummary(args);
+    return { success: true, data: { year: args.currentYear, month: args.currentMonth, currency: "USD", generatedAt: new Date().toISOString(), incomeBasis: "ACTUAL", expectedIncomeConfigured: true, transactionCount: 1, summary: result.data, daily: [], categories: [], budgets: [], previousPeriod: {} } };
+  }) } };
+});
 
 jest.mock("@/api/budget", () => ({
   __esModule: true,
