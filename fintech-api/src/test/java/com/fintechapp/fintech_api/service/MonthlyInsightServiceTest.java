@@ -70,7 +70,9 @@ class MonthlyInsightServiceTest {
         when(user.getId()).thenReturn("user-1");
         when(user.getCurrency()).thenReturn("EUR");
         when(user.getEmail()).thenReturn("user@example.com");
-        when(userRepository.findById("user-1")).thenReturn(java.util.Optional.of(user));
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(java.util.Optional.of(user));
+        when(user.isAiProcessingEnabled()).thenReturn(true);
+        when(user.getAiConsentVersion()).thenReturn("1");
 
         service = new MonthlyInsightService(
                 aiClient, financialSummaryService, budgetService,
@@ -99,6 +101,20 @@ class MonthlyInsightServiceTest {
                 new Data(List.of(recurringItem())));
         when(aiClient.complete(anyString(), anyString())).thenReturn(
                 "{\"summary\":\"Spending is up.\",\"highlights\":[\"Restaurants +32%\"]}");
+    }
+
+    @Test
+    void disabledOrOutdatedConsentPreventsEveryProviderCall() {
+        when(user.isAiProcessingEnabled()).thenReturn(false);
+        ResponseStatusException disabled = org.junit.jupiter.api.Assertions.assertThrows(ResponseStatusException.class,
+                () -> service.generateForAuthenticatedUser(AUTH, 2026, 8));
+        assertEquals(HttpStatus.FORBIDDEN, disabled.getStatusCode());
+        when(user.isAiProcessingEnabled()).thenReturn(true);
+        when(user.getAiConsentVersion()).thenReturn("outdated");
+        org.junit.jupiter.api.Assertions.assertThrows(ResponseStatusException.class,
+                () -> service.generateForAuthenticatedUser(AUTH, 2026, 8));
+        verify(aiClient, never()).complete(anyString(), anyString());
+        verify(financialSummaryService, never()).resolveForMonth(any(), anyInt(), anyInt());
     }
 
     private static CategoryTotal categoryTotal(String category, double total) {
@@ -316,7 +332,7 @@ class MonthlyInsightServiceTest {
 
     @Test
     void unknownUserIsRejected() {
-        when(userRepository.findById("user-1")).thenReturn(java.util.Optional.empty());
+        when(userRepository.findByIdForUpdate("user-1")).thenReturn(java.util.Optional.empty());
 
         ResponseStatusException exception = org.junit.jupiter.api.Assertions.assertThrows(
                 ResponseStatusException.class,

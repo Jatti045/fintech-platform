@@ -13,7 +13,6 @@ export async function setAuthToken(token: string): Promise<void> {
     logger.error(
       SCOPE,
       "Failed to persist auth token in secure storage",
-      error,
     );
     throw error;
   }
@@ -23,7 +22,7 @@ export async function getAuthToken(): Promise<string | null> {
   try {
     return await SecureStore.getItemAsync(AUTH_TOKEN_STORAGE_KEY);
   } catch (error) {
-    logger.warn(SCOPE, "Failed to read auth token from secure storage", error);
+    logger.warn(SCOPE, "Failed to read auth token from secure storage");
     return null;
   }
 }
@@ -32,6 +31,6 @@ export async function clearAuthToken(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(AUTH_TOKEN_STORAGE_KEY);
   } catch (error) {
-    logger.warn(SCOPE, "Failed to clear auth token from secure storage", error);
+    logger.warn(SCOPE, "Failed to clear auth token from secure storage");
   }
 }

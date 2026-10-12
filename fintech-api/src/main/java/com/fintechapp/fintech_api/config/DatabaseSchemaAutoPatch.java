@@ -22,6 +22,9 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
 
     @Override
     public void run(@NonNull ApplicationArguments args) {
+        jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_processing_enabled BOOLEAN NOT NULL DEFAULT FALSE");
+        jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_consent_version VARCHAR(16)");
+        jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_consent_updated_at TIMESTAMP WITH TIME ZONE");
         // Safety patch for month-scoped user income persistence.
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS user_monthly_incomes (

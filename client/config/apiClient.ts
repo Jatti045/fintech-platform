@@ -61,7 +61,7 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    logger.error(SCOPE, "Request setup failed", error);
+    logger.error(SCOPE, "Request setup failed");
     return Promise.reject(error);
   },
 );
@@ -85,7 +85,6 @@ apiClient.interceptors.response.use(
     logger.error(
       SCOPE,
       `API error: ${error.config?.url ?? "unknown endpoint"}`,
-      normalized,
     );
 
     if (normalized.status === 401) {

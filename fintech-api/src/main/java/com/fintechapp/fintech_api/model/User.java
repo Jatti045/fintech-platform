@@ -48,6 +48,15 @@ public class User {
     @Column(nullable = false)
     private String currency = "USD";
 
+    @Column(name = "ai_processing_enabled", nullable = false)
+    private boolean aiProcessingEnabled;
+
+    @Column(name = "ai_consent_version", length = 16)
+    private String aiConsentVersion;
+
+    @Column(name = "ai_consent_updated_at")
+    private Instant aiConsentUpdatedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

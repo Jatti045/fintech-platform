@@ -217,7 +217,6 @@ export const googleAuth  = createAsyncThunk(
     async (idToken: string, {rejectWithValue}) => {
       try {
         const response =  await userAPI.googleAuth(idToken);
-        console.log("userSlice - googleAuth response", response);
         return response;
       } catch(error: unknown) {
         return rejectWithValue(
@@ -368,7 +367,7 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(uploadProfilePicture.fulfilled, (state, action) => {
-        logger.debug("userSlice", "Profile picture uploaded", action.payload);
+        logger.debug("userSlice", "Profile picture uploaded");
         state.isLoading = false;
         state.user = {
           ...state.user,

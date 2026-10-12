@@ -21,9 +21,14 @@ const textMock = Text as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
 
 const fetchInsightMock = jest.fn();
+const updatePrivacyMock = jest.fn();
+const privacy = { enabled: true, disclosureVersion: "1", providerName: "Test provider", privacyPolicyUrl: null, updatedAt: null };
+const resetInsight = jest.fn();
 
 jest.mock("@/store/api/apiSlice", () => ({
-  useLazyGetMonthlyInsightQuery: () => [
+  useGetAiPrivacyQuery: () => ({ data: privacy, isLoading: false, refetch: jest.fn() }),
+  useUpdateAiPrivacyMutation: () => [updatePrivacyMock, { isLoading: false }],
+  useGetMonthlyInsightMutation: () => [
     (args: { currentMonth: number; currentYear: number }) => {
       fetchInsightMock(args);
       return Promise.resolve({ data: undefined, error: undefined });
@@ -33,7 +38,7 @@ jest.mock("@/store/api/apiSlice", () => ({
       error: state.error,
       isLoading: state.loading,
       isFetching: state.loading,
-      reset: jest.fn(),
+      reset: resetInsight,
     },
   ],
 }));
@@ -93,12 +98,49 @@ beforeEach(() => {
   textMock.mockClear();
   touchableOpacityMock.mockClear();
   fetchInsightMock.mockClear();
+  updatePrivacyMock.mockReset();
+  updatePrivacyMock.mockImplementation(() => ({ unwrap: async () => { privacy.enabled = true; } }));
+  privacy.enabled = true;
   state.data = undefined;
   state.error = undefined;
   state.loading = false;
 });
 
 describe("MonthlyInsightCard", () => {
+  it("failed consent never starts external processing", async () => {
+    privacy.enabled = false;
+    updatePrivacyMock.mockImplementation(() => ({ unwrap: async () => { throw new Error("unavailable"); } }));
+    const tree = renderCard();
+    act(() => { tree.root.findAll(node => node.props.accessibilityLabel === "Explain my month")[0].props.onPress(); });
+    await act(async () => { tree.root.findAll(node => node.props.accessibilityLabel === "Enable AI explanations")[0].props.onPress(); });
+    expect(fetchInsightMock).not.toHaveBeenCalled();
+    expect(renderedText("Could not confirm consent")).toBe(true);
+    tree.unmount();
+  });
+  it("discloses external processing before first use and never generates on opt-in", async () => {
+    privacy.enabled = false;
+    const tree = renderCard();
+    const action = tree.root.findAll(node => node.props.accessibilityLabel === "Explain my month")[0];
+    act(() => { action.props.onPress(); });
+    expect(fetchInsightMock).not.toHaveBeenCalled();
+    expect(renderedText("Individual transaction records")).toBe(true);
+    const accept = tree.root.findAll(node => node.props.accessibilityLabel === "Enable AI explanations")[0];
+    await act(async () => { accept.props.onPress(); });
+    expect(updatePrivacyMock).toHaveBeenCalledWith({ enabled: true, disclosureVersion: "1" });
+    expect(fetchInsightMock).not.toHaveBeenCalled();
+    tree.unmount();
+  });
+
+  it("dismissing the disclosure never records consent", () => {
+    privacy.enabled = false;
+    const tree = renderCard();
+    act(() => { tree.root.findAll(node => node.props.accessibilityLabel === "Explain my month")[0].props.onPress(); });
+    const cancel = tree.root.findAll(node => node.props.accessibilityLabel === "Keep AI disabled")[0];
+    act(() => { cancel.props.onPress(); });
+    expect(updatePrivacyMock).not.toHaveBeenCalled();
+    expect(fetchInsightMock).not.toHaveBeenCalled();
+    tree.unmount();
+  });
   it("renders the Explain my month action", () => {
     renderCard();
 
