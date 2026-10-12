@@ -25,7 +25,7 @@ import com.fintechapp.fintech_api.repository.PlaidItemRepository;
  *
  * <ul>
  *   <li>{@code TRANSACTIONS}/{@code SYNC_UPDATES_AVAILABLE} (and the legacy
- *       {@code DEFAULT_UPDATE} code) trigger an async /transactions/sync run.
+ *       {@code DEFAULT_UPDATE} code) durably enqueue a /transactions/sync run.
  *       The legacy {@code /transactions/get} codes ({@code INITIAL_UPDATE},
  *       {@code HISTORICAL_UPDATE}, {@code TRANSACTIONS_REMOVED}) are ignored —
  *       the same updates arrive via {@code SYNC_UPDATES_AVAILABLE} and reacting
@@ -36,9 +36,8 @@ import com.fintechapp.fintech_api.repository.PlaidItemRepository;
  *       {@code LOGIN_REPAIRED} clears it when the user completes update mode.</li>
  * </ul>
  *
- * <p>Any failure raises so the controller can dead-letter the raw payload and
- * still acknowledge Plaid with 200 (Plaid retries on non-200, which would
- * create retry storms).</p>
+ * <p>Queue persistence failures propagate so the controller returns a
+ * non-success response and Plaid can redeliver the event.</p>
  */
 @Service
 public class PlaidWebhookService {
@@ -84,15 +83,15 @@ public class PlaidWebhookService {
     private static final int MAX_ERROR_CHARS = 1_900;
     private static final int MAX_STACK_CHARS = 8_000;
 
-    private final PlaidTransactionSyncService syncService;
+    private final PlaidSyncJobService syncJobs;
     private final PlaidItemRepository plaidItemRepository;
     private final FailedWebhookRepository failedWebhookRepository;
 
     public PlaidWebhookService(
-            PlaidTransactionSyncService syncService,
+            PlaidSyncJobService syncJobs,
             PlaidItemRepository plaidItemRepository,
             FailedWebhookRepository failedWebhookRepository) {
-        this.syncService = syncService;
+        this.syncJobs = syncJobs;
         this.plaidItemRepository = plaidItemRepository;
         this.failedWebhookRepository = failedWebhookRepository;
     }
@@ -125,7 +124,7 @@ public class PlaidWebhookService {
                 || WEBHOOK_CODE_DEFAULT_UPDATE.equals(webhookCode)) {
             logger.info("Received Plaid webhook type={} code={} item_id={}; dispatching transaction sync",
                     webhookType, webhookCode, itemId);
-            syncService.syncItemAsync(itemId);
+            syncJobs.requestSync(itemId, false);
             return;
         }
 
@@ -186,6 +185,7 @@ public class PlaidWebhookService {
         }
         int updated = plaidItemRepository.markRequiresReauth(itemId, PlaidItemStatus.REQUIRES_REAUTH, Instant.now());
         if (updated > 0) {
+            syncJobs.markActionRequired(itemId);
             logger.info("Marked item_id={} status=REQUIRES_REAUTH", itemId);
         } else {
             logger.warn("Plaid ITEM_LOGIN_REQUIRED for unknown item_id={}; no local item to update", itemId);
@@ -199,6 +199,7 @@ public class PlaidWebhookService {
         int updated = plaidItemRepository.clearRequiresReauth(itemId, PlaidItemStatus.ACTIVE,
                 PlaidItemStatus.REQUIRES_REAUTH, Instant.now());
         if (updated > 0) {
+            syncJobs.requestSync(itemId, false);
             logger.info("Cleared REQUIRES_REAUTH for item_id={} after LOGIN_REPAIRED", itemId);
         }
     }
@@ -278,4 +279,3 @@ public class PlaidWebhookService {
         return value == null ? null : value.toString();
     }
 }
-

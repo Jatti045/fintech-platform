@@ -25,7 +25,7 @@ import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
 import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.service.PlaidService;
-import com.fintechapp.fintech_api.service.PlaidTransactionSyncService;
+import com.fintechapp.fintech_api.service.PlaidSyncJobService;
 import com.fintechapp.fintech_api.service.PlaidWebhookService;
 import com.fintechapp.fintech_api.service.PlaidWebhookVerificationService;
 
@@ -40,7 +40,7 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
         private PlaidService plaidService;
 
         @MockitoBean
-        private PlaidTransactionSyncService syncService;
+        private PlaidSyncJobService syncJobs;
 
         @MockitoBean
         private PlaidWebhookService webhookService;
@@ -60,6 +60,7 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
         @Test
         void listItems_validToken_returnsConnectedItems() throws Exception {
                 User user = createUser("plaid-list@example.com", "Password123!", "plaid-list");
+                when(syncJobs.statusForItem("plaid-item-1")).thenReturn(java.util.Optional.empty());
                 when(plaidService.listItems(any())).thenReturn(List.of(
                                 new PlaidItemResponse(
                                                 "item-db-1",
@@ -142,6 +143,8 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
                 item.setInstitutionName("Chase");
                 item.setCreatedAt(Instant.ofEpochSecond(1_700_000_000L));
                 when(plaidService.exchangePublicToken(any(), eq("pub-1"))).thenReturn(item);
+                when(syncJobs.requestSync("plaid-item-1", false))
+                                .thenReturn(new PlaidSyncJobService.JobStatus("QUEUED", 0, null));
 
                 mockMvc.perform(post("/api/plaid/token")
                                 .header(authHeaderName(), authHeader(user))
@@ -152,8 +155,26 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
                                 .andExpect(jsonPath("$.message").value("Bank connected"))
                                 .andExpect(jsonPath("$.data.item.itemId").value("plaid-item-1"));
 
-                // Initial sync is dispatched on the background executor.
-                verify(syncService).syncItemAsync("plaid-item-1");
+                // Initial synchronization is durable before the connection response.
+                verify(syncJobs).requestSync("plaid-item-1", false);
+        }
+
+        @Test
+        void manualSyncReturnsAcceptedQueuedStateNotCompletedSuccess() throws Exception {
+                User user = createUser("plaid-manual@example.com", "Password123!", "plaid-manual");
+                PlaidItem item = new PlaidItem();
+                item.setId("item-db-manual");
+                item.setItemId("plaid-manual-item");
+                when(plaidService.findOwnedItem(any(), eq("item-db-manual"))).thenReturn(item);
+                when(syncJobs.requestSync("plaid-manual-item", true))
+                                .thenReturn(new PlaidSyncJobService.JobStatus("QUEUED", 0, null));
+
+                mockMvc.perform(post("/api/plaid/sync/item-db-manual")
+                                .header(authHeaderName(), authHeader(user)))
+                                .andExpect(status().isAccepted())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.message").value("Transaction sync queued"))
+                                .andExpect(jsonPath("$.data.status").value("QUEUED"));
         }
 
         @Test
@@ -206,6 +227,19 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
                                 .andExpect(status().isOk());
 
                 verify(webhookService).handleWebhook(payload);
+        }
+
+        @Test
+        void handleWebhook_queuePersistenceFailureIsNotAcknowledged() throws Exception {
+                when(webhookVerificationService.verify(eq("valid-jwt"), any())).thenReturn(true);
+                org.mockito.Mockito.doThrow(new IllegalStateException("database unavailable"))
+                                .when(webhookService).handleWebhook(any());
+
+                mockMvc.perform(post("/api/plaid/webhook")
+                                .header("Plaid-Verification", "valid-jwt")
+                                .contentType(json())
+                                .content("{\"webhook_type\":\"TRANSACTIONS\",\"webhook_code\":\"SYNC_UPDATES_AVAILABLE\",\"item_id\":\"item-77\"}"))
+                                .andExpect(status().is5xxServerError());
         }
 
         @Test

@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.fintechapp.fintech_api.model.PlaidItem;
@@ -19,9 +18,9 @@ import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.service.PlaidService.SyncPageResult;
 
 /**
- * Asynchronous driver for Plaid "transactions sync". Webhook handlers and the
- * immediate post-link sync both hand off to {@link #syncItemAsync(String)} so
- * the HTTP request/response cycle is never blocked by the sync work.
+ * Synchronous driver for one durable Plaid "transactions sync" job attempt.
+ * Queueing and retries are owned by {@link PlaidSyncJobService} and
+ * {@link PlaidSyncJobWorker}.
  *
  * <p>
  * Sync runs for the <em>same</em> {@code item_id} are serialized across
@@ -63,8 +62,8 @@ public class PlaidTransactionSyncService {
      * to allow page processing while remaining bounded to prevent deadlocks on
      * crash.
      */
-    @Value("${app.plaid.sync.item-lock-lease-duration-ms:60000}")
-    private long itemLockLeaseDurationMs = 60_000L;
+    @Value("${app.plaid.sync.item-lock-lease-duration-ms:120000}")
+    private long itemLockLeaseDurationMs = 120_000L;
 
     private final PlaidItemRepository plaidItemRepository;
     private final PlaidService plaidService;
@@ -81,11 +80,18 @@ public class PlaidTransactionSyncService {
     }
 
     /**
-     * Runs the /transactions/sync cursor loop for the given Plaid item on a
-     * background thread. Safe to call fire-and-forget.
+     * Runs the /transactions/sync cursor loop for one worker attempt.
      */
-    @Async("plaidTaskExecutor")
     public void syncItemAsync(String itemId) {
+        try {
+            syncItem(itemId, () -> { });
+        } catch (RuntimeException ex) {
+            logger.warn("Legacy sync invocation failed for item_id={} ({})", itemId, ex.getClass().getSimpleName());
+        }
+    }
+
+    /** Executes one durable worker attempt synchronously; failures reach the job state machine. */
+    public void syncItem(String itemId, Runnable heartbeat) {
         long runStart = System.currentTimeMillis();
         logger.info("Plaid transaction sync starting for item_id={} (thread={})",
                 itemId, Thread.currentThread().getName());
@@ -103,12 +109,14 @@ public class PlaidTransactionSyncService {
         // Step A — secure the two-tier lock (local mutex + distributed lease).
         try {
             if (!acquireItemLock(itemId, lockToken, timeout, leaseDuration)) {
-                return;
+                throw new PlaidSyncDeferredException("ITEM_LOCK_BUSY");
             }
+        } catch (PlaidSyncDeferredException ex) {
+            throw ex;
         } catch (RuntimeException ex) {
             logger.error("Failed to acquire Plaid sync lease for item_id={}", itemId, ex);
             markSyncError(itemId);
-            return;
+            throw ex;
         }
         long lockHeldSince = System.currentTimeMillis();
         try {
@@ -117,6 +125,7 @@ public class PlaidTransactionSyncService {
             int restarts = 0;
             PlaidService.SyncAttempt attempt = new PlaidService.SyncAttempt();
             while (hasMore) {
+                if (heartbeat != null) heartbeat.run();
                 if (!syncLockService.extend(itemId, lockToken, leaseDuration)) {
                     throw new StalePlaidSyncPageException(itemId);
                 }
@@ -142,12 +151,15 @@ public class PlaidTransactionSyncService {
             // A newer owner/cursor can continue from persisted state. This is not
             // a Plaid failure and must not mark the item unhealthy.
             logger.info("Discarded stale Plaid sync page for item_id={}", itemId);
+            throw new PlaidSyncDeferredException("STALE_SYNC_LEASE", ex);
         } catch (Exception ex) {
-            logger.error("Plaid transaction sync failed for item_id={} user_id={}",
-                    itemId, userId, ex);
+            logger.error("Plaid transaction sync failed for item_id={} user_id={} type={}",
+                    itemId, userId, ex.getClass().getSimpleName());
             // Persisted item health — NOT an in-memory flag. The clients show a
             // non-dismissible warning and offer a manual retry.
             markSyncError(itemId);
+            if (ex instanceof RuntimeException runtime) throw runtime;
+            throw new PlaidSyncDeferredException("SYNC_ERROR", ex);
         } finally {
             // Step F — release the distributed lease and local lock.
             releaseItemLock(itemId, lockToken);

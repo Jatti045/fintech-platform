@@ -1,30 +1,26 @@
 package com.fintechapp.fintech_api.config;
 
-import java.util.concurrent.Executor;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 
 /**
- * Enables Spring's {@code @Async} support and provides a dedicated executor
- * for background work.
- *
- * Plaid webhooks are acknowledged synchronously (so the HTTP thread returns
- * immediately with 200 OK) and the transaction ingestion is handed off to this
- * pool so network-bound /transactions/sync calls never block webhook replies.
+ * Enables scheduled durable-job polling and provides bounded execution capacity.
  */
 @Configuration
-@EnableAsync
+@EnableScheduling
 public class AsyncConfig {
 
-    @Bean(name = "plaidTaskExecutor")
-    public Executor plaidTaskExecutor() {
+    @Bean(name = "plaidSyncWorkerExecutor")
+    public TaskExecutor plaidSyncWorkerExecutor(@Value("${app.plaid.sync.worker-concurrency:2}") int concurrency) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(200);
+        int poolSize = Math.max(1, concurrency);
+        executor.setCorePoolSize(poolSize);
+        executor.setMaxPoolSize(poolSize);
+        executor.setQueueCapacity(0);
         executor.setThreadNamePrefix("plaid-sync-");
         executor.initialize();
         return executor;

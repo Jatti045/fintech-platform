@@ -9,6 +9,7 @@ public record ReauthCompleteResponse(
         String message,
         Data data) {
 
-    public record Data(String itemId, String status) {
+    public record Data(String itemId, String status, String syncStatus) {
+        public Data(String itemId, String status) { this(itemId, status, "QUEUED"); }
     }
 }

@@ -32,7 +32,7 @@ import com.fintechapp.fintech_api.dto.plaid.ReauthCompleteResponse;
 import com.fintechapp.fintech_api.dto.plaid.UpdateLinkTokenRequest;
 import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.service.PlaidService;
-import com.fintechapp.fintech_api.service.PlaidTransactionSyncService;
+import com.fintechapp.fintech_api.service.PlaidSyncJobService;
 import com.fintechapp.fintech_api.service.PlaidWebhookService;
 import com.fintechapp.fintech_api.service.PlaidWebhookVerificationService;
 
@@ -44,7 +44,7 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * Plaid integration endpoints. Link-token creation and token exchange are
  * authenticated; the webhook endpoint is public (see {@code SecurityConfig})
- * and is acknowledged immediately with 200 OK before async sync begins.
+ * and acknowledges sync events only after their PostgreSQL job has committed.
  */
 @RestController
 @RequestMapping("/api/plaid")
@@ -54,19 +54,19 @@ public class PlaidController {
     private static final String PLAID_VERIFICATION_HEADER = "Plaid-Verification";
 
     private final PlaidService plaidService;
-    private final PlaidTransactionSyncService syncService;
+    private final PlaidSyncJobService syncJobs;
     private final PlaidWebhookService webhookService;
     private final PlaidWebhookVerificationService webhookVerificationService;
     private final ObjectMapper objectMapper;
 
     public PlaidController(
             PlaidService plaidService,
-            PlaidTransactionSyncService syncService,
+            PlaidSyncJobService syncJobs,
             PlaidWebhookService webhookService,
             PlaidWebhookVerificationService webhookVerificationService,
             ObjectMapper objectMapper) {
         this.plaidService = plaidService;
-        this.syncService = syncService;
+        this.syncJobs = syncJobs;
         this.webhookService = webhookService;
         this.webhookVerificationService = webhookVerificationService;
         this.objectMapper = objectMapper;
@@ -87,14 +87,13 @@ public class PlaidController {
             @Valid @RequestBody ExchangePublicTokenRequest request) {
         PlaidItem item = plaidService.exchangePublicToken(authenticatedUser, request.publicToken());
 
-        // Kick off the initial ingestion on a background thread so the client
-        // gets a response immediately; later updates arrive via webhooks.
-        syncService.syncItemAsync(item.getItemId());
+        PlaidSyncJobService.JobStatus jobStatus = syncJobs.requestSync(item.getItemId(), false);
 
         PlaidItemResponse response = new PlaidItemResponse(
                 item.getId(), item.getItemId(), item.getInstitutionName(), item.getCreatedAt(),
                 item.getStatus() == null ? "ACTIVE" : item.getStatus().name(),
-                item.isSyncError(), item.getLastSyncedAt(), item.getReauthRequestedAt());
+                item.isSyncError(), item.getLastSyncedAt(), item.getReauthRequestedAt(),
+                clientSyncStatus(jobStatus.status()), jobStatus.attemptCount(), jobStatus.nextAttemptAt());
         return new ExchangeTokenResponse(true, "Bank connected", new ExchangeTokenResponse.Data(response));
     }
 
@@ -102,7 +101,15 @@ public class PlaidController {
     @GetMapping("/items")
     public PlaidItemsResponse listItems(
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        List<PlaidItemResponse> items = plaidService.listItems(authenticatedUser);
+        List<PlaidItemResponse> items = plaidService.listItems(authenticatedUser).stream()
+                .map(item -> {
+                    PlaidSyncJobService.JobStatus status = syncJobs.statusForItem(item.itemId())
+                            .orElse(new PlaidSyncJobService.JobStatus(
+                                    item.lastSyncedAt() == null ? "QUEUED" : "SUCCEEDED", 0, null));
+                    return new PlaidItemResponse(item.id(), item.itemId(), item.institutionName(), item.createdAt(),
+                            item.status(), item.syncError(), item.lastSyncedAt(), item.reauthRequestedAt(),
+                            clientSyncStatus(status.status()), status.attemptCount(), status.nextAttemptAt());
+                }).toList();
         return new PlaidItemsResponse(true, "Bank connections loaded", new PlaidItemsResponse.Data(items));
     }
 
@@ -138,30 +145,34 @@ public class PlaidController {
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @Valid @RequestBody ReauthCompleteRequest request) {
         PlaidItem item = plaidService.completeReauth(authenticatedUser, request.itemId());
-        syncService.syncItemAsync(item.getItemId());
+        PlaidSyncJobService.JobStatus jobStatus = syncJobs.requestSync(item.getItemId(), false);
         return new ReauthCompleteResponse(true, "Bank connection repaired",
                 new ReauthCompleteResponse.Data(item.getItemId(),
-                        item.getStatus() == null ? "ACTIVE" : item.getStatus().name()));
+                        item.getStatus() == null ? "ACTIVE" : item.getStatus().name(),
+                        clientSyncStatus(jobStatus.status())));
     }
 
     /**
-     * Manually triggers a transaction sync for the given item. The sync runs
-     * on a background thread; its outcome is reflected by the item's
-     * {@code lastSyncedAt} / {@code syncError} health fields.
+     * Manually queues a transaction sync for the given item. A 202 response
+     * means the request was durably recorded, not that synchronization ended.
      */
     @PostMapping("/sync/{itemId}")
-    public ManualSyncResponse manualSync(
+    public ResponseEntity<ManualSyncResponse> manualSync(
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable String itemId) {
         PlaidItem item = plaidService.findOwnedItem(authenticatedUser, itemId);
-        syncService.syncItemAsync(item.getItemId());
-        return new ManualSyncResponse(true, "Transaction sync started",
-                new ManualSyncResponse.Data(item.getItemId()));
+        PlaidSyncJobService.JobStatus jobStatus = syncJobs.requestSync(item.getItemId(), true);
+        if ("ACTION_REQUIRED".equals(jobStatus.status())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Reconnect this bank before syncing.");
+        }
+        return ResponseEntity.accepted().body(new ManualSyncResponse(true, "Transaction sync queued",
+                new ManualSyncResponse.Data(item.getItemId(), clientSyncStatus(jobStatus.status()),
+                        jobStatus.nextAttemptAt())));
     }
 
     /**
-     * Public Plaid webhook endpoint. Acknowledged synchronously; the actual
-     * /transactions/sync work is dispatched asynchronously.
+     * Public Plaid webhook endpoint. Sync requests are durably recorded before
+     * successful acknowledgment; a queue persistence failure returns 5xx.
      *
      * <p>
      * Every incoming request must provide a valid {@code Plaid-Verification}
@@ -197,14 +208,23 @@ public class PlaidController {
 
         try {
             webhookService.handleWebhook(payload);
-        } catch (Exception ex) {
-            // Spec: log the full stack + dead-letter, but always ack 200. Plaid
-            // retries non-200 responses; we do not want retry storms for a
-            // payload that is already recorded for manual inspection.
-            logger.error("Plaid webhook processing failed; payload dead-lettered. item_id={}",
-                    payload.get("item_id"), ex);
-            webhookService.deadLetterWebhook(rawBody, ex);
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().is4xxClientError()) {
+                logger.warn("Rejected verified Plaid webhook payload with status={}", ex.getStatusCode().value());
+                webhookService.deadLetterWebhook(rawBody, ex);
+                return ResponseEntity.ok(Map.of("success", true));
+            }
+            throw ex;
+        } catch (RuntimeException ex) {
+            // In particular, do not acknowledge a sync event when PostgreSQL
+            // could not durably record its job; Plaid can redeliver it.
+            logger.error("Verified Plaid webhook could not be durably processed ({})", ex.getClass().getSimpleName());
+            throw ex;
         }
         return ResponseEntity.ok(Map.of("success", true));
+    }
+
+    private static String clientSyncStatus(String status) {
+        return "PROCESSING".equals(status) ? "SYNCING" : status;
     }
 }
