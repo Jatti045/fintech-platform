@@ -19,7 +19,7 @@ import React from "react";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { ActivityIndicator } from "react-native";
+import { ActivityIndicator, AppState, TouchableOpacity } from "react-native";
 import { Stack } from "expo-router";
 import { AppRoutes } from "@/app/_layout";
 import { userAPI } from "@/api/user";
@@ -297,4 +297,41 @@ test("401 on a restored session closes tabs and makes login accessible", async (
   expect(lastScreenProps("(auth)")?.redirect).toBe(false);
   renderer.act(() => tree.unmount());
   await invalidateSession();
+});
+
+
+test("failed restoration shows retry instead of login, and a successful retry restores tabs", async () => {
+  const store = makeStore();
+  mockedGetStoredToken.mockResolvedValue("A");
+  mockedGetStoredUser.mockRejectedValueOnce(new Error("Server unavailable"));
+  let tree!: renderer.ReactTestRenderer;
+  await renderer.act(async () => {
+    tree = renderer.create(<Provider store={store}><AppRoutes /></Provider>);
+    await flush();
+  });
+  expect(tree.root.findAllByType(Stack)).toHaveLength(0);
+  expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+  const retry = tree.root.findAllByType(TouchableOpacity).find(node => node.props.accessibilityLabel === "Retry session loading");
+  expect(retry).toBeDefined();
+  mockedGetStoredUser.mockResolvedValue(user);
+  await renderer.act(async () => { retry!.props.onPress(); await flush(); });
+  expect(lastScreenProps("(tabs)")?.redirect).toBe(false);
+  renderer.act(() => tree.unmount());
+});
+
+test("foreground resumes a failed restore without forcing a new sign-in", async () => {
+  const store = makeStore();
+  mockedGetStoredToken.mockResolvedValue("A");
+  mockedGetStoredUser.mockRejectedValueOnce(new Error("Offline"));
+  let tree!: renderer.ReactTestRenderer;
+  await renderer.act(async () => {
+    tree = renderer.create(<Provider store={store}><AppRoutes /></Provider>);
+    await flush();
+  });
+  mockedGetStoredUser.mockResolvedValue(user);
+  const listener = (AppState.addEventListener as jest.Mock).mock.calls.at(-1)![1];
+  await renderer.act(async () => { listener("active"); await flush(); });
+  expect(store.getState().user.isAuthenticated).toBe(true);
+  expect(lastScreenProps("(tabs)")?.redirect).toBe(false);
+  renderer.act(() => tree.unmount());
 });

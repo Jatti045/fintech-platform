@@ -72,6 +72,7 @@ export const useTransactionScreen = () => {
     isLoading,
     isLoadingMore,
     hasNextPage,
+    error: loadError,
   } = useTransactionSearch({
     currentMonth: calendar.month,
     currentYear: calendar.year,
@@ -282,6 +283,7 @@ export const useTransactionScreen = () => {
     renderItem,
     listFooter,
     listEmpty,
+    loadError,
     refreshing,
     onRefresh,
     openSheet,

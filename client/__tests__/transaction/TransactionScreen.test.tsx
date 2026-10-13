@@ -450,3 +450,18 @@ describe("TransactionScreen", () => {
     expect(renderedText("Filtering transactions…")).toBe(false);
   });
 });
+
+
+test("a failed transaction refresh offers retry and retains loaded rows", async () => {
+  const { tree } = await setup({ transactions: [makeTx({ name: "Retained coffee" })] });
+  mockedTxFetch.mockRejectedValueOnce(new Error("Offline"));
+  await renderer.act(async () => { await refreshControlProps()!.onRefresh(); await flush(); });
+  expect(renderedText("Retained coffee")).toBe(true);
+  expect(renderedText("Could not load transactions")).toBe(true);
+  const retry = lastProps(touchableOpacityMock, props => props.accessibilityLabel === "Retry transactions");
+  expect(retry).toBeDefined();
+  mockedTxFetch.mockResolvedValue(txEnvelope([makeTx({ name: "Recovered coffee" })]));
+  await renderer.act(async () => { await retry!.onPress(); await flush(); });
+  expect(renderedText("Recovered coffee")).toBe(true);
+  renderer.act(() => tree.unmount());
+});

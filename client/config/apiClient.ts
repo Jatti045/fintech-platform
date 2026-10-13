@@ -1,7 +1,12 @@
 import axios from "axios";
 import { handleApiError } from "./apiErrorHandler";
 import { API_TIMEOUT_MS } from "@/constants/appConfig";
-import { getSessionIdentity, invalidateSession, sessionGeneration, type SessionIdentity } from "@/utils/session";
+import {
+  getSessionIdentity,
+  invalidateSession,
+  sessionGeneration,
+  type SessionIdentity,
+} from "@/utils/session";
 
 import { logger } from "@/utils/logger";
 
@@ -47,15 +52,10 @@ apiClient.interceptors.request.use(
 
     // Record the exact session used by this request.
     if (!isPublicAuthEndpoint) {
-      try {
-        const identity = await getSessionIdentity();
-        if (identity) {
-          (config as typeof config & SessionConfig).sessionIdentity = identity;
-          config.headers.Authorization = `Bearer ${identity.token}`;
-        }
-      } catch (err) {
-        logger.warn(SCOPE, "Failed to read auth token", err);
-      }
+      const identity = await getSessionIdentity();
+      if (!identity) throw new Error("No active session. Please sign in.");
+      (config as typeof config & SessionConfig).sessionIdentity = identity;
+      config.headers.Authorization = `Bearer ${identity.token}`;
     }
 
     return config;
@@ -69,9 +69,13 @@ apiClient.interceptors.request.use(
 // Log responses and handle global errors
 apiClient.interceptors.response.use(
   (response) => {
-    const identity = (response.config as typeof response.config & SessionConfig).sessionIdentity;
+    const identity = (response.config as typeof response.config & SessionConfig)
+      .sessionIdentity;
     if (identity && identity.generation !== sessionGeneration()) {
-      return Promise.reject({ status: 401, message: "Response belongs to an inactive session" });
+      return Promise.reject({
+        status: 401,
+        message: "Response belongs to an inactive session",
+      });
     }
     logger.debug(
       SCOPE,
@@ -88,7 +92,9 @@ apiClient.interceptors.response.use(
     );
 
     if (normalized.status === 401) {
-      await invalidateSession((error.config as SessionConfig | undefined)?.sessionIdentity ?? null);
+      void invalidateSession(
+        (error.config as SessionConfig | undefined)?.sessionIdentity ?? null,
+      );
     }
 
     // Reject with a normalized error object so thunks can extract message

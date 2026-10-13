@@ -9,6 +9,9 @@ import type {
 } from "@/types/user/types";
 import { logger } from "@/utils/logger";
 
+import { sessionGeneration } from "@/utils/session";
+import { withDeadline } from "@/utils/withDeadline";
+
 export type { UserState };
 
 // Initial state
@@ -74,22 +77,19 @@ export const deleteUserAccount = createAsyncThunk(
 export const loadUserFromStorage = createAsyncThunk(
   "user/loadFromStorage",
   async (_, { rejectWithValue }) => {
+    const generation = sessionGeneration();
     try {
-      const token = await userAPI.getStoredToken();
-      const userData = await userAPI.getStoredUser();
-
-      if (!token || !userData) {
-        return rejectWithValue("No stored auth data");
-      }
-
-      return {
-        token,
-        user: userData,
-      };
+      const restored = await withDeadline((async () => {
+        const token = await userAPI.getStoredToken();
+        if (!token) return null;
+        const user = await userAPI.getStoredUser();
+        return user ? { token, user } : null;
+      })(), "Session loading timed out. Please retry.");
+      if (generation !== sessionGeneration()) return rejectWithValue({ kind: "stale", message: "Session changed" });
+      if (!restored) return rejectWithValue({ kind: "absent", message: "No stored auth data" });
+      return restored;
     } catch (error: unknown) {
-      return rejectWithValue(
-        extractErrorMessage(error, "Failed to load user data"),
-      );
+      return rejectWithValue({ kind: generation !== sessionGeneration() ? "stale" : "retry", message: extractErrorMessage(error, "Failed to load user data") });
     }
   },
 );
@@ -254,6 +254,8 @@ const userSlice = createSlice({
       state.loginError = null;
       state.signupError = null;
       state.isLoading = false;
+      state.restoreRequestId = undefined;
+      state.restoreError = null;
     },
   },
   extraReducers: (builder) => {
@@ -322,10 +324,15 @@ const userSlice = createSlice({
       })
 
       // Load from storage cases
-      .addCase(loadUserFromStorage.pending, (state) => {
+      .addCase(loadUserFromStorage.pending, (state, action) => {
+        state.restoreRequestId = action.meta.requestId;
+        state.restoreError = null;
         state.isLoading = true;
       })
       .addCase(loadUserFromStorage.fulfilled, (state, action) => {
+        if (state.restoreRequestId !== action.meta.requestId) return;
+        state.restoreRequestId = undefined;
+        state.restoreError = null;
         state.isLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user;
@@ -333,11 +340,19 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(loadUserFromStorage.rejected, (state, action) => {
+        if (state.restoreRequestId !== action.meta.requestId) return;
+        state.restoreRequestId = undefined;
         state.isLoading = false;
-        state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
-        state.error = action.payload as string;
+        const failure = action.payload as { kind?: string; message?: string } | undefined;
+        if (failure?.kind === "stale") return;
+        if (failure?.kind === "absent") {
+          state.isAuthenticated = false;
+          state.user = null;
+          state.token = null;
+        } else {
+          state.restoreError = failure?.message ?? "Unable to restore session. Please retry.";
+        }
+        state.error = failure?.message ?? null;
       })
 
       .addCase(deleteUserAccount.pending, (state) => {
