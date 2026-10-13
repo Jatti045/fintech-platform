@@ -313,7 +313,7 @@ describe("useHomeScreen", () => {
     expect(store.getState().calendar.month).toBe(5);
   });
 
-  it("manages the info / transaction / budget modal state", async () => {
+  it("manages the info modal state", async () => {
     const { captured } = await setup();
 
     renderer.act(() => {
@@ -325,16 +325,6 @@ describe("useHomeScreen", () => {
       captured.current!.setHelpOpen(false);
     });
     expect(captured.current!.helpOpen).toBe(false);
-
-    renderer.act(() => {
-      captured.current!.handleNewBudget();
-    });
-    expect(captured.current!.openBudgetModal).toBe(true);
-
-    renderer.act(() => {
-      captured.current!.setOpenBudgetModal(false);
-    });
-    expect(captured.current!.openBudgetModal).toBe(false);
   });
 
 
@@ -367,28 +357,6 @@ describe("useHomeScreen", () => {
     const { captured } = await setup();
 
     expect(captured.current!.monthlyIncome).toBe(5000);
-  });
-
-  it("opens the transaction modal when a budget exists", async () => {
-    mockedBudgetFetch.mockResolvedValue({ data: [makeBudget()] });
-    const { captured } = await setup();
-
-    renderer.act(() => {
-      captured.current!.handleNewTransaction();
-    });
-
-    expect(captured.current!.openTxModal).toBe(true);
-  });
-
-  it("opens Smart Month Setup when no budget exists", async () => {
-    const { captured } = await setup();
-
-    renderer.act(() => {
-      captured.current!.handleNewTransaction();
-    });
-
-    expect(captured.current!.openTxModal).toBe(false);
-    expect(captured.current!.openSetup).toBe(true);
   });
 
   it("surfaces the backend aggregate verbatim for same-currency users", async () => {

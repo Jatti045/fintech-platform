@@ -48,7 +48,7 @@ const NO_BUDGETS: IBudget[] = [];
  *    month so navigation can never mix months.
  *  - backend-normalized financial aggregates
  *  - month metadata + calendar navigation handlers
- *  - modal state + the "budget required" transaction guard
+ *  - help modal state
  *
  * Contains no JSX. Global data stays in Redux; display transforms stay in
  * `useTransactionDisplayAmounts` / `useBudgetDisplayAmounts`.
@@ -123,9 +123,6 @@ export const useHomeScreen = () => {
 
   // ── Modal / screen-level UI state ─────────────────────────────────────
   const [helpOpen, setHelpOpen] = useState(false);
-  const [openTxModal, setOpenTxModal] = useState(false);
-  const [openBudgetModal, setOpenBudgetModal] = useState(false);
-  const [openSetup, setOpenSetup] = useState(false);
 
   // ── Pull-to-refresh: force a network revalidation of all three sources ─
   const { refreshing, onRefresh } = useRefresh(() =>
@@ -151,25 +148,6 @@ export const useHomeScreen = () => {
     dispatch(nextMonth());
   }, [dispatch]);
 
-  // ── Quick actions ─────────────────────────────────────────────────────
-  const handleNewBudget = useCallback(() => {
-    setOpenBudgetModal(true);
-  }, []);
-
-  /** Guard: a budget must exist for the month before a transaction can be added. */
-  const handleNewTransaction = useCallback(() => {
-    if (budgets.length === 0) {
-      // No budgets for this month — surface setup instead of a dead-end alert.
-      setOpenSetup(true);
-      return;
-    }
-    setOpenTxModal(true);
-  }, [budgets.length]);
-
-  const handleHideSetup = useCallback(() => {
-    setOpenSetup(false);
-  }, []);
-
   const handleInfoPress = useCallback(() => {
     setHelpOpen(true);
   }, []);
@@ -191,19 +169,11 @@ export const useHomeScreen = () => {
     upcomingBills,
     handleDismissBill,
     helpOpen,
-    openTxModal,
-    openBudgetModal,
-    openSetup,
     setHelpOpen,
-    setOpenTxModal,
-    setOpenBudgetModal,
-    handleHideSetup,
     refreshing,
     onRefresh,
     handlePrevMonth,
     handleNextMonth,
-    handleNewTransaction,
-    handleNewBudget,
     handleInfoPress,
   };
 };

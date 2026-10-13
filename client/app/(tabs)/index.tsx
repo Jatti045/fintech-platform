@@ -4,9 +4,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
 import { useTheme } from "@/hooks/useRedux";
-import TransactionModal from "@/components/transaction/TxModal";
-import BudgetModal from "@/components/budget/BudgetModal";
-import { MonthSetupModal } from "@/components/budget";
 import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
@@ -16,7 +13,6 @@ import MonthlyOverview from "@/components/home/MonthlyOverview";
 import FinancialMetrics from "@/components/home/FinancialMetrics";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentTransactions from "@/components/home/RecentTransactions";
-import QuickActions from "@/components/home/QuickActions";
 
 /**
  * Budgee Dashboard (Home Tab).
@@ -27,8 +23,8 @@ import QuickActions from "@/components/home/QuickActions";
  *   - Restrained surfaces, hairline subtle borders (#232326), no glassmorphic glow
  *   - Clear hierarchy: Budgee Header → Month Selector → Monthly Overview
  *     → 3 Metrics (Income/Spent/Net) → Explain My Month → Upcoming Bills
- *     → Recent Transactions → Quick Actions
- *   - All Redux, RTK Query, calculations, and modal logic preserved
+ *     → Recent Transactions
+ *   - Redux, RTK Query, financial calculations, and help modal
  */
 export default function Index() {
   const {
@@ -44,19 +40,11 @@ export default function Index() {
     upcomingBills,
     handleDismissBill,
     helpOpen,
-    openTxModal,
-    openBudgetModal,
-    openSetup,
     setHelpOpen,
-    setOpenTxModal,
-    setOpenBudgetModal,
-    handleHideSetup,
     refreshing,
     onRefresh,
     handlePrevMonth,
     handleNextMonth,
-    handleNewTransaction,
-    handleNewBudget,
     handleInfoPress,
   } = useHomeScreen();
 
@@ -137,29 +125,10 @@ export default function Index() {
           currencyCode={activeCurrency}
         />
 
-        {/* 8. Quick Actions: 4 compact action cards */}
-        <QuickActions
-          onNewTransaction={handleNewTransaction}
-          onNewBudget={handleNewBudget}
-        />
-
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Modals & Sheets */}
-      <TransactionModal openSheet={openTxModal} setOpenSheet={setOpenTxModal} />
-      <BudgetModal
-        openSheet={openBudgetModal}
-        setOpenSheet={setOpenBudgetModal}
-      />
-      <MonthSetupModal
-        open={openSetup}
-        onOpenChange={handleHideSetup}
-        month={month}
-        year={year}
-        currencyCode={activeCurrency}
-        monthLabel={monthLabel}
-      />
+      {/* Help modal */}
       <InformationModal helpOpen={helpOpen} setHelpOpen={setHelpOpen} />
     </SafeAreaView>
   );

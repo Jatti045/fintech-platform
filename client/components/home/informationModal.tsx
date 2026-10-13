@@ -165,11 +165,10 @@ function InformationModal({
                   marginBottom: 8,
                 }}
               >
-                Quick Actions & Home Overview
+                Home Overview
               </Text>
               <Text style={{ color: THEME.textSecondary, marginBottom: 12 }}>
-                Use the quick action buttons on the home screen for common
-                tasks: &quot;New Transaction&quot; and &quot;New Budget&quot;. The home overview
+                The home overview
                 shows the selected month&apos;s spending, top categories, and a small
                 budget summary.
               </Text>

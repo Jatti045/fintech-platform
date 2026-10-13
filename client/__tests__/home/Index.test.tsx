@@ -2,8 +2,7 @@
  * Index (Home tab) integration tests.
  *
  * Verifies the refactored screen composition: homepage sections render,
- * month navigation + refresh are wired, quick actions open the right modals
- * (with the no-budget guard), and the info modal opens from the header.
+ * month navigation + refresh are wired, and the info modal opens from the header.
  */
 
 /// <reference types="jest" />
@@ -223,7 +222,10 @@ describe("Index", () => {
 
     expect(renderedText("Your pulse")).toBe(true);
     expect(renderedText("Recent flow")).toBe(true);
-    expect(renderedText("Quick actions")).toBe(true);
+    expect(renderedText("Quick actions")).toBe(false);
+    expect(renderedText("Quick Actions")).toBe(false);
+    expect(lastProps(touchableOpacityMock, props => props.accessibilityLabel === "New Transaction")).toBeUndefined();
+    expect(lastProps(touchableOpacityMock, props => props.accessibilityLabel === "New Budget")).toBeUndefined();
   });
 
   it("wires the month selector to the calendar", async () => {
@@ -254,49 +256,6 @@ describe("Index", () => {
     });
 
     expect(mockedTxFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("opens the transaction modal when a budget exists", async () => {
-    await setup({ withBudgets: true });
-
-    const tile = lastProps(
-      touchableOpacityMock,
-      (props) => props.accessibilityLabel === "New Transaction",
-    );
-    renderer.act(() => {
-      tile!.onPress();
-    });
-
-    expect(renderedText("Add New Transaction")).toBe(true);
-  });
-
-  it("opens Smart Month Setup instead of the transaction modal when no budget exists", async () => {
-    await setup({ withBudgets: false });
-
-    const tile = lastProps(
-      touchableOpacityMock,
-      (props) => props.accessibilityLabel === "New Transaction",
-    );
-    renderer.act(() => {
-      tile!.onPress();
-    });
-
-    expect(renderedText("Add New Transaction")).toBe(false);
-    expect(renderedText("Set up")).toBe(true);
-  });
-
-  it("opens the budget modal from quick actions", async () => {
-    await setup();
-
-    const tile = lastProps(
-      touchableOpacityMock,
-      (props) => props.accessibilityLabel === "New Budget",
-    );
-    renderer.act(() => {
-      tile!.onPress();
-    });
-
-    expect(renderedText("Create Budget")).toBe(true);
   });
 
   it("opens the info modal from the header", async () => {
