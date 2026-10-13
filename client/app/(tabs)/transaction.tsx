@@ -1,5 +1,5 @@
 import React from "react";
-import { RefreshControl, SectionList } from "react-native";
+import { RefreshControl, SectionList, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useRedux";
 import { useTransactionScreen } from "@/hooks/transaction/useTransactionScreen";
@@ -51,6 +51,7 @@ export default function TransactionScreen() {
     renderItem,
     listFooter,
     listEmpty,
+    loadError,
     refreshing,
     onRefresh,
     openSheet,
@@ -86,6 +87,13 @@ export default function TransactionScreen() {
         onMaxAmountChange={setMaxAmount}
         onClearFilters={clearFilters}
       />
+
+      {loadError && <View accessibilityLiveRegion="polite">
+        <Text style={{ color: THEME.danger }}>Could not load transactions. Retry to refresh your data.</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry transactions" onPress={onRefresh} disabled={refreshing}>
+          <Text style={{ color: THEME.primary, paddingVertical: 8 }}>Retry</Text>
+        </TouchableOpacity>
+      </View>}
 
       <SectionList<TransactionItem, GroupedSection>
         sections={sectionsWithTotals}

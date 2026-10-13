@@ -34,6 +34,8 @@ export interface IAuthResponse {
 }
 
 export interface UserState {
+  restoreRequestId?: string;
+  restoreError?: string | null;
   user: IUser | null;
   token: string | null;
   isLoading: boolean;

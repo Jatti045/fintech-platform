@@ -105,6 +105,26 @@ class AuthControllerSecurityTest {
 	}
 
 	@Test
+	void validTokenWithTransientDataFailureReturnsServiceUnavailableNotUnauthorized() throws Exception {
+		when(userService.getCurrentUser(any())).thenThrow(
+				new org.springframework.web.server.ResponseStatusException(
+						org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "Data temporarily unavailable"));
+		String token = createToken("user-123", "user@example.com",
+				Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600));
+		mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+				.andExpect(status().isServiceUnavailable());
+	}
+
+	@Test
+	void legacyTokenWithoutExpiryStillExpiresAfterSevenDays() throws Exception {
+		String token = createPayloadOnlyToken("{\"userId\":\"user-123\",\"email\":\"user@example.com\",\"iat\":"
+				+ Instant.now().minusSeconds(JwtService.DEFAULT_TOKEN_TTL_SECONDS + 60).getEpochSecond() + "}");
+		mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.message").value("Token has expired."));
+	}
+
+	@Test
 	void returnsAuthenticatedUserWhenTokenIsValid() throws Exception {
 		when(userService.getCurrentUser(any())).thenReturn(new UserDataResponse(
 				true,

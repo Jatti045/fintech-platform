@@ -160,6 +160,7 @@ export const api = createApi({
   // All endpoints use `queryFn` and call the typed API layer directly (which
   // owns axios/auth/error normalization); the base query itself is never hit.
   baseQuery: fakeBaseQuery(),
+  refetchOnFocus: true,
   tagTypes: [
     "Transactions",
     "Budgets",

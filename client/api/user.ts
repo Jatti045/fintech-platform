@@ -11,6 +11,7 @@ import {
 } from "@/utils/secureStorage";
 import { establishSession, invalidateSession, getSessionIdentity, sessionGeneration, persistSessionUser, restoreSessionUser } from "@/utils/session";
 import { readEncryptedCache, migrateLegacyFinancialCache } from "@/utils/encryptedStorage";
+import { withDeadline, STORAGE_TIMEOUT_MS } from "@/utils/withDeadline";
 import { logger } from "@/utils/logger";
 import {
   type ILoginData,
@@ -213,7 +214,7 @@ class UserAPI extends BaseAPI {
     try {
       const token = await getAuthToken();
       if (token) {
-        await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {
+        void AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {
           logger.warn("UserAPI", "Legacy token cleanup will be retried");
         });
         return token;
@@ -223,7 +224,7 @@ class UserAPI extends BaseAPI {
       const legacyToken = await AsyncStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
       if (legacyToken) {
         await setAuthToken(legacyToken);
-        await AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {
+        void AsyncStorage.removeItem(AUTH_TOKEN_STORAGE_KEY).catch(() => {
           logger.warn("UserAPI", "Legacy token cleanup will be retried");
         });
         return legacyToken;
@@ -232,24 +233,24 @@ class UserAPI extends BaseAPI {
       return null;
     } catch (error) {
       logger.warn("UserAPI", "Failed to read token from storage");
-      return null;
+      throw error;
     }
   }
 
   async getStoredUser(): Promise<IUser | null> {
     try {
-      try { await migrateLegacyFinancialCache(); } catch { /* Retry on the next cache operation. */ }
+      try { await withDeadline(migrateLegacyFinancialCache(), "Cache migration unavailable", STORAGE_TIMEOUT_MS); } catch { /* Retry on the next cache operation. */ }
       const identity = await getSessionIdentity();
       if (!identity) return null;
       if (identity.userId) {
-        const cached = await readEncryptedCache<IUser>(identity.userId, "profile");
+        const cached = await withDeadline(readEncryptedCache<IUser>(identity.userId, "profile"), "Profile cache unavailable", STORAGE_TIMEOUT_MS).catch(() => null);
         if (cached?.id === identity.userId && identity.generation === sessionGeneration()) return cached;
       }
       const response = await this.makeRequest<IUser>("/auth/me", { method: "GET" });
       return await restoreSessionUser(identity, response.data) ? response.data : null;
     } catch (error) {
       logger.warn("UserAPI", "Failed to read user profile from storage");
-      return null;
+      throw error;
     }
   }
 

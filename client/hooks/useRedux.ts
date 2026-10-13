@@ -38,6 +38,7 @@ export const useAuth = () => {
       error: state.user.error,
       loginError: state.user.loginError,
       signupError: state.user.signupError,
+      restoreError: state.user.restoreError,
     }),
     shallowEqual,
   );

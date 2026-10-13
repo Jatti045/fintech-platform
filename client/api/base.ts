@@ -31,7 +31,7 @@ export default class BaseAPI {
       } else if (error.request) {
         throw new Error("Network error: No response from server");
       } else {
-        throw new Error(error.message || "Request failed");
+        throw Object.assign(new Error(error.message || "Request failed"), { status: error.status });
       }
     }
   }
