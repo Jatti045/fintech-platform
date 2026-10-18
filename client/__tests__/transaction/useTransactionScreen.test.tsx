@@ -577,6 +577,26 @@ describe("useTransactionScreen", () => {
     );
   });
 
+  it("starts date changes at page one after loading more, and clears the date with other filters", async () => {
+    mockedTxFetch.mockResolvedValue(txEnvelope([makeTx()], { hasNextPage: true, totalPages: 3, totalCount: 45 }));
+    const { captured, store } = await setup();
+    renderer.act(() => { captured.current!.listFooter.props.onLoadMore(); });
+    await until(() => txSettled(store));
+    expect(mockedTxFetch).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }));
+    mockedTxFetch.mockClear();
+    const screen = captured.current!;
+    const day = `${screen.year}-${String(screen.month + 1).padStart(2, "0")}-10`;
+    renderer.act(() => { captured.current!.setSelectedDate(day); });
+    await until(() => txSettled(store));
+    expect(mockedTxFetch.mock.calls.length).toBeGreaterThan(0);
+    expect(mockedTxFetch.mock.calls.every(([args]) => args.startDate === day && args.endDate === day && args.page === 1)).toBe(true);
+    mockedTxFetch.mockClear();
+    renderer.act(() => { captured.current!.clearFilters(); });
+    await until(() => txSettled(store));
+    expect(captured.current!.selectedDate).toBeNull();
+    expect(mockedTxFetch.mock.calls.every(([args]) => args.page === 1)).toBe(true);
+  });
+
   it("opens the edit modal and clears editing on close", async () => {
     const { captured } = await setup();
     const tx = makeTx();

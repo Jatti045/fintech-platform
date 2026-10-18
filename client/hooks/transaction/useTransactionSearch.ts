@@ -14,6 +14,7 @@ type UseTransactionSearchParams = {
   budgetId?: string | null;
   minAmount?: number | null;
   maxAmount?: number | null;
+  selectedDate?: string | null;
 };
 
 /**
@@ -36,11 +37,15 @@ export function useTransactionSearch({
   budgetId,
   minAmount,
   maxAmount,
+  selectedDate,
 }: UseTransactionSearchParams) {
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedQuery = useMemo(() => searchQuery.trim(), [searchQuery]);
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [page, setPage] = useState(1);
+  const [paginationScope, setPaginationScope] = useState({
+    scopeKey: "",
+    page: 1,
+  });
   const didInitRef = useRef(false);
 
   // Debounce the query before it becomes part of the request/cache key.
@@ -70,12 +75,22 @@ export function useTransactionSearch({
         budgetId,
         minAmount,
         maxAmount,
+        selectedDate,
       ]),
-    [currentMonth, currentYear, debouncedQuery, budgetId, minAmount, maxAmount],
+    [
+      currentMonth,
+      currentYear,
+      debouncedQuery,
+      budgetId,
+      minAmount,
+      maxAmount,
+      selectedDate,
+    ],
   );
 
+  const page = paginationScope.scopeKey === scopeKey ? paginationScope.page : 1;
   useEffect(() => {
-    setPage(1);
+    setPaginationScope({ scopeKey, page: 1 });
   }, [scopeKey]);
 
   /**
@@ -119,6 +134,8 @@ export function useTransactionSearch({
     budgetId,
     minAmount,
     maxAmount,
+    startDate: selectedDate,
+    endDate: selectedDate,
     page,
     limit: PAGINATION_LIMIT,
   });
@@ -129,26 +146,26 @@ export function useTransactionSearch({
       if (page === 1) {
         query.refetch();
       } else {
-        setPage(1);
+        setPaginationScope({ scopeKey, page: 1 });
       }
     }
     prevSettledRef.current = settledMutationCount;
-  }, [settledMutationCount, page, query]);
+  }, [settledMutationCount, page, query, scopeKey]);
 
   const pagination = query.data?.pagination;
 
   /** Pull-to-refresh: re-fetch page 1 for the active query, replacing the list. */
   const refreshTransactions = useCallback(() => {
     if (page === 1) return query.refetch();
-    setPage(1);
+    setPaginationScope({ scopeKey, page: 1 });
     return Promise.resolve();
-  }, [query, page]);
+  }, [query, page, scopeKey]);
 
   /** Infinite scroll: advance to the next authoritative page. */
   const handleLoadMore = useCallback(() => {
     if (query.isFetching || !pagination?.hasNextPage) return;
-    setPage((p) => p + 1);
-  }, [query.isFetching, pagination?.hasNextPage]);
+    setPaginationScope({ scopeKey, page: page + 1 });
+  }, [query.isFetching, pagination?.hasNextPage, scopeKey, page]);
 
   const isLoadingMore = query.isFetching && page > 1;
   const error =

@@ -5,6 +5,8 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ScrollView,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,6 +35,7 @@ export default function PlaidStatusBanner() {
   const dispatch = useAppDispatch();
   const { THEME } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const {
     reauthItems,
     retryableItems,
@@ -77,12 +80,12 @@ export default function PlaidStatusBanner() {
         accessibilityRole="button"
         accessibilityLabel={`Reconnect ${bank}`}
         style={{
-          backgroundColor: hexToRgba(THEME.danger, 0.14),
-          borderColor: hexToRgba(THEME.danger, 0.45),
-          borderWidth: 1,
+          backgroundColor: THEME.surface,
+          borderColor: THEME.danger,
+          borderWidth: 2,
           borderRadius: 14,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
+          paddingHorizontal: 16,
+          paddingVertical: 16,
           flexDirection: "row",
           alignItems: "center",
           marginBottom: 8,
@@ -101,26 +104,42 @@ export default function PlaidStatusBanner() {
         >
           <Ionicons name="alert-circle" size={18} color={THEME.danger} />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginRight: 10 }}>
           <Text
-            style={{ color: THEME.danger, fontSize: 13, fontWeight: "800" }}
+            style={{
+              color: THEME.textPrimary,
+              fontSize: 15,
+              fontWeight: "800",
+            }}
           >
             {bank} connection needs attention
           </Text>
           <Text
-            style={{ color: THEME.textSecondary, fontSize: 11, marginTop: 2 }}
+            style={{
+              color: THEME.textSecondary,
+              fontSize: 13,
+              lineHeight: 19,
+              marginTop: 4,
+            }}
           >
-            Tap here to reconnect and keep your transactions syncing.
+            Reconnect your bank to resume transaction syncing.
           </Text>
         </View>
         {isReauthing ? (
           <ActivityIndicator size="small" color={THEME.danger} />
         ) : (
-          <Text
-            style={{ color: THEME.danger, fontSize: 12, fontWeight: "800" }}
+          <View
+            style={{
+              backgroundColor: THEME.danger,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              borderRadius: 10,
+            }}
           >
-            Reconnect
-          </Text>
+            <Text style={{ color: "#111113", fontSize: 13, fontWeight: "800" }}>
+              Reconnect
+            </Text>
+          </View>
         )}
       </TouchableOpacity>
     );
@@ -192,17 +211,19 @@ export default function PlaidStatusBanner() {
       pointerEvents="box-none"
       style={{
         position: "absolute",
-        bottom: 80,
+        bottom: Math.max(80, insets.bottom + 72),
         left: 0,
         right: 0,
         zIndex: 100,
         elevation: 30,
-        paddingTop: insets.top + 8,
+        maxHeight: height - insets.top - insets.bottom - 120,
         paddingHorizontal: 12,
       }}
     >
-      {reauthItems.map(reauthBanner)}
-      {retryableItems.map(syncErrorBanner)}
+      <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+        {reauthItems.map(reauthBanner)}
+        {retryableItems.map(syncErrorBanner)}
+      </ScrollView>
     </View>
   );
 }

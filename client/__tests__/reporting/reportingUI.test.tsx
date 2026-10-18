@@ -61,14 +61,14 @@ test("Home keeps negative remaining income, zero activity bars, and no hard-code
   const bars = tree.root.findAllByType("View" as any).filter(n => n.props.style?.width === 5 && n.props.style?.marginBottom === undefined);
   expect(bars.every(n => n.props.style.height === 0)).toBe(true);
   act(() => { tree.unmount(); });
-  const metrics = mount(<FinancialMetrics monthlyIncome={0} totalSpent={-50} currencyCode="USD" report={report} />);
+  const metrics = mount(<FinancialMetrics monthlyIncome={0} totalSpent={-50} currencyCode="USD" />);
   expect(texts(metrics)).toContain("-50"); expect(texts(metrics)).not.toContain("+12%");
-  expect(texts(metrics)).toContain("No prior spending basis");
+  expect(texts(metrics)).not.toContain("No prior spending basis");
   act(() => { metrics.unmount(); });
 });
 test("empty recorded activity and an unconfigured income baseline are labeled separately", () => {
   const tree = mount(<ReportStatus report={{ ...report, transactionCount: 0, incomeBasis: "UNCONFIGURED", expectedIncomeConfigured: false }} loading={false} error={undefined} stale={false} onRetry={jest.fn()} />);
-  expect(texts(tree)).toContain("No income or spending recorded"); expect(texts(tree)).toContain("not been configured");
+  expect(texts(tree)).toContain("No income or spending recorded"); expect(texts(tree)).not.toContain("Income uses");
   act(() => { tree.unmount(); });
 });
 
@@ -80,5 +80,12 @@ test("Profile recorded income uses the account currency and never invents zero w
   expect(texts(tree)).toContain("Recorded income unavailable");
   act(() => { tree.update(<MonthlyIncome {...props} actualIncome={0} />); });
   expect(texts(tree)).toContain(formatCurrency(0, "EUR")); expect(texts(tree)).toContain(formatCurrency(1000, "EUR"));
+  act(() => { tree.unmount(); });
+});
+
+
+test("healthy reports omit timestamps and income basis captions", () => {
+  const tree = mount(<ReportStatus report={{ ...report, expenseCredits: 0 }} loading={false} error={undefined} stale={false} onRetry={jest.fn()} />);
+  expect(tree.toJSON()).toBeNull();
   act(() => { tree.unmount(); });
 });

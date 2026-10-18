@@ -165,13 +165,12 @@ function InformationModal({
                   marginBottom: 8,
                 }}
               >
-                Quick Actions & Home Overview
+                Home Overview
               </Text>
               <Text style={{ color: THEME.textSecondary, marginBottom: 12 }}>
-                Use the quick action buttons on the home screen for common
-                tasks: &quot;New Transaction&quot; and &quot;New Budget&quot;. The home overview
-                shows the selected month&apos;s spending, top categories, and a small
-                budget summary.
+                The home overview shows the selected month&apos;s spending,
+                all your budgets, and recent transactions. Add transactions
+                and budgets from their respective tabs.
               </Text>
 
               <Text
@@ -187,7 +186,8 @@ function InformationModal({
                 Both the Transactions and Budgets tabs include a search bar at
                 the top. Type a keyword to instantly filter items by name or
                 category. The search is case-insensitive and updates as you
-                type.
+                type. In Transactions, use the calendar to select a date within
+                the displayed month, or choose &quot;Show all dates&quot; to clear it.
               </Text>
 
               <Text

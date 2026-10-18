@@ -9,7 +9,6 @@ export interface FinancialMetricsProps {
   monthlyIncome: number;
   totalSpent: number;
   currencyCode: string;
-  report?: import("@/types/financialSummary/types").IFinancialReport;
 }
 
 /**
@@ -21,7 +20,6 @@ export default function FinancialMetrics({
   monthlyIncome,
   totalSpent,
   currencyCode,
-  report,
 }: FinancialMetricsProps) {
   const { THEME } = useTheme();
 
@@ -83,24 +81,6 @@ export default function FinancialMetrics({
           {formattedIncome}
         </Text>
 
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            flexWrap: "nowrap",
-          }}
-        >
-          <Text
-            style={{
-              color: THEME.success,
-              fontSize: 10.5,
-              fontWeight: "600",
-            }}
-          >
-            {report?.previousPeriod.incomeChangePercentage == null ? "No prior income basis" : `${report.previousPeriod.incomeChangePercentage > 0 ? "+" : ""}${report.previousPeriod.incomeChangePercentage}% recorded income vs. last month`}
-          </Text>
-
-        </View>
       </DashboardCard>
 
       {/* 2. Spent Card */}
@@ -145,24 +125,6 @@ export default function FinancialMetrics({
           {formattedSpent}
         </Text>
 
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            flexWrap: "nowrap",
-          }}
-        >
-          <Text
-            style={{
-              color: THEME.danger,
-              fontSize: 10.5,
-              fontWeight: "600",
-            }}
-          >
-            {report?.previousPeriod.spendingChangePercentage == null ? "No prior spending basis" : `${report.previousPeriod.spendingChangePercentage > 0 ? "+" : ""}${report.previousPeriod.spendingChangePercentage}% net spending vs. last month`}
-          </Text>
-
-        </View>
       </DashboardCard>
 
       {/* 3. Net Card */}
@@ -211,24 +173,6 @@ export default function FinancialMetrics({
           {formattedNet}
         </Text>
 
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            flexWrap: "nowrap",
-          }}
-        >
-          <Text
-            style={{
-              color: net >= 0 ? THEME.success : THEME.danger,
-              fontSize: 10.5,
-              fontWeight: "600",
-            }}
-          >
-            {report?.incomeBasis === "EXPECTED" ? "Using expected income" : "Income less net spending"}
-          </Text>
-
-        </View>
       </DashboardCard>
     </View>
   );

@@ -22,6 +22,7 @@ interface FilterTransactionProps {
   setMaxAmount: (amount: string) => void;
   clearFilters: () => void;
   onCalendarPress?: () => void;
+  selectedDate?: string | null;
 }
 
 export default function FilterTransaction({
@@ -34,6 +35,7 @@ export default function FilterTransaction({
   setMaxAmount,
   clearFilters,
   onCalendarPress,
+  selectedDate,
 }: FilterTransactionProps) {
   const { THEME } = useTheme();
   const [showMoreModal, setShowMoreModal] = useState(false);
@@ -234,7 +236,12 @@ export default function FilterTransaction({
           onPress={onCalendarPress}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Calendar filter"
+          accessibilityLabel={
+            selectedDate
+              ? `Calendar filter, ${selectedDate}`
+              : "Calendar filter"
+          }
+          accessibilityState={{ selected: Boolean(selectedDate) }}
           style={{
             width: 36,
             height: 36,
@@ -249,6 +256,19 @@ export default function FilterTransaction({
           <Feather name="calendar" size={16} color={THEME.textPrimary} />
         </TouchableOpacity>
       </View>
+
+      {selectedDate ? (
+        <TouchableOpacity
+          onPress={onCalendarPress}
+          accessibilityRole="button"
+          accessibilityLabel="Change date filter"
+          style={{ paddingVertical: 10 }}
+        >
+          <Text style={{ color: THEME.primary, fontSize: 13 }}>
+            Date: {selectedDate} · Change
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* ── More Categories Modal ────────────────────────────────────────── */}
       <Modal

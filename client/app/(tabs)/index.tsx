@@ -4,9 +4,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
 import { useTheme } from "@/hooks/useRedux";
-import TransactionModal from "@/components/transaction/TxModal";
-import BudgetModal from "@/components/budget/BudgetModal";
-import { MonthSetupModal } from "@/components/budget";
 import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
@@ -15,8 +12,8 @@ import ReportStatus from "@/components/reporting/ReportStatus";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
 import FinancialMetrics from "@/components/home/FinancialMetrics";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
+import BudgetOverview from "@/components/home/BudgetOverview";
 import RecentTransactions from "@/components/home/RecentTransactions";
-import QuickActions from "@/components/home/QuickActions";
 
 /**
  * Budgee Dashboard (Home Tab).
@@ -27,13 +24,16 @@ import QuickActions from "@/components/home/QuickActions";
  *   - Restrained surfaces, hairline subtle borders (#232326), no glassmorphic glow
  *   - Clear hierarchy: Budgee Header → Month Selector → Monthly Overview
  *     → 3 Metrics (Income/Spent/Net) → Explain My Month → Upcoming Bills
- *     → Recent Transactions → Quick Actions
- *   - All Redux, RTK Query, calculations, and modal logic preserved
+ *     → Budget Overview → Recent Transactions
  */
 export default function Index() {
   const {
     reporting,
     displayTransactions,
+    displayBudgets,
+    budgetsLoading,
+    budgetsError,
+    retryBudgets,
     activeCurrency,
     monthlyIncome,
     expenseTotal,
@@ -44,19 +44,11 @@ export default function Index() {
     upcomingBills,
     handleDismissBill,
     helpOpen,
-    openTxModal,
-    openBudgetModal,
-    openSetup,
     setHelpOpen,
-    setOpenTxModal,
-    setOpenBudgetModal,
-    handleHideSetup,
     refreshing,
     onRefresh,
     handlePrevMonth,
     handleNextMonth,
-    handleNewTransaction,
-    handleNewBudget,
     handleInfoPress,
   } = useHomeScreen();
 
@@ -99,27 +91,36 @@ export default function Index() {
         />
 
         {/* 3. Main Monthly Overview: $2,005 left to spend, progress bar, spending trend */}
-        <ReportStatus report={reporting.report} loading={reporting.isFetching} error={reporting.error} stale={reporting.stale} onRetry={() => { void reporting.refetch(); }} />
-        {reporting.report && <>
-        <MonthlyOverview
-          monthlyIncome={monthlyIncome}
-          totalSpent={expenseTotal}
-          monthLabel={monthLabel}
-          currencyCode={reporting.report.currency}
-          isCurrentMonth={isCurrentMonth}
-          daily={reporting.report.daily}
-          month={month}
-          year={year}
-        />
-
-        {/* 4. Three Metrics: Income / Spent / Net */}
-        <FinancialMetrics
-          monthlyIncome={monthlyIncome}
-          totalSpent={expenseTotal}
-          currencyCode={reporting.report.currency}
+        <ReportStatus
           report={reporting.report}
+          loading={reporting.isFetching}
+          error={reporting.error}
+          stale={reporting.stale}
+          onRetry={() => {
+            void reporting.refetch();
+          }}
         />
-        </>}
+        {reporting.report && (
+          <>
+            <MonthlyOverview
+              monthlyIncome={monthlyIncome}
+              totalSpent={expenseTotal}
+              monthLabel={monthLabel}
+              currencyCode={reporting.report.currency}
+              isCurrentMonth={isCurrentMonth}
+              daily={reporting.report.daily}
+              month={month}
+              year={year}
+            />
+
+            {/* 4. Three Metrics: Income / Spent / Net */}
+            <FinancialMetrics
+              monthlyIncome={monthlyIncome}
+              totalSpent={expenseTotal}
+              currencyCode={reporting.report.currency}
+            />
+          </>
+        )}
 
         {/* 5. Explain My Month: AI feature panel */}
         <MonthlyInsightCard month={month} year={year} />
@@ -131,35 +132,23 @@ export default function Index() {
           onDismiss={handleDismissBill}
         />
 
+        <BudgetOverview
+          budgets={displayBudgets}
+          currencyCode={activeCurrency}
+          loading={budgetsLoading}
+          error={budgetsError}
+          onRetry={retryBudgets}
+        />
+
         {/* 7. Recent Transactions: unified subtle surface */}
         <RecentTransactions
           transactions={displayTransactions}
           currencyCode={activeCurrency}
         />
 
-        {/* 8. Quick Actions: 4 compact action cards */}
-        <QuickActions
-          onNewTransaction={handleNewTransaction}
-          onNewBudget={handleNewBudget}
-        />
-
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Modals & Sheets */}
-      <TransactionModal openSheet={openTxModal} setOpenSheet={setOpenTxModal} />
-      <BudgetModal
-        openSheet={openBudgetModal}
-        setOpenSheet={setOpenBudgetModal}
-      />
-      <MonthSetupModal
-        open={openSetup}
-        onOpenChange={handleHideSetup}
-        month={month}
-        year={year}
-        currencyCode={activeCurrency}
-        monthLabel={monthLabel}
-      />
       <InformationModal helpOpen={helpOpen} setHelpOpen={setHelpOpen} />
     </SafeAreaView>
   );

@@ -9,6 +9,7 @@ type FilterState = {
   filterCategoryId: string;
   minAmount: string;
   maxAmount: string;
+  selectedDate?: string | null;
 };
 
 const UTC_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -65,7 +66,7 @@ export function toUtcMonthString(dateInput: string | Date): string {
 export function useTransactionFilters(
   transactions: any[],
   budgets: any[],
-  { filterCategoryId, minAmount, maxAmount }: FilterState,
+  { filterCategoryId, minAmount, maxAmount, selectedDate }: FilterState,
 ) {
   // ── Derived / memoised data ───────────────────────────────────────────
 
@@ -92,6 +93,10 @@ export function useTransactionFilters(
     const maxParsed = maxAmount.trim() !== "" ? Number(maxAmount) || 0 : null;
 
     return transactions.filter((t: any) => {
+      if (selectedDate) {
+        const date = new Date(t.date);
+        if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== selectedDate) return false;
+      }
       // Category / Type filter
       if (filterCategoryId !== "all") {
         if (filterCategoryId === "income") {
@@ -135,7 +140,7 @@ export function useTransactionFilters(
 
       return true;
     });
-  }, [transactions, filterCategoryId, budgetCategoryMap, minAmount, maxAmount]);
+  }, [transactions, filterCategoryId, budgetCategoryMap, minAmount, maxAmount, selectedDate]);
 
   /**
    * Grouped-by-month sections sorted newest-first with integer-cent totals.

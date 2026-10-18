@@ -63,7 +63,7 @@ export default function BankConnections({
             flex: 1,
           }}
         >
-          {name} needs re-authentication — tap to reconnect
+          {name} needs re-authentication
         </Text>
         {isReauthing ? (
           <ActivityIndicator size="small" color={theme.danger} />

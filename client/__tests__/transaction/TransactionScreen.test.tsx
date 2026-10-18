@@ -37,6 +37,7 @@ import {
 import { TransactionType } from "@/types/transaction/types";
 import type { TransactionItem } from "@/types/transaction/types";
 
+const focusSearch = jest.fn();
 const textMock = Text as unknown as jest.Mock;
 const textInputMock = TextInput as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
@@ -125,6 +126,7 @@ async function setup(options?: { transactions?: TransactionItem[] }) {
           <TransactionScreen />
         </AlertProvider>
       </Provider>,
+      { createNodeMock: element => element.type === "TextInput" ? { focus: focusSearch } : null },
     );
   });
 
@@ -211,7 +213,7 @@ function renderedText(matches: string) {
 const searchInput = () =>
   lastProps(
     textInputMock,
-    (props) => props.placeholder === "Search transactions...",
+    (props) => props.accessibilityLabel === "Search transactions",
   );
 
 const refreshControlProps = () => {
@@ -242,6 +244,7 @@ beforeEach(async () => {
     success: true,
     data: { totalAmount: 0, monthlyIncome: 0, actualIncome: 0, expectedIncome: 0 },
   });
+  focusSearch.mockClear();
   textMock.mockClear();
   textInputMock.mockClear();
   touchableOpacityMock.mockClear();
@@ -255,8 +258,46 @@ describe("TransactionScreen", () => {
     });
 
     expect(renderedText("Transactions")).toBe(true);
-    expect(renderedText("Spent this month")).toBe(true); // FlowHeader
     expect(renderedText("Coffee")).toBe(true); // row name
+  });
+
+  it("focuses the visible search input and removes the extra utility icon", async () => {
+    const { tree } = await setup();
+    const search = tree.root.findAllByType(TouchableOpacity).find(node => node.props.accessibilityLabel === "Search");
+    renderer.act(() => { search!.props.onPress(); });
+    expect(focusSearch).toHaveBeenCalledTimes(1);
+    expect(tree.root.findAllByType(TextInput).filter(node => node.props.accessibilityLabel === "Search transactions")).toHaveLength(1);
+    expect(tree.root.findAllByType(TouchableOpacity).some(node => node.props.accessibilityLabel === "Filter")).toBe(false);
+  });
+
+  it("opens a month-only calendar, filters a full UTC date, and clears it", async () => {
+    const { tree, store } = await setup({ transactions: [
+      makeTx({ id: "start", date: "2026-02-10T00:00:00Z" }),
+      makeTx({ id: "end", date: "2026-02-10T23:59:59.999Z" }),
+      makeTx({ id: "other", date: "2026-02-11T00:00:00Z" }),
+    ] });
+    const button = (label: string) => tree.root.findAllByType(TouchableOpacity).find(node => node.props.accessibilityLabel === label)!;
+    renderer.act(() => { button("Calendar filter").props.onPress(); });
+    const dates = tree.root.findAllByType(TouchableOpacity).filter(node => /^2026-/.test(node.props.accessibilityLabel ?? ""));
+    expect(dates).toHaveLength(28);
+    expect(dates.every(node => node.props.accessibilityLabel.startsWith("2026-02-"))).toBe(true);
+    mockedTxFetch.mockClear();
+    await renderer.act(async () => { button("2026-02-10").props.onPress(); await flush(); });
+    await until(() => txSettled(store));
+    expect(mockedTxFetch).toHaveBeenCalledWith(expect.objectContaining({ startDate: "2026-02-10", endDate: "2026-02-10", page: 1 }));
+    await until(() => (SectionList as unknown as jest.Mock).mock.calls.at(-1)?.[0].sections[0]?.data.length === 2);
+    expect(tree.root.findAllByType(TouchableOpacity).some(node => node.props.accessibilityLabel === "2026-02-10")).toBe(false);
+    renderer.act(() => { button("Change date filter").props.onPress(); });
+    const allDates = tree.root.findAllByType(TouchableOpacity).find(node => node.props.children?.props?.children === "Show all dates")!;
+    await renderer.act(async () => { allDates.props.onPress(); await flush(); });
+    expect(tree.root.findByType(TransactionHeader).props.selectedDate).toBeNull();
+    await until(() => (SectionList as unknown as jest.Mock).mock.calls.at(-1)?.[0].sections[0]?.data.length === 3);
+    await renderer.act(async () => {
+      tree.root.findByType(TransactionHeader).props.onCalendarPress(); await flush();
+    });
+    await renderer.act(async () => { button("2026-02-10").props.onPress(); await flush(); });
+    await renderer.act(async () => { store.dispatch(setMonthYear({ year: 2026, month: 2 })); await flush(); });
+    expect(tree.root.findByType(TransactionHeader).props.selectedDate).toBeNull();
   });
 
   it("shows the empty state when nothing matches", async () => {

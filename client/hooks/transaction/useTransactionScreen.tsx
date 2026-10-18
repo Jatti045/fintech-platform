@@ -48,6 +48,12 @@ export const useTransactionScreen = () => {
   const [filterCategoryId, setFilterCategoryId] = useState<string>("all");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
+  const [dateFilter, setSelectedDate] = useState<string | null>(null);
+  const monthPrefix = `${calendar.year}-${String(calendar.month + 1).padStart(2, "0")}-`;
+  const selectedDate = dateFilter?.startsWith(monthPrefix) ? dateFilter : null;
+  useEffect(() => {
+    setSelectedDate(null);
+  }, [calendar.month, calendar.year]);
 
   const selectedBudgetId =
     filterCategoryId !== "all" &&
@@ -78,6 +84,7 @@ export const useTransactionScreen = () => {
     budgetId: selectedBudgetId,
     minAmount: selectedMinAmount,
     maxAmount: selectedMaxAmount,
+    selectedDate,
   });
   const isSearching = searchQuery.trim().length > 0;
 
@@ -97,14 +104,16 @@ export const useTransactionScreen = () => {
       filterCategoryId,
       minAmount,
       maxAmount,
+      selectedDate,
     },
   );
 
-  /** Clears the category/amount filter inputs. */
+  /** Clears the category, amount, and date filters. */
   const clearFilters = useCallback(() => {
     setFilterCategoryId("all");
     setMinAmount("");
     setMaxAmount("");
+    setSelectedDate(null);
   }, []);
 
   // ── Search-clear skeleton suppression ───────────────────────────────────
@@ -275,6 +284,8 @@ export const useTransactionScreen = () => {
     setMinAmount,
     maxAmount,
     setMaxAmount,
+    selectedDate,
+    setSelectedDate,
     clearFilters,
     sectionsWithTotals,
     keyExtractor,

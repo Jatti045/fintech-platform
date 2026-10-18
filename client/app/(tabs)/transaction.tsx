@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { RefreshControl, SectionList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useRedux";
 import { useTransactionScreen } from "@/hooks/transaction/useTransactionScreen";
+import TransactionDateFilter from "@/components/transaction/TransactionDateFilter";
 import TransactionHeader from "@/components/transaction/TransactionHeader";
 import TransactionModal from "@/components/transaction/TxModal";
 import AddNewTransactionButton from "@/components/transaction/AddTxButton";
@@ -25,6 +26,7 @@ import type {
  */
 export default function TransactionScreen() {
   const { THEME } = useTheme();
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const {
     displayTransactions,
@@ -45,6 +47,8 @@ export default function TransactionScreen() {
     maxAmount,
     setMaxAmount,
     clearFilters,
+    selectedDate,
+    setSelectedDate,
     sectionsWithTotals,
     keyExtractor,
     renderSectionHeader,
@@ -85,6 +89,8 @@ export default function TransactionScreen() {
         maxAmount={maxAmount}
         onMaxAmountChange={setMaxAmount}
         onClearFilters={clearFilters}
+        onCalendarPress={() => setCalendarOpen(true)}
+        selectedDate={selectedDate}
       />
 
       <SectionList<TransactionItem, GroupedSection>
@@ -105,6 +111,15 @@ export default function TransactionScreen() {
           />
         }
         ListHeaderComponent={<LastSynced />}
+      />
+
+      <TransactionDateFilter
+        visible={calendarOpen}
+        month={month}
+        year={year}
+        selectedDate={selectedDate}
+        onSelect={setSelectedDate}
+        onClose={() => setCalendarOpen(false)}
       />
 
       {/* Create / Edit modal — self-contained via useTransactionOperations */}

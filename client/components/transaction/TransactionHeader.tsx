@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
@@ -24,19 +24,17 @@ export interface TransactionHeaderProps {
   maxAmount: string;
   onMaxAmountChange: (amount: string) => void;
   onClearFilters: () => void;
-  onSearchPress?: () => void;
-  onFilterPress?: () => void;
+  selectedDate?: string | null;
   onCalendarPress?: () => void;
 }
 
 /**
  * Redesigned Transactions Header matching the reference design:
  * - Prominent "Transactions" title with "Manage and track your spending" subtitle
- * - Circular, restrained utility controls for Search & Filters on the top right
+ * - Circular, restrained utility controls for Search on the top right
  * - Clean search bar: "Search transactions, merchants, or categories..."
  * - Refined filter chips row (All, Income, Transfer out, Transfer in, More ⌵)
  * - Compact Amount range row: Amount [ Min ] – [ Max ] [ 📅 ]
- * - Hidden fallbacks for test suite compatibility
  */
 export default function TransactionHeader({
   searchQuery,
@@ -49,11 +47,11 @@ export default function TransactionHeader({
   maxAmount,
   onMaxAmountChange,
   onClearFilters,
-  onSearchPress,
-  onFilterPress,
+  selectedDate,
   onCalendarPress,
 }: TransactionHeaderProps) {
   const { THEME } = useTheme();
+  const searchInputRef = useRef<TextInput>(null);
 
   return (
     <View style={{ paddingTop: 8 }}>
@@ -92,7 +90,7 @@ export default function TransactionHeader({
         {/* Circular utility controls */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <TouchableOpacity
-            onPress={onSearchPress}
+            onPress={() => searchInputRef.current?.focus()}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Search"
@@ -108,25 +106,6 @@ export default function TransactionHeader({
             }}
           >
             <Feather name="search" size={17} color={THEME.textPrimary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={onFilterPress}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Filter"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: THEME.surface,
-              borderWidth: 1,
-              borderColor: THEME.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Feather name="sliders" size={17} color={THEME.textPrimary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -152,6 +131,8 @@ export default function TransactionHeader({
           style={{ marginRight: 10 }}
         />
         <TextInput
+          ref={searchInputRef}
+          accessibilityLabel="Search transactions"
           value={searchQuery}
           onChangeText={onSearchChange}
           placeholder="Search transactions, merchants, or categories..."
@@ -174,19 +155,6 @@ export default function TransactionHeader({
         )}
       </View>
 
-      {/* ── Test Suite Invariant Fallbacks (Invisible) ────────────────────── */}
-      <View
-        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
-        pointerEvents="none"
-      >
-        <TextInput
-          placeholder="Search transactions..."
-          value={searchQuery}
-          onChangeText={onSearchChange}
-        />
-        <Text>Spent this month</Text>
-      </View>
-
       {/* ── Filter Chips & Amount Filter Row ─────────────────────────────── */}
       <FilterTransaction
         budgets={budgets}
@@ -198,6 +166,7 @@ export default function TransactionHeader({
         setMaxAmount={onMaxAmountChange}
         clearFilters={onClearFilters}
         onCalendarPress={onCalendarPress}
+        selectedDate={selectedDate}
       />
     </View>
   );
