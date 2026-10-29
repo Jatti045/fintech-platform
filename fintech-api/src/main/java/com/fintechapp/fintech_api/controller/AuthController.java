@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import com.fintechapp.fintech_api.security.RecoveryClientSource;
 
 import com.fintechapp.fintech_api.dto.common.ApiMessageResponse;
 import com.fintechapp.fintech_api.dto.user.UserDataResponse;
@@ -21,10 +23,12 @@ public class AuthController {
 
 	private final AuthService authService;
 	private final UserService userService;
+	private final RecoveryClientSource clientSource;
 
-	public AuthController(AuthService authService, UserService userService) {
+	public AuthController(AuthService authService, UserService userService, RecoveryClientSource clientSource) {
 		this.authService = authService;
 		this.userService = userService;
+		this.clientSource = clientSource;
 	}
 
 	@PostMapping("/google")
@@ -44,13 +48,13 @@ public class AuthController {
 	}
 
 	@PostMapping("/forgot-password")
-	public ApiMessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-		return authService.forgotPassword(request.email());
+	public ApiMessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
+		return authService.forgotPassword(request.email(), clientSource.resolve(httpRequest));
 	}
 
 	@PostMapping("/reset-password")
-	public ApiMessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-		return authService.resetPassword(request);
+	public ApiMessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request, HttpServletRequest httpRequest) {
+		return authService.resetPassword(request, clientSource.resolve(httpRequest));
 	}
 
 	@GetMapping("/me")

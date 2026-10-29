@@ -35,7 +35,7 @@ import com.fintechapp.fintech_api.service.AuthService;
 import com.fintechapp.fintech_api.service.UserService;
 
 @WebMvcTest(AuthController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JsonAuthenticationEntryPoint.class, JwtService.class})
+@Import({com.fintechapp.fintech_api.security.RecoveryClientSource.class, SecurityConfig.class, JwtAuthenticationFilter.class, JsonAuthenticationEntryPoint.class, JwtService.class})
 @ImportAutoConfiguration({ServletWebSecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class})
 @TestPropertySource(properties = "app.jwt.secret-key=test-secret-key-test-secret-key-1234567890")
 class AuthControllerSecurityTest {

@@ -14,6 +14,17 @@ import org.springframework.core.task.TaskExecutor;
 @EnableScheduling
 public class AsyncConfig {
 
+    @Bean(name = "recoveryEmailExecutor")
+    public TaskExecutor recoveryEmailExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("recovery-email-");
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "plaidSyncWorkerExecutor")
     public TaskExecutor plaidSyncWorkerExecutor(@Value("${app.plaid.sync.worker-concurrency:2}") int concurrency) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
