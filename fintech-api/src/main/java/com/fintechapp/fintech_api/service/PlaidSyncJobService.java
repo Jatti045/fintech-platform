@@ -48,78 +48,75 @@ public class PlaidSyncJobService {
         if (item.getStatus() == PlaidItemStatus.REQUIRES_REAUTH) {
             return new JobStatus("ACTION_REQUIRED", null, null);
         }
+        // A terminal row always records new work. Cooldowns delay its claim rather
+        // than discard the event. Already queued/retrying events coalesce without
+        // sliding the deadline, so a continuous webhook burst cannot starve the job.
         jdbc.update("""
                 INSERT INTO plaid_sync_jobs(item_id, status, requested_version, claimed_version,
                     attempt_count, next_attempt_at, last_requested_at, updated_at)
                 VALUES (?, 'QUEUED', 1, 0, 0, NOW(), NOW(), NOW())
                 ON CONFLICT (item_id) DO UPDATE SET
                     requested_version = CASE
-                        WHEN plaid_sync_jobs.status = 'PROCESSING'
+                        WHEN plaid_sync_jobs.status IN ('PROCESSING','SUCCEEDED','FAILED','ACTION_REQUIRED')
                             THEN GREATEST(plaid_sync_jobs.requested_version, plaid_sync_jobs.claimed_version + 1)
-                        WHEN plaid_sync_jobs.status = 'ACTION_REQUIRED'
-                            THEN plaid_sync_jobs.requested_version + 1
-                        WHEN plaid_sync_jobs.status = 'SUCCEEDED'
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '30 seconds')
-                            THEN plaid_sync_jobs.requested_version + 1
-                        WHEN plaid_sync_jobs.status = 'FAILED'
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '5 minutes')
-                            THEN plaid_sync_jobs.requested_version + 1
                         ELSE plaid_sync_jobs.requested_version END,
                     status = CASE
-                        WHEN plaid_sync_jobs.status = 'PROCESSING' THEN 'PROCESSING'
-                        WHEN plaid_sync_jobs.status = 'ACTION_REQUIRED' THEN 'QUEUED'
-                        WHEN plaid_sync_jobs.status = 'SUCCEEDED'
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '30 seconds') THEN 'QUEUED'
-                        WHEN plaid_sync_jobs.status = 'FAILED'
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '5 minutes') THEN 'QUEUED'
+                        WHEN plaid_sync_jobs.status IN ('SUCCEEDED','FAILED','ACTION_REQUIRED') THEN 'QUEUED'
                         WHEN plaid_sync_jobs.status = 'RETRYING' AND ? THEN 'QUEUED'
                         ELSE plaid_sync_jobs.status END,
                     attempt_count = CASE
-                        WHEN plaid_sync_jobs.status = 'ACTION_REQUIRED' THEN 0
+                        WHEN plaid_sync_jobs.status IN ('QUEUED','SUCCEEDED','FAILED','ACTION_REQUIRED') THEN 0
                         WHEN plaid_sync_jobs.status = 'RETRYING' AND ? THEN 0
-                        WHEN plaid_sync_jobs.status IN ('SUCCEEDED','FAILED')
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '5 minutes') THEN 0
                         ELSE plaid_sync_jobs.attempt_count END,
                     next_attempt_at = CASE
-                        WHEN plaid_sync_jobs.status = 'ACTION_REQUIRED' THEN NOW()
-                        WHEN plaid_sync_jobs.status = 'RETRYING' AND ? THEN NOW()
-                        WHEN plaid_sync_jobs.status IN ('SUCCEEDED','FAILED')
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '5 minutes') THEN NOW()
-                        ELSE plaid_sync_jobs.next_attempt_at END,
-                    last_requested_at = CASE
-                        WHEN plaid_sync_jobs.status = 'ACTION_REQUIRED' THEN NOW()
+                        WHEN ? AND plaid_sync_jobs.status <> 'PROCESSING' THEN NOW()
                         WHEN plaid_sync_jobs.status = 'SUCCEEDED'
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '30 seconds') THEN NOW()
+                            THEN GREATEST(NOW(), COALESCE(plaid_sync_jobs.last_success_at,
+                                plaid_sync_jobs.completed_at, plaid_sync_jobs.last_requested_at) + INTERVAL '30 seconds')
                         WHEN plaid_sync_jobs.status = 'FAILED'
-                             AND (? OR plaid_sync_jobs.last_requested_at < NOW() - INTERVAL '5 minutes') THEN NOW()
-                        ELSE plaid_sync_jobs.last_requested_at END,
+                            THEN GREATEST(NOW(), COALESCE(plaid_sync_jobs.completed_at,
+                                plaid_sync_jobs.updated_at) + INTERVAL '5 minutes')
+                        WHEN plaid_sync_jobs.status = 'ACTION_REQUIRED' THEN NOW()
+                        ELSE plaid_sync_jobs.next_attempt_at END,
+                    last_requested_at = GREATEST(plaid_sync_jobs.last_requested_at, NOW()),
                     updated_at = NOW()
-                """, itemId, manual, manual, manual, manual, manual, manual, manual, manual, manual, manual, manual);
+                """, itemId, manual, manual, manual);
         return statusForItem(itemId).orElse(new JobStatus("QUEUED", 0, Instant.now()));
     }
 
     @Transactional
     public Optional<JobClaim> claimNext() {
+        // Expired/exhausted attempts become visible terminal failures, unless a
+        // newer generation was accepted while they ran. Preserve that pending work.
         jdbc.update("""
-                UPDATE plaid_sync_jobs SET status='FAILED', lease_owner=NULL, lease_expires_at=NULL,
-                    completed_at=NOW(), last_error_code='LEASE_EXHAUSTED', last_error_at=NOW(), updated_at=NOW()
-                WHERE status='PROCESSING' AND lease_expires_at <= NOW() AND attempt_count >= ?
+                UPDATE plaid_sync_jobs SET
+                    status=CASE WHEN requested_version > claimed_version THEN 'QUEUED' ELSE 'FAILED' END,
+                    attempt_count=CASE WHEN requested_version > claimed_version THEN 0 ELSE attempt_count END,
+                    next_attempt_at=CASE WHEN requested_version > claimed_version
+                        THEN NOW() + INTERVAL '5 minutes' ELSE next_attempt_at END,
+                    lease_owner=NULL, lease_expires_at=NULL, completed_at=NOW(),
+                    last_error_code='LEASE_EXHAUSTED', last_error_at=NOW(), updated_at=NOW()
+                WHERE (status='PROCESSING' AND lease_expires_at <= NOW() OR status='RETRYING')
+                  AND attempt_count >= ?
                 """, maxAttempts);
         List<JobClaim> candidates = jdbc.query("""
                 SELECT item_id, requested_version, attempt_count
                 FROM plaid_sync_jobs
                 WHERE (status IN ('QUEUED','RETRYING') AND next_attempt_at <= NOW()
                        OR status='PROCESSING' AND lease_expires_at <= NOW())
-                  AND attempt_count < ?
+                  AND (status='QUEUED' OR attempt_count < ?)
                 ORDER BY next_attempt_at, updated_at
                 FOR UPDATE SKIP LOCKED LIMIT 1
                 """, (rs, row) -> new JobClaim(rs.getString(1), rs.getLong(2), rs.getInt(3), null), maxAttempts);
         if (candidates.isEmpty()) return Optional.empty();
         JobClaim candidate = candidates.get(0);
         String owner = UUID.randomUUID().toString();
+        // QUEUED starts a fresh failure budget, including rows stranded by old
+        // successful follow-ups that incorrectly accumulated attempt_count.
         int updated = jdbc.update("""
                 UPDATE plaid_sync_jobs SET status='PROCESSING', claimed_version=requested_version,
-                    attempt_count=attempt_count+1, lease_owner=?, lease_expires_at=NOW() + (? * INTERVAL '1 second'),
+                    attempt_count=CASE WHEN status='QUEUED' THEN 1 ELSE attempt_count+1 END,
+                    lease_owner=?, lease_expires_at=NOW() + (? * INTERVAL '1 second'),
                     started_at=NOW(), updated_at=NOW()
                 WHERE item_id=?
                 """, owner, Math.max(30, leaseSeconds), candidate.itemId());
@@ -142,9 +139,11 @@ public class PlaidSyncJobService {
         return jdbc.update("""
                 UPDATE plaid_sync_jobs SET
                     status=CASE WHEN requested_version > claimed_version THEN 'QUEUED' ELSE 'SUCCEEDED' END,
-                    attempt_count=CASE WHEN requested_version > claimed_version THEN attempt_count ELSE 0 END,
-                    next_attempt_at=NOW(), last_success_at=NOW(), completed_at=NOW(),
-                    last_error_code=NULL, last_requested_at=NOW(), lease_owner=NULL,
+                    attempt_count=0,
+                    next_attempt_at=CASE WHEN requested_version > claimed_version
+                        THEN NOW() + INTERVAL '30 seconds' ELSE NOW() END,
+                    last_success_at=NOW(), completed_at=NOW(),
+                    last_error_code=NULL, last_error_at=NULL, lease_owner=NULL,
                     lease_expires_at=NULL, updated_at=NOW()
                 WHERE item_id=? AND status='PROCESSING' AND lease_owner=?
                 """, claim.itemId(), claim.owner()) == 1;
@@ -175,8 +174,13 @@ public class PlaidSyncJobService {
     @Transactional
     public boolean fail(JobClaim claim, String errorCode) {
         return jdbc.update("""
-                UPDATE plaid_sync_jobs SET status='FAILED', last_error_code=?, last_error_at=NOW(),
-                    completed_at=NOW(), lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW()
+                UPDATE plaid_sync_jobs SET
+                    status=CASE WHEN requested_version > claimed_version THEN 'QUEUED' ELSE 'FAILED' END,
+                    attempt_count=CASE WHEN requested_version > claimed_version THEN 0 ELSE attempt_count END,
+                    next_attempt_at=CASE WHEN requested_version > claimed_version
+                        THEN NOW() + INTERVAL '5 minutes' ELSE next_attempt_at END,
+                    last_error_code=?, last_error_at=NOW(), completed_at=NOW(),
+                    lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW()
                 WHERE item_id=? AND status='PROCESSING' AND lease_owner=?
                 """, safeCode(errorCode), claim.itemId(), claim.owner()) == 1;
     }

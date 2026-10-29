@@ -84,7 +84,7 @@ public class PlaidSyncJobWorker {
                 logger.warn("Plaid sync attempt failed item_id={} code={} retrying={}", claim.itemId(), code, retrying);
             } else {
                 jobs.fail(claim, code);
-                logger.error("Plaid sync permanently failed item_id={} code={}", claim.itemId(), code);
+                logger.error("Plaid sync generation failed item_id={} code={}", claim.itemId(), code);
             }
         }
     }
