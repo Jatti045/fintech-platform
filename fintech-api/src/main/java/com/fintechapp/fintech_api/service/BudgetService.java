@@ -176,9 +176,17 @@ public class BudgetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category cannot be empty");
         }
 
-        boolean categoryOrDateChanged = !newCategory.equalsIgnoreCase(existing.getCategory())
-                || newMonth != LocalDate.ofInstant(existing.getDate(), ZoneOffset.UTC).getMonthValue() - 1
+        boolean monthChanged = newMonth != LocalDate.ofInstant(existing.getDate(), ZoneOffset.UTC).getMonthValue() - 1
                 || newYear != LocalDate.ofInstant(existing.getDate(), ZoneOffset.UTC).getYear();
+
+        if (monthChanged && transactionRepository.countByBudget_IdAndUser_Id(budgetId, userId) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cannot change budget month: there are transactions attached to this budget. "
+                            + "Remove or reassign those transactions first.");
+        }
+
+        boolean categoryOrDateChanged = !newCategory.equalsIgnoreCase(existing.getCategory()) || monthChanged;
 
         if (categoryOrDateChanged) {
             Instant monthStart = monthStart(newYear, newMonth);

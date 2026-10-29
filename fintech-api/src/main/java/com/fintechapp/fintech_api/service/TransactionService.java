@@ -215,6 +215,9 @@ public class TransactionService {
         Instant monthStart = monthStart(year, month);
         Instant nextMonthStart = nextMonthStart(year, month);
 
+        // Serialize budget validation with budget month changes and other financial writes.
+        transferReconciliation.lockUser(userId);
+
         // Expense transactions must be linked to a budget; income transactions
         // may stand alone (money coming in, not spending against a budget).
         boolean isExpense = type == TransactionType.EXPENSE;
@@ -237,7 +240,6 @@ public class TransactionService {
                     "budgetId is required for expense transactions");
         }
 
-        transferReconciliation.lockUser(userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
 
