@@ -1,8 +1,7 @@
 package com.fintechapp.fintech_api.dto.plaid;
 
 /**
- * Response confirming that a Plaid item was revoked (via /item/remove) and
- * deleted from the database.
+ * Response confirming local disconnection and durable scheduling of remote revocation.
  */
 public record DisconnectItemResponse(
         boolean success,

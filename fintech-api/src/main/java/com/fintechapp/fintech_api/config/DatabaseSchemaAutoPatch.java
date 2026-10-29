@@ -38,6 +38,9 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
         try (var resource = new org.springframework.core.io.ClassPathResource("db/migration/V27__user_update_version.sql").getInputStream()) {
             jdbcTemplate.execute(new String(resource.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
         } catch (java.io.IOException error) { throw new IllegalStateException("User concurrency schema unavailable", error); }
+        try (var resource = new org.springframework.core.io.ClassPathResource("db/migration/V28__durable_plaid_revocations.sql").getInputStream()) {
+            jdbcTemplate.execute(new String(resource.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException error) { throw new IllegalStateException("Plaid revocation schema unavailable", error); }
         // Safety patch for month-scoped user income persistence.
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS user_monthly_incomes (

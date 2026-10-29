@@ -88,7 +88,7 @@ class UserServiceTest {
                 cloudinaryService,
                 uploadValidationService,
                 cacheInvalidator,
-                profilePictures);
+                profilePictures, org.mockito.Mockito.mock(PlaidRevocationJobService.class));
 
         user = new User();
         user.setId("user-1");

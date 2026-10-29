@@ -47,6 +47,7 @@ public class UserService {
     private final UploadValidationService uploadValidationService;
     private final ProfilePictureStore profilePictures;
     private final FinancialCacheInvalidator cacheInvalidator;
+    private final PlaidRevocationJobService revocations;
 
     public UserService(
             UserRepository userRepository,
@@ -60,7 +61,8 @@ public class UserService {
             CloudinaryService cloudinaryService,
             UploadValidationService uploadValidationService,
             FinancialCacheInvalidator cacheInvalidator,
-            ProfilePictureStore profilePictures) {
+            ProfilePictureStore profilePictures,
+            PlaidRevocationJobService revocations) {
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
@@ -73,6 +75,7 @@ public class UserService {
         this.uploadValidationService = uploadValidationService;
         this.cacheInvalidator = cacheInvalidator;
         this.profilePictures = profilePictures;
+        this.revocations = revocations;
     }
 
     public UserDataResponse getCurrentUser(AuthenticatedUser authenticatedUser) {
@@ -105,6 +108,10 @@ public class UserService {
         User existingUser = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
+        // The outbox and local deletion commit together; never discard cleanup credentials.
+        plaidItemRepository.flush();
+        revocations.enqueueForUser(userId);
+
         if (pendingChoices != null) pendingChoices.deleteByUser_Id(userId);
         if (ruleApplications != null) ruleApplications.deleteByUser_Id(userId);
         if (categorizationRules != null) categorizationRules.deleteByUser_Id(userId);
@@ -120,7 +127,8 @@ public class UserService {
         cacheInvalidator.evictFinancialSummaryRegion(userId);
         cacheInvalidator.evictRecurringPayments(userId);
 
-        return new ApiMessageResponse(true, "User account and related data deleted successfully.");
+        return new ApiMessageResponse(true,
+                "User account deleted. Any pending bank revocations will continue in the background.");
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

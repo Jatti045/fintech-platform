@@ -95,6 +95,7 @@ public class PlaidService {
     private final FinancialCacheInvalidator cacheInvalidator;
     private final InternalTransferReconciliationService transferReconciliation;
     private final TransactionTemplate transactionTemplate;
+    private final PlaidRevocationJobService revocations;
 
     @Autowired
     public PlaidService(
@@ -106,7 +107,8 @@ public class PlaidService {
             PlaidTransactionIngestService ingestService,
             FinancialCacheInvalidator cacheInvalidator,
             InternalTransferReconciliationService transferReconciliation,
-            Optional<PlatformTransactionManager> transactionManager) {
+            Optional<PlatformTransactionManager> transactionManager,
+            PlaidRevocationJobService revocations) {
         this.plaidRestClient = plaidRestClient;
         this.settings = settings;
         this.encryptionService = encryptionService;
@@ -115,6 +117,7 @@ public class PlaidService {
         this.ingestService = ingestService;
         this.cacheInvalidator = cacheInvalidator;
         this.transferReconciliation = transferReconciliation;
+        this.revocations = revocations;
         this.transactionTemplate = transactionManager != null && transactionManager.isPresent()
                 ? new TransactionTemplate(transactionManager.get())
                 : null;
@@ -128,9 +131,10 @@ public class PlaidService {
             UserRepository userRepository,
             PlaidTransactionIngestService ingestService,
             FinancialCacheInvalidator cacheInvalidator,
-            InternalTransferReconciliationService transferReconciliation) {
+            InternalTransferReconciliationService transferReconciliation,
+            PlaidRevocationJobService revocations) {
         this(plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService,
-                cacheInvalidator, transferReconciliation, Optional.empty());
+                cacheInvalidator, transferReconciliation, Optional.empty(), revocations);
     }
 
     private <T> T inTransaction(TransactionCallback<T> action) {
@@ -181,6 +185,10 @@ public class PlaidService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "publicToken is required");
         }
 
+        // Serialize registration with account deletion, before issuing a remote credential.
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
+
         Map<String, Object> body = baseBody();
         body.put("public_token", publicToken.trim());
 
@@ -190,9 +198,6 @@ public class PlaidService {
         if (accessTokenNode == null || itemIdNode == null) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid token exchange failed.");
         }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
 
         PlaidItem item = new PlaidItem();
         item.setUser(user);
@@ -418,40 +423,25 @@ public class PlaidService {
     }
 
     /**
-     * Disconnects a Plaid item owned by the authenticated user: revokes the
-     * token at Plaid via {@code /item/remove}, then deletes the persisted item.
+     * Atomically schedules remote revocation and removes the local item, disabling
+     * sync immediately. The independent outbox retains only its encrypted credential.
      *
-     * 
-     * Revocation is best-effort — if Plaid is unreachable (or the item has
-     * already been dropped by Plaid, e.g. a sandbox item), the local record is
-     * still removed so the user is no longer presented with a stale
-     * connection. Webhooks for the item are then ignored by the sync service
-     * because the item lookup no longer resolves.
-     * 
-     *
-     * @return the deleted {@code PlaidItem} id
+     * @return the locally deleted {@code PlaidItem} id (remote revocation is pending)
      * @throws ResponseStatusException 404 when the item is missing or belongs
      *                                 to a different user
      */
     @Transactional
     public String disconnectItem(AuthenticatedUser authenticatedUser, String itemId) {
         String userId = requireUserId(authenticatedUser);
+        // Sync's final apply phase takes this same lock, then rechecks item existence.
+        transferReconciliation.lockUser(userId);
         PlaidItem item = plaidItemRepository.findByIdAndUser_Id(itemId, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
 
-        try {
-            String accessToken = encryptionService.decrypt(item.getAccessTokenEncrypted());
-            Map<String, Object> body = baseBody();
-            body.put("access_token", accessToken);
-            post("/item/remove", body);
-            logger.info("Plaid /item/remove succeeded for item_id={}", item.getItemId());
-        } catch (Exception ex) {
-            logger.warn("Plaid /item/remove failed for item_id={}; deleting locally anyway: {}",
-                    item.getItemId(), ex.getMessage());
-        }
-
+        plaidItemRepository.flush();
+        revocations.enqueueForItem(item.getId());
         plaidItemRepository.delete(item);
-        logger.info("Disconnected Plaid item_id={} for user_id={}", item.getItemId(), userId);
+        logger.info("Disconnected Plaid item locally; remote revocation pending job_id={}", item.getId());
         return item.getId();
     }
 

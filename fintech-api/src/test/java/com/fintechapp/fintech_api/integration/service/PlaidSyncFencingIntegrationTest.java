@@ -423,7 +423,7 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
         when(encryption.decrypt("encrypted")).thenReturn("access-token");
         return new PlaidService(client, new PlaidSettings("client", "secret", "https://sandbox.plaid.com",
                 "https://example.com/webhook", List.of("US"), "en"), encryption, items, userRepository,
-                ingest, cache, transfers, Optional.of(transactionManager));
+                ingest, cache, transfers, Optional.of(transactionManager), mock(PlaidRevocationJobService.class));
     }
 
     private List<List<Map<String, Object>>> financialState(PlaidItem item) {

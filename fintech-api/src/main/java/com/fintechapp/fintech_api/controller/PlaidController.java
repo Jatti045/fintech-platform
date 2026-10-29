@@ -119,7 +119,8 @@ public class PlaidController {
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable String itemId) {
         String deletedItemId = plaidService.disconnectItem(authenticatedUser, itemId);
-        return new DisconnectItemResponse(true, "Bank disconnected", new DisconnectItemResponse.Data(deletedItemId));
+        return new DisconnectItemResponse(true, "Bank disconnected locally. Remote revocation is pending.",
+                new DisconnectItemResponse.Data(deletedItemId));
     }
 
     /**

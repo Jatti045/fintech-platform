@@ -107,7 +107,8 @@ class PlaidSyncTransactionBoundaryTest {
 
         plaidService = new PlaidService(
                 plaidRestClient, settings, encryptionService, plaidItemRepository,
-                userRepository, ingestService, cacheInvalidator, transferReconciliation, Optional.of(txManager));
+                userRepository, ingestService, cacheInvalidator, transferReconciliation, Optional.of(txManager),
+                org.mockito.Mockito.mock(PlaidRevocationJobService.class));
 
         user = new User();
         user.setId("user-1");

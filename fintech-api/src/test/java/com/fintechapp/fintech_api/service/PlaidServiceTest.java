@@ -89,7 +89,7 @@ class PlaidServiceTest {
                 List.of("US"), "en");
         service = new PlaidService(
                 plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService,
-                cacheInvalidator, transferReconciliation);
+                cacheInvalidator, transferReconciliation, mock(PlaidRevocationJobService.class));
 
         user = new User();
         user.setId("user-1");

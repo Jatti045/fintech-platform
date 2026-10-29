@@ -14,6 +14,18 @@ import org.springframework.core.task.TaskExecutor;
 @EnableScheduling
 public class AsyncConfig {
 
+    // Remote cleanup must keep progressing even when every sync worker is busy.
+    @Bean(name = "plaidRevocationExecutor")
+    public TaskExecutor plaidRevocationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(0);
+        executor.setThreadNamePrefix("plaid-revocation-");
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "recoveryEmailExecutor")
     public TaskExecutor recoveryEmailExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
