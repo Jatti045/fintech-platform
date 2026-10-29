@@ -65,9 +65,21 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.message").value("An unexpected error occurred."));
     }
 
+    @Test
+    void returnsConflictForStaleAccountUpdates() throws Exception {
+        mockMvc.perform(get("/test-errors/conflict"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Account changed. Please reload and try again."));
+    }
+
     @RestController
     @RequestMapping("/test-errors")
     static class TestController {
+
+        @GetMapping("/conflict")
+        String conflict() {
+            throw new org.springframework.dao.OptimisticLockingFailureException("Stale account");
+        }
 
         @GetMapping("/token")
         String token() {

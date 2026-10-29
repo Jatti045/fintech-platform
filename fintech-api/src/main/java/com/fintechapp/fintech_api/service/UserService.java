@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -44,6 +45,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final CloudinaryService cloudinaryService;
     private final UploadValidationService uploadValidationService;
+    private final ProfilePictureStore profilePictures;
     private final FinancialCacheInvalidator cacheInvalidator;
 
     public UserService(
@@ -57,7 +59,8 @@ public class UserService {
             PasswordEncoder passwordEncoder,
             CloudinaryService cloudinaryService,
             UploadValidationService uploadValidationService,
-            FinancialCacheInvalidator cacheInvalidator) {
+            FinancialCacheInvalidator cacheInvalidator,
+            ProfilePictureStore profilePictures) {
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
@@ -69,6 +72,7 @@ public class UserService {
         this.cloudinaryService = cloudinaryService;
         this.uploadValidationService = uploadValidationService;
         this.cacheInvalidator = cacheInvalidator;
+        this.profilePictures = profilePictures;
     }
 
     public UserDataResponse getCurrentUser(AuthenticatedUser authenticatedUser) {
@@ -98,7 +102,7 @@ public class UserService {
     @Transactional
     public ApiMessageResponse deleteAccount(String userId, AuthenticatedUser authenticatedUser) {
         requireSameUser(userId, authenticatedUser);
-        User existingUser = userRepository.findById(userId)
+        User existingUser = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
 
         if (pendingChoices != null) pendingChoices.deleteByUser_Id(userId);
@@ -119,49 +123,38 @@ public class UserService {
         return new ApiMessageResponse(true, "User account and related data deleted successfully.");
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ProfilePictureUploadResponse uploadProfilePicture(String userId, MultipartFile file,
             AuthenticatedUser authenticatedUser) {
         requireSameUser(userId, authenticatedUser);
         uploadValidationService.validateProfilePicture(file);
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
-
-        CloudinaryService.UploadedImage uploadedImage = cloudinaryService.uploadProfileImage(file, userId);
-        String previousPublicId = user.getProfilePicPublicId();
-
-        user.setProfilePic(uploadedImage.url());
-        user.setProfilePicPublicId(uploadedImage.publicId());
-        User updatedUser = userRepository.save(user);
-
-        // Delete the old Cloudinary asset only after the user record points to the new
-        // one.
-        if (StringUtils.hasText(previousPublicId) && !previousPublicId.equals(uploadedImage.publicId())) {
-            cloudinaryService.deleteImage(previousPublicId);
+        if (!userRepository.existsById(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.");
         }
 
-        return new ProfilePictureUploadResponse(
-                true,
-                "Profile picture uploaded successfully.",
-                toProfilePictureUser(updatedUser));
+        CloudinaryService.UploadedImage uploaded = cloudinaryService.uploadProfileImage(file, userId);
+        ProfilePictureStore.Change change;
+        try {
+            // Reload and lock after upload; no pre-upload User snapshot is written back.
+            change = profilePictures.replace(userId, uploaded.url(), uploaded.publicId());
+        } catch (RuntimeException failure) {
+            cloudinaryService.deleteImage(uploaded.publicId());
+            throw failure;
+        }
+        // The store has committed. Clean up the asset actually replaced under its lock.
+        if (StringUtils.hasText(change.previousPublicId()) && !change.previousPublicId().equals(uploaded.publicId())) {
+            cloudinaryService.deleteImage(change.previousPublicId());
+        }
+        return new ProfilePictureUploadResponse(true, "Profile picture uploaded successfully.",
+                toProfilePictureUser(change.user()));
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public UserDataResponse deleteProfilePicture(String userId, AuthenticatedUser authenticatedUser) {
         requireSameUser(userId, authenticatedUser);
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
-
-        String previousPublicId = user.getProfilePicPublicId();
-
-        user.setProfilePic(null);
-        user.setProfilePicPublicId(null);
-        User updatedUser = userRepository.save(user);
-
-        cloudinaryService.deleteImage(previousPublicId);
-
-        return new UserDataResponse(true, "Profile picture deleted.", toUserSummary(updatedUser));
+        ProfilePictureStore.Change change = profilePictures.replace(userId, null, null);
+        cloudinaryService.deleteImage(change.previousPublicId());
+        return new UserDataResponse(true, "Profile picture deleted.", toUserSummary(change.user()));
     }
 
     @Transactional

@@ -200,18 +200,19 @@ class UserControllerIntegrationTest extends BaseIntegrationTest {
 
         // Asserts delete profile picture succeeds and clears persisted profilePic.
         @Test
+        @org.springframework.transaction.annotation.Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
         void deleteProfilePicture_existingUser_returnsSuccess() throws Exception {
                 User user = createUser("user-delete-pic@example.com", "Password123!", "user-delete-pic");
-                user.setProfilePic("old-public-id");
-                userRepository.save(user);
-
-                mockMvc.perform(delete("/api/users/{userId}/profile-picture", user.getId())
-                                .header(authHeaderName(), authHeader(user)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.success").value(true));
-
-                User reloaded = userRepository.findById(user.getId()).orElseThrow();
-                org.junit.jupiter.api.Assertions.assertNull(reloaded.getProfilePic());
+                try {
+                        user.setProfilePic("old-public-id");
+                        userRepository.saveAndFlush(user);
+                        mockMvc.perform(delete("/api/users/{userId}/profile-picture", user.getId())
+                                        .header(authHeaderName(), authHeader(user)))
+                                        .andExpect(status().isOk())
+                                        .andExpect(jsonPath("$.success").value(true));
+                        User reloaded = userRepository.findById(user.getId()).orElseThrow();
+                        org.junit.jupiter.api.Assertions.assertNull(reloaded.getProfilePic());
+                } finally { userRepository.deleteById(user.getId()); }
         }
 
         // Asserts delete profile picture with unknown user ID returns 404.

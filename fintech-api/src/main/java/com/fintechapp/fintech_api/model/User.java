@@ -15,6 +15,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "users")
+@org.hibernate.annotations.DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,6 +26,12 @@ public class User {
     @UuidGenerator
     @Column(nullable = false, updatable = false, length = 36)
     private String id;
+
+    // All entity updates, including detached merges, must match the row they read.
+    @Version
+    @org.hibernate.annotations.ColumnDefault("0")
+    @Column(name = "update_version", nullable = false)
+    private long updateVersion;
 
     @Column(nullable = false, unique = true)
     private String email;

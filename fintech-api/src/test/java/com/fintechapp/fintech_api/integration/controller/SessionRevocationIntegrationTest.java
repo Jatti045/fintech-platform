@@ -121,7 +121,9 @@ class SessionRevocationIntegrationTest extends BaseIntegrationTest {
         // A detached profile snapshot models an upload started before the reset.
         User stale = userRepository.findById(actor.getId()).orElseThrow();
         change(old, "Password123!", "NewPassword123!").andExpect(status().isOk());
-        stale.setProfilePic("https://example.com/profile.png"); userRepository.saveAndFlush(stale);
+        stale.setProfilePic("https://example.com/profile.png");
+        assertThrows(org.springframework.dao.OptimisticLockingFailureException.class,
+                () -> userRepository.saveAndFlush(stale));
         User current = userRepository.findById(actor.getId()).orElseThrow();
         assertEquals(1, current.getSessionVersion());
         assertTrue(passwordEncoder.matches("NewPassword123!", current.getPassword()));

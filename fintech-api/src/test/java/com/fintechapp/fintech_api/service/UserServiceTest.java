@@ -66,6 +66,9 @@ class UserServiceTest {
     @Mock
     private FinancialCacheInvalidator cacheInvalidator;
 
+    @Mock
+    private ProfilePictureStore profilePictures;
+
     private UserService userService;
 
     private final AuthenticatedUser authUser = new AuthenticatedUser("user-1", "test@example.com", 1234567890L);
@@ -84,7 +87,8 @@ class UserServiceTest {
                 passwordEncoder,
                 cloudinaryService,
                 uploadValidationService,
-                cacheInvalidator);
+                cacheInvalidator,
+                profilePictures);
 
         user = new User();
         user.setId("user-1");

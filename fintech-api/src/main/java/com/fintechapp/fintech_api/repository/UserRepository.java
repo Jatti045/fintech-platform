@@ -32,7 +32,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     /** Caller holds the user row lock. Password and revocation commit as one database update. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = "UPDATE users SET password = :password, session_version = session_version + 1, "
-            + "updated_at = clock_timestamp() WHERE id = :userId", nativeQuery = true)
+            + "update_version = update_version + 1, updated_at = clock_timestamp() WHERE id = :userId", nativeQuery = true)
     int replacePasswordAndRevokeSessions(@Param("userId") String userId, @Param("password") String password);
 
     boolean existsByEmail(String email);
