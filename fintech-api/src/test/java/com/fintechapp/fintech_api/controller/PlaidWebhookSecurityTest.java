@@ -56,6 +56,9 @@ class PlaidWebhookSecurityTest {
             {"webhook_type":"TRANSACTIONS","webhook_code":"SYNC_UPDATES_AVAILABLE","item_id":"item-1"}
             """;
 
+    @MockitoBean
+    private com.fintechapp.fintech_api.repository.UserRepository users;
+
     @Autowired
     private MockMvc mockMvc;
 

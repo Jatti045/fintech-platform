@@ -29,8 +29,14 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = true)
+    // Security fields are updated only by the atomic credential update below the repository layer.
+    // Ordinary profile/entity saves must never restore a stale password or session version.
+    @Column(nullable = true, updatable = false)
     private String password;
+
+    @org.hibernate.annotations.ColumnDefault("0")
+    @Column(name = "session_version", nullable = false, updatable = false)
+    private long sessionVersion;
 
     @Column(name = "auth_provider", nullable = false)
     @Enumerated(EnumType.STRING)

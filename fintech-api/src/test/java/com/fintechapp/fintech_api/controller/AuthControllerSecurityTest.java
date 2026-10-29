@@ -42,6 +42,9 @@ class AuthControllerSecurityTest {
 
 	private static final String SECRET = "test-secret-key-test-secret-key-1234567890";
 
+    @MockitoBean
+    private com.fintechapp.fintech_api.repository.UserRepository users;
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -106,6 +109,7 @@ class AuthControllerSecurityTest {
 
 	@Test
 	void returnsAuthenticatedUserWhenTokenIsValid() throws Exception {
+        when(users.findSessionVersionById("user-123")).thenReturn(java.util.Optional.of(0L));
 		when(userService.getCurrentUser(any())).thenReturn(new UserDataResponse(
 				true,
 				"Current user fetched successfully.",

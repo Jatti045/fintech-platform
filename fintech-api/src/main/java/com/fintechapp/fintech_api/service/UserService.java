@@ -166,7 +166,12 @@ public class UserService {
 
     @Transactional
     public ApiMessageResponse changePassword(AuthenticatedUser authenticatedUser, ChangePasswordRequest request) {
-        User user = requireCurrentUser(authenticatedUser);
+        // Serialize with recovery and login; recheck a token admitted before another password change.
+        User user = requireLockedCurrentUser(authenticatedUser);
+        if (authenticatedUser.sessionVersion() != user.getSessionVersion()) {
+            throw new com.fintechapp.fintech_api.security.TokenAuthenticationException(
+                    HttpStatus.UNAUTHORIZED, "Session has been revoked. Please sign in again.");
+        }
 
         if (request == null
                 || !StringUtils.hasText(request.currentPassword())
@@ -183,8 +188,8 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect.");
         }
 
-        user.setPassword(passwordEncoder.encode(request.newPassword()));
-        userRepository.save(user);
+        userRepository.replacePasswordAndRevokeSessions(user.getId(), passwordEncoder.encode(request.newPassword()));
+        passwordResetTokenRepository.deleteByUser_Id(user.getId());
         return new ApiMessageResponse(true, "Password changed successfully.");
     }
 

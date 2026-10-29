@@ -100,8 +100,7 @@ public class PasswordRecoveryService {
         if (!request.newPassword().equals(request.confirmPassword())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Passwords do not match.");
         }
-        user.setPassword(encoder.encode(request.newPassword()));
-        users.save(user);
+        users.replacePasswordAndRevokeSessions(user.getId(), encoder.encode(request.newPassword()));
         tokens.deleteByUser_Id(user.getId());
         return new ApiMessageResponse(true, "Password reset successful.");
     }

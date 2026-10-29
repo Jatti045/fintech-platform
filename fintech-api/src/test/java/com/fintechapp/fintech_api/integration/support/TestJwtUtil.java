@@ -16,7 +16,7 @@ public class TestJwtUtil {
     }
 
     public String tokenFor(User user) {
-        return jwtService.generateToken(user.getId(), user.getEmail());
+        return jwtService.generateToken(user.getId(), user.getEmail(), user.getSessionVersion());
     }
 
     public String bearerHeaderValue(User user) {

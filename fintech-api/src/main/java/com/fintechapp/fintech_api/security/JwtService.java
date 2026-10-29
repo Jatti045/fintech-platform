@@ -6,13 +6,15 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
+import com.fintechapp.fintech_api.repository.UserRepository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,13 +32,21 @@ public class JwtService {
 	@Value("${app.jwt.secret-key:}")
 	private String secretKey;
 
-	public String generateToken(String userId, String email) {
+    private static final ObjectMapper CLAIMS = new ObjectMapper();
+    private final UserRepository users;
+
+    public JwtService(UserRepository users) {
+        this.users = users;
+    }
+
+    // Use the version from the same locked credential read that authorized this login.
+    public String generateToken(String userId, String email, long sessionVersion) {
 		if (!StringUtils.hasText(secretKey)) {
 			logger.error("JWT_SECRET_KEY is not defined in environment variables");
 			throw new TokenAuthenticationException(HttpStatus.INTERNAL_SERVER_ERROR, "Server configuration error.");
 		}
 
-		if (!StringUtils.hasText(userId) || !StringUtils.hasText(email)) {
+		if (!StringUtils.hasText(userId) || !StringUtils.hasText(email) || sessionVersion < 0) {
 			throw new TokenAuthenticationException(HttpStatus.BAD_REQUEST, "Invalid token payload.");
 		}
 
@@ -46,10 +56,10 @@ public class JwtService {
 			String headerJson = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
 			String payloadJson = String.format(
 					Locale.ROOT,
-					"{\"userId\":\"%s\",\"email\":\"%s\",\"iat\":%d}",
+					"{\"userId\":\"%s\",\"email\":\"%s\",\"iat\":%d,\"exp\":%d,\"sessionVersion\":%d}",
 					escapeJsonString(userId),
 					escapeJsonString(email),
-					issuedAt);
+					issuedAt, issuedAt + DEFAULT_TOKEN_TTL_SECONDS, sessionVersion);
 
 			String encodedHeader = Base64.getUrlEncoder().withoutPadding()
 					.encodeToString(headerJson.getBytes(StandardCharsets.UTF_8));
@@ -75,14 +85,14 @@ public class JwtService {
 				throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Invalid token.");
 			}
 
-			String headerJson = decodeBase64Url(tokenParts[0]);
+			JsonNode headerJson = readClaims(decodeBase64Url(tokenParts[0]));
 			if (!"HS256".equals(extractStringClaim(headerJson, "alg"))) {
 				throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Invalid token.");
 			}
 
 			validateSignature(tokenParts[0], tokenParts[1], tokenParts[2]);
 
-			String payloadJson = decodeBase64Url(tokenParts[1]);
+			JsonNode payloadJson = readClaims(decodeBase64Url(tokenParts[1]));
 			String userId = extractStringClaim(payloadJson, "userId");
 			String email = extractStringClaim(payloadJson, "email");
 			Long issuedAt = extractLongClaim(payloadJson, "iat");
@@ -94,12 +104,20 @@ public class JwtService {
 
 			long now = Instant.now().getEpochSecond();
 			long expiryEpoch = expiresAt != null ? expiresAt : issuedAt + DEFAULT_TOKEN_TTL_SECONDS;
-			if (now > expiryEpoch) {
+			if (now >= expiryEpoch) {
 				throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Token has expired.");
 			}
 
-			return new AuthenticatedUser(userId, email, issuedAt);
-		} catch (IllegalArgumentException | GeneralSecurityException exception) {
+            Long claimedVersion = extractLongClaim(payloadJson, "sessionVersion");
+            // Preserve pre-upgrade sessions until the account's first password update.
+            long version = claimedVersion == null ? 0 : claimedVersion;
+            Long currentVersion = users.findSessionVersionById(userId).orElse(null);
+            if (version < 0 || currentVersion == null || currentVersion.longValue() != version) {
+                throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED,
+                        "Session has been revoked. Please sign in again.");
+            }
+            return new AuthenticatedUser(userId, email, issuedAt, version);
+		} catch (IllegalArgumentException | GeneralSecurityException | JacksonException exception) {
 			throw new TokenAuthenticationException(HttpStatus.UNAUTHORIZED, "Invalid token.", exception);
 		}
 	}
@@ -145,36 +163,21 @@ public class JwtService {
 		return value + "=".repeat(requiredPadding);
 	}
 
-	private String extractStringClaim(String json, String claimName) {
-		Matcher matcher = Pattern
-				.compile("\\\"" + Pattern.quote(claimName) + "\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"\\\\])*)\\\"")
-				.matcher(json);
-		if (!matcher.find()) {
-			return null;
-		}
+    private JsonNode readClaims(String json) {
+        JsonNode claims = CLAIMS.readTree(json);
+        if (claims == null || !claims.isObject()) throw new IllegalArgumentException("Invalid claims");
+        return claims;
+    }
 
-		return unescapeJsonString(matcher.group(1));
-	}
+    private String extractStringClaim(JsonNode claims, String name) {
+        JsonNode value = claims.get(name);
+        return value != null && value.isString() ? value.asString() : null;
+    }
 
-	private Long extractLongClaim(String json, String claimName) {
-		Matcher matcher = Pattern.compile("\\\"" + Pattern.quote(claimName) + "\\\"\\s*:\\s*(-?\\d+)")
-				.matcher(json);
-		if (!matcher.find()) {
-			return null;
-		}
-
-		return Long.parseLong(matcher.group(1));
-	}
-
-	private String unescapeJsonString(String value) {
-		return value
-				.replace("\\\"", "\"")
-				.replace("\\\\", "\\")
-				.replace("\\/", "/")
-				.replace("\\b", "\b")
-				.replace("\\f", "\f")
-				.replace("\\n", "\n")
-				.replace("\\r", "\r")
-				.replace("\\t", "\t");
-	}
+    private Long extractLongClaim(JsonNode claims, String name) {
+        JsonNode value = claims.get(name);
+        if (value == null) return null;
+        if (!value.isIntegralNumber() || !value.canConvertToLong()) throw new IllegalArgumentException("Invalid numeric claim");
+        return value.longValue();
+    }
 }

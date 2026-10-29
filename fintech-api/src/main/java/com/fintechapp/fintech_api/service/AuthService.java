@@ -78,7 +78,7 @@ public class AuthService {
         GoogleIdToken.Payload googlePayload = googleToken.getPayload();
         String email = googlePayload.getEmail();
 
-        Optional<User> existingUser = userRepository.findByEmail(email);
+        Optional<User> existingUser = userRepository.findByEmailForUpdate(email);
 
         if (existingUser.isEmpty()) {
             User newUser = new User();
@@ -89,10 +89,10 @@ public class AuthService {
             userRepository.save(newUser);
         }
 
-        User user = userRepository.findByEmail(email).orElseThrow(
+        User user = userRepository.findByEmailForUpdate(email).orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "User creation failed."));
 
-        String token = jwtService.generateToken(user.getId(), user.getEmail());
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getSessionVersion());
         LoginData data = new LoginData(toUserSummary(user), token);
         return new GoogleAuthResponse(true, "Login successful.", data);
     }
@@ -133,6 +133,7 @@ public class AuthService {
         return new UserDataResponse(true, "User created successfully.", toUserSummary(user));
     }
 
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email and password are required.");
@@ -143,14 +144,14 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email and password are required.");
         }
 
-        User user = userRepository.findByEmail(email).orElse(null);
+        User user = userRepository.findByEmailForUpdate(email).orElse(null);
         if (user == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
             // Deliberately identical to the wrong-password case so the endpoint
             // cannot be used to enumerate which emails have accounts.
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid email or password.");
         }
 
-        String token = jwtService.generateToken(user.getId(), user.getEmail());
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getSessionVersion());
         LoginData data = new LoginData(toUserSummary(user), token);
         return new LoginResponse(true, "Login successful.", data);
     }
