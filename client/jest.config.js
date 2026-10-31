@@ -10,6 +10,7 @@ module.exports = {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react" } }],
   },
   moduleNameMapper: {
+    "^@gorhom/bottom-sheet$": "<rootDir>/__mocks__/bottom-sheet.tsx",
     "\\.(png|jpg|jpeg|webp)$": "<rootDir>/__mocks__/styleMock.js",
     "^@/(.*)$": "<rootDir>/$1",
     // Stub out native/Expo modules that ship un-transpiled ESM

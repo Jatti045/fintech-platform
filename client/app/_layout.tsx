@@ -1,3 +1,4 @@
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import "../global.css";
 import React, { useEffect } from "react";
 import { Stack } from "expo-router";
@@ -61,7 +62,11 @@ export function AppRoutes() {
   return (
     <>
       <StatusBar
-        barStyle={selectedTheme === "Light" || selectedTheme === "Ember" ? "dark-content" : "light-content"}
+        barStyle={
+          selectedTheme === "Light" || selectedTheme === "Ember"
+            ? "dark-content"
+            : "light-content"
+        }
       />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" redirect={!isAuthenticated} />
@@ -76,9 +81,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
         <AlertProvider>
-          <AppErrorBoundary>
-            <AppRoutes />
-          </AppErrorBoundary>
+          <BottomSheetModalProvider>
+            <AppErrorBoundary>
+              <AppRoutes />
+            </AppErrorBoundary>
+          </BottomSheetModalProvider>
         </AlertProvider>
       </Provider>
     </GestureHandlerRootView>

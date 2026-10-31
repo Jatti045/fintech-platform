@@ -1,4 +1,6 @@
-import React, { forwardRef, useState } from "react";
+import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
+import { SheetInputContext } from "@/components/sheets/FundleafSheet";
+import React, { forwardRef, useState, useContext, useCallback } from "react";
 import {
   Text,
   TextInput,
@@ -20,10 +22,18 @@ const BrandInput = forwardRef<TextInput, Props>(function BrandInput(
   ref,
 ) {
   const { THEME } = useTheme();
+  const inSheet = useContext(SheetInputContext);
+  const inputRef = useCallback(
+    (instance: TextInput | null | undefined) => {
+      if (typeof ref === "function") ref(instance ?? null);
+      else if (ref) ref.current = instance ?? null;
+    },
+    [ref],
+  );
+  const Input = inSheet ? BottomSheetTextInput : TextInput;
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
-  const toggleLabel =
-    label.toLowerCase();
+  const toggleLabel = label.toLowerCase();
   return (
     <View style={{ gap: BRAND.spacing.sm }}>
       <Text
@@ -32,9 +42,9 @@ const BrandInput = forwardRef<TextInput, Props>(function BrandInput(
         {label}
       </Text>
       <View style={{ position: "relative" }}>
-        <TextInput
+        <Input
           {...props}
-          ref={ref}
+          ref={inputRef}
           accessibilityLabel={props.accessibilityLabel || label}
           secureTextEntry={password ? !visible : props.secureTextEntry}
           autoCapitalize={props.autoCapitalize || "none"}

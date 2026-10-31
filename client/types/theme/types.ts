@@ -1,6 +1,8 @@
 // ─── Theme Domain Types ─────────────────────────────────────────────────────
 
 export interface ITheme {
+  sheetHandle: string;
+  sheetBackdrop: string;
   background: string;
   surface: string;
   surfaceHover: string;

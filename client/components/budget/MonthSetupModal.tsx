@@ -1,18 +1,9 @@
-import React from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import FundleafSheet from "@/components/sheets/FundleafSheet";
+import { useSheetDismiss } from "@/components/sheets/useSheetDismiss";
 import { Feather } from "@expo/vector-icons";
+import React from "react";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
-import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   useMonthSetup,
   type EditableSuggestion,
@@ -40,6 +31,7 @@ export default function MonthSetupModal({
 }: MonthSetupModalProps) {
   const { THEME } = useTheme();
   const {
+    suggestions,
     edits,
     isLoading,
     error,
@@ -53,9 +45,16 @@ export default function MonthSetupModal({
     setAllSelected,
     apply,
   } = useMonthSetup({ month, year, open, onOpenChange, currencyCode });
-  const close = () => {
-    if (!applying) onOpenChange(false);
-  };
+  const dirty = edits.some(
+    (e) =>
+      !e.selected ||
+      e.limitInput !==
+        String(
+          suggestions?.find((s) => s.category === e.category)?.suggestedLimit ??
+            e.limitInput,
+        ),
+  );
+  const close = useSheetDismiss(() => onOpenChange(false), dirty, applying);
   const period = monthLabel
     ? monthLabel.includes(String(year))
       ? monthLabel
@@ -66,220 +65,151 @@ export default function MonthSetupModal({
         timeZone: "UTC",
       });
   return (
-    <Modal
+    <FundleafSheet
       visible={open}
-      animationType="slide"
-      transparent
-      onRequestClose={close}
+      onDismiss={close}
+      title="Smart Month Setup"
+      dirty={dirty}
+      busy={applying}
     >
-      <View
+      <Text
         style={{
-          flex: 1,
-          justifyContent: "flex-end",
-          backgroundColor: BRAND.overlay,
+          color: THEME.textSecondary,
+          fontSize: 14,
+          lineHeight: 21,
+          marginVertical: BRAND.spacing.sm,
         }}
       >
-        <SafeAreaView
+        Plan {period}. Review prior limits and spending suggestions, then apply
+        your selection.
+      </Text>
+      {isLoading ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={{ padding: BRAND.spacing.lg, gap: BRAND.spacing.md }}
+        >
+          <ActivityIndicator color={THEME.primary} />
+          <Text style={{ color: THEME.textSecondary }}>
+            Finding suggestions...
+          </Text>
+        </View>
+      ) : error ? (
+        <View
+          accessibilityLiveRegion="polite"
           style={{
-            height: getModalHeight(),
-            backgroundColor: THEME.background,
-            padding: BRAND.spacing.md,
-            borderTopLeftRadius: MODAL_BORDER_RADIUS,
-            borderTopRightRadius: MODAL_BORDER_RADIUS,
-            borderWidth: 1,
-            borderColor: THEME.border,
+            paddingVertical: BRAND.spacing.lg,
+            gap: BRAND.spacing.md,
           }}
         >
-          <View
+          <Text style={{ color: THEME.danger, fontSize: 15 }}>
+            We couldn&apos;t load suggestions right now.
+          </Text>
+          <BrandButton
+            label="Try again"
+            onPress={() => {
+              void refetch();
+            }}
+          />
+        </View>
+      ) : isEmpty ? (
+        <View
+          style={{
+            paddingVertical: BRAND.spacing.lg,
+            gap: BRAND.spacing.sm,
+          }}
+        >
+          <Text
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: BRAND.spacing.sm,
+              color: THEME.textPrimary,
+              fontSize: 18,
+              fontWeight: "700",
             }}
           >
-            <Text
-              accessibilityRole="header"
-              style={{
-                color: THEME.textPrimary,
-                fontSize: 22,
-                fontWeight: "700",
-                flex: 1,
-              }}
-            >
-              Smart Month Setup
-            </Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Close month setup"
-              disabled={applying}
-              onPress={close}
-              style={{
-                width: BRAND.touchTarget,
-                height: BRAND.touchTarget,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Feather name="x" size={22} color={THEME.textSecondary} />
-            </TouchableOpacity>
-          </View>
+            No suggestions yet
+          </Text>
           <Text
             style={{
               color: THEME.textSecondary,
               fontSize: 14,
-              lineHeight: 21,
-              marginVertical: BRAND.spacing.sm,
+              lineHeight: 22,
             }}
           >
-            Plan {period}. Review prior limits and spending suggestions, then
-            apply your selection.
+            There are no new suggestions for this month. Categories with manual
+            limits are left unchanged. You can create a budget or return after
+            more spending history is available.
           </Text>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        </View>
+      ) : (
+        <>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: BRAND.spacing.sm,
+            }}
           >
-            {isLoading ? (
-              <View
-                accessibilityLiveRegion="polite"
-                style={{ padding: BRAND.spacing.lg, gap: BRAND.spacing.md }}
-              >
-                <ActivityIndicator color={THEME.primary} />
-                <Text style={{ color: THEME.textSecondary }}>
-                  Finding suggestions...
-                </Text>
-              </View>
-            ) : error ? (
-              <View
-                accessibilityLiveRegion="polite"
-                style={{
-                  paddingVertical: BRAND.spacing.lg,
-                  gap: BRAND.spacing.md,
-                }}
-              >
-                <Text style={{ color: THEME.danger, fontSize: 15 }}>
-                  We couldn&apos;t load suggestions right now.
-                </Text>
-                <BrandButton
-                  label="Try again"
-                  onPress={() => {
-                    void refetch();
-                  }}
-                />
-              </View>
-            ) : isEmpty ? (
-              <View
-                style={{
-                  paddingVertical: BRAND.spacing.lg,
-                  gap: BRAND.spacing.sm,
-                }}
-              >
-                <Text
-                  style={{
-                    color: THEME.textPrimary,
-                    fontSize: 18,
-                    fontWeight: "700",
-                  }}
-                >
-                  No suggestions yet
-                </Text>
-                <Text
-                  style={{
-                    color: THEME.textSecondary,
-                    fontSize: 14,
-                    lineHeight: 22,
-                  }}
-                >
-                  There are no new suggestions for this month. Categories with
-                  manual limits are left unchanged. You can create a budget or
-                  return after more spending history is available.
-                </Text>
-              </View>
-            ) : (
-              <>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: BRAND.spacing.sm,
-                  }}
-                >
-                  <Text
-                    accessibilityLiveRegion="polite"
-                    style={{ color: THEME.textSecondary, fontSize: 13 }}
-                  >
-                    {selectedCount} of {edits.length} selected
-                  </Text>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      allSelected ? "Deselect all" : "Select all"
-                    }
-                    disabled={applying}
-                    onPress={() => setAllSelected(!allSelected)}
-                    style={{
-                      minHeight: BRAND.touchTarget,
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ color: THEME.primary, fontWeight: "600" }}>
-                      {allSelected ? "Deselect all" : "Select all"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="on-drag"
-                  contentContainerStyle={{
-                    gap: BRAND.spacing.md,
-                    paddingBottom: BRAND.spacing.lg,
-                  }}
-                >
-                  {edits.map((s) => (
-                    <SuggestionRow
-                      key={s.category}
-                      suggestion={s}
-                      currencyCode={currencyCode}
-                      disabled={applying}
-                      onToggle={() => toggleSelected(s.category)}
-                      onLimitChange={(v) => setLimit(s.category, v)}
-                    />
-                  ))}
-                </ScrollView>
-                <View style={{ paddingTop: BRAND.spacing.sm }}>
-                  <BrandButton
-                    label={`Apply ${selectedCount} budget${selectedCount === 1 ? "" : "s"}`}
-                    loading={applying}
-                    loadingLabel="Applying..."
-                    disabled={selectedCount === 0}
-                    onPress={() => {
-                      void apply();
-                    }}
-                  />
-                </View>
-              </>
-            )}
+            <Text
+              accessibilityLiveRegion="polite"
+              style={{ color: THEME.textSecondary, fontSize: 13 }}
+            >
+              {selectedCount} of {edits.length} selected
+            </Text>
             <TouchableOpacity
               accessibilityRole="button"
-              accessibilityLabel="Cancel month setup"
+              accessibilityLabel={allSelected ? "Deselect all" : "Select all"}
               disabled={applying}
-              onPress={close}
+              onPress={() => setAllSelected(!allSelected)}
               style={{
                 minHeight: BRAND.touchTarget,
-                alignItems: "center",
                 justifyContent: "center",
               }}
             >
               <Text style={{ color: THEME.primary, fontWeight: "600" }}>
-                Cancel
+                {allSelected ? "Deselect all" : "Select all"}
               </Text>
             </TouchableOpacity>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </View>
-    </Modal>
+          </View>
+          <View style={{ gap: BRAND.spacing.md }}>
+            {edits.map((s) => (
+              <SuggestionRow
+                key={s.category}
+                suggestion={s}
+                currencyCode={currencyCode}
+                disabled={applying}
+                onToggle={() => toggleSelected(s.category)}
+                onLimitChange={(v) => setLimit(s.category, v)}
+              />
+            ))}
+          </View>
+          <View style={{ paddingTop: BRAND.spacing.sm }}>
+            <BrandButton
+              label={`Apply ${selectedCount} budget${selectedCount === 1 ? "" : "s"}`}
+              loading={applying}
+              loadingLabel="Applying..."
+              disabled={selectedCount === 0}
+              onPress={() => {
+                void apply();
+              }}
+            />
+          </View>
+        </>
+      )}
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Cancel month setup"
+        disabled={applying}
+        onPress={close}
+        style={{
+          minHeight: BRAND.touchTarget,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text style={{ color: THEME.primary, fontWeight: "600" }}>Cancel</Text>
+      </TouchableOpacity>
+    </FundleafSheet>
   );
 }
 function SuggestionRow({

@@ -146,3 +146,5 @@ export const StyleSheet = {
   compose: (...styles: any[]) => styles[0],
   setStyleAttributePreprocessor: jest.fn(),
 };
+
+export const BackHandler = { addEventListener: jest.fn(() => ({ remove: jest.fn() })) };

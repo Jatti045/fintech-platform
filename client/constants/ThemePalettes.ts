@@ -17,6 +17,8 @@ export const BRAND = {
 } as const;
 
 const dark = {
+  sheetHandle: "#547365",
+  sheetBackdrop: "#000000",
   background: "#071D17",
   surface: "#102C23",
   surfaceHover: "#173E2E",
@@ -44,6 +46,8 @@ const dark = {
 };
 
 const light = {
+  sheetHandle: "#B8C9BE",
+  sheetBackdrop: "#071D17",
   background: "#F7FAF8",
   surface: "#FFFFFF",
   surfaceHover: "#E7F4EC",
@@ -73,6 +77,8 @@ const light = {
 // "Ember" — a minimal, warm, developer-focused aesthetic: warm paper
 // neutrals with a terracotta/clay accent, generous contrast, no cool tones.
 const ember = {
+  sheetHandle: "#B8C9BE",
+  sheetBackdrop: "#071D17",
   onPrimary: "#16110E",
   onDanger: "#16110E",
   disabledBackground: "#33261F",
@@ -102,6 +108,8 @@ const ember = {
 // "Aurora" — a clean, modern, highly polished AI-chat aesthetic: soft
 // violet-tinted surfaces with an indigo→violet accent, crisp hierarchy.
 const aurora = {
+  sheetHandle: "#547365",
+  sheetBackdrop: "#000000",
   onPrimary: "#0D0E15",
   onDanger: "#0D0E15",
   disabledBackground: "#232538",

@@ -28,3 +28,5 @@ export const Gesture = {
 };
 
 export default { Swipeable, GestureHandlerRootView, GestureDetector };
+
+export { ScrollView } from "react-native";

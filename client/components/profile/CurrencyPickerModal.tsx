@@ -1,11 +1,9 @@
-import { BRAND } from "@/constants/ThemePalettes";
+import FundleafSheet from "@/components/sheets/FundleafSheet";
 import React from "react";
-import { View, Text, TouchableOpacity, FlatList, Modal } from "react-native";
-import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
+import { Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/hooks/useRedux";
-import { hexToRgba } from "@/utils/colorUtils";
 import { CURRENCIES, DEFAULT_CURRENCY } from "@/constants/Currencies";
 import type { CurrencyPickerModalProps } from "@/types/profile/types";
 
@@ -21,132 +19,47 @@ export default function CurrencyPickerModal({
 }: CurrencyPickerModalProps) {
   const { THEME } = useTheme();
 
-  if (!visible) return null;
-
-  const modalHeight = getModalHeight();
-
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: BRAND.overlay,
-          justifyContent: "flex-end",
-        }}
-      >
-        <View
-          style={{
-            backgroundColor: THEME.surface,
-            borderTopLeftRadius: MODAL_BORDER_RADIUS,
-            borderTopRightRadius: MODAL_BORDER_RADIUS,
-            height: modalHeight,
-            width: "100%", maxWidth: 760, alignSelf: "center",
-            paddingBottom: 30,
-            borderWidth: 1,
-            borderColor: THEME.border,
-          }}
-        >
-          {/* Header */}
-          <View
+    <FundleafSheet
+      visible={visible}
+      onDismiss={onClose}
+      title="Select Default Currency"
+    >
+      {CURRENCIES.map((item) => {
+        const isSelected = item.code === (userCurrency || DEFAULT_CURRENCY);
+        return (
+          <TouchableOpacity
+            key={item.code}
+            onPress={() => onSelect(item.code)}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.code} — ${item.name}`}
+            accessibilityState={{ selected: isSelected }}
             style={{
+              minHeight: 56,
               flexDirection: "row",
-              justifyContent: "space-between",
               alignItems: "center",
-              paddingHorizontal: 20,
-              paddingVertical: 18,
+              gap: 12,
+              paddingVertical: 12,
               borderBottomWidth: 1,
               borderBottomColor: THEME.border,
+              backgroundColor: isSelected ? THEME.subtleSurface : THEME.surface,
             }}
           >
-            <Text
-              style={{
-                flex: 1,
-                color: THEME.textPrimary,
-                fontSize: 17,
-                fontWeight: "700",
-              }}
-            >
-              Select Default Currency
+            <Text style={{ fontSize: 22 }}>{item.flag}</Text>
+            <Text style={{ flex: 1, color: THEME.textPrimary, fontSize: 15 }}>
+              {item.code} — {item.name}
             </Text>
-            <TouchableOpacity
-              onPress={onClose}
-              accessibilityRole="button" accessibilityLabel="Close currency picker"
-              style={{ minHeight: 48, minWidth: 48, alignItems: "center", justifyContent: "center" }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close" size={22} color={THEME.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* List */}
-          <FlatList
-            data={CURRENCIES}
-            keyExtractor={(item) => item.code}
-            renderItem={({ item }) => {
-              const isSelected =
-                item.code === (userCurrency || DEFAULT_CURRENCY);
-              return (
-                <TouchableOpacity
-                  onPress={() => onSelect(item.code)}
-                  accessibilityRole="button" accessibilityLabel={`${item.code} — ${item.name}`} accessibilityState={{ selected: isSelected }}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: 14,
-                    paddingHorizontal: 20,
-                    backgroundColor: isSelected
-                      ? hexToRgba(THEME.primary, 0.1)
-                      : "transparent",
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: THEME.border,
-                  }}
-                >
-                  <Text style={{ fontSize: 22, marginRight: 14 }}>
-                    {item.flag}
-                  </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        color: THEME.textPrimary,
-                        fontWeight: isSelected ? "700" : "500",
-                        fontSize: 15,
-                      }}
-                    >
-                      {item.code}{" "}
-                      <Text
-                        style={{
-                          color: THEME.textSecondary,
-                          fontWeight: "400",
-                        }}
-                      >
-                        — {item.name}
-                      </Text>
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      color: THEME.textSecondary,
-                      fontSize: 15,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {item.symbol}
-                  </Text>
-                  {isSelected && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={THEME.primary}
-                      style={{ marginLeft: 10 }}
-                    />
-                  )}
-                </TouchableOpacity>
-              );
-            }}
-          />
-        </View>
-      </View>
-    </Modal>
+            <Text style={{ color: THEME.textSecondary }}>{item.symbol}</Text>
+            {isSelected ? (
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={THEME.primary}
+              />
+            ) : null}
+          </TouchableOpacity>
+        );
+      })}
+    </FundleafSheet>
   );
 }

@@ -387,3 +387,17 @@ it("reviews inherited limits and historical suggestions and applies only the sel
     tree.unmount();
   });
 });
+
+it("protects an edited budget draft until discard is confirmed", () => {
+  const closed = jest.fn();
+  const { tree } = mount(<BudgetModal openSheet setOpenSheet={closed} />);
+  act(() => input(tree, "Budget category").props.onChangeText("Travel"));
+  act(() => button(tree, "Cancel budget").props.onPress());
+  expect(closed).not.toHaveBeenCalled();
+  expect(input(tree, "Budget category").props.value).toBe("Travel");
+  act(() => button(tree, "Keep editing").props.onPress());
+  act(() => button(tree, "Cancel budget").props.onPress());
+  act(() => button(tree, "Discard changes").props.onPress());
+  expect(closed).toHaveBeenCalledWith(false);
+  act(() => tree.unmount());
+});

@@ -1,13 +1,7 @@
+import { ScrollView } from "react-native-gesture-handler";
+import FundleafSheet from "@/components/sheets/FundleafSheet";
 import React, { useState } from "react";
-import {
-  Modal,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-} from "react-native";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { BRAND } from "@/constants/ThemePalettes";
@@ -237,121 +231,54 @@ export default function FilterTransaction({
           ))}
         </View>
       )}
-      <Modal
+      <FundleafSheet
         visible={showMoreModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowMoreModal(false)}
+        onDismiss={() => setShowMoreModal(false)}
+        title="Select category"
       >
-        <TouchableWithoutFeedback onPress={() => setShowMoreModal(false)}>
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: BRAND.overlay,
-              padding: BRAND.spacing.lg,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <TouchableWithoutFeedback>
-              <View
-                accessibilityViewIsModal
+        {[{ id: "all", category: "All Categories" }, ...budgets].map(
+          (option) => (
+            <TouchableOpacity
+              key={option.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Select ${option.category}`}
+              accessibilityState={{
+                selected: filterCategoryId === option.id,
+              }}
+              onPress={() => {
+                if (option.id === "all") clearFilters();
+                else setFilterCategoryId(option.id);
+                setShowMoreModal(false);
+              }}
+              style={{
+                minHeight: BRAND.touchTarget,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: BRAND.spacing.sm,
+                paddingVertical: BRAND.spacing.sm,
+                borderBottomWidth: 1,
+                borderBottomColor: THEME.border,
+              }}
+            >
+              <Text
                 style={{
-                  width: "100%",
-                  maxWidth: BRAND.contentWidth,
-                  maxHeight: "75%",
-                  backgroundColor: THEME.surface,
-                  borderRadius: BRAND.radius.card,
-                  borderWidth: 1,
-                  borderColor: THEME.border,
-                  padding: BRAND.spacing.md,
+                  color:
+                    filterCategoryId === option.id
+                      ? THEME.primary
+                      : THEME.textPrimary,
+                  flex: 1,
+                  fontSize: 15,
                 }}
               >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text
-                    accessibilityRole="header"
-                    style={{
-                      color: THEME.textPrimary,
-                      fontSize: 20,
-                      fontWeight: "700",
-                      flex: 1,
-                    }}
-                  >
-                    Select category
-                  </Text>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel="Close category filters"
-                    onPress={() => setShowMoreModal(false)}
-                    style={{
-                      width: BRAND.touchTarget,
-                      height: BRAND.touchTarget,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Feather name="x" size={20} color={THEME.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView keyboardShouldPersistTaps="handled">
-                  {[{ id: "all", category: "All Categories" }, ...budgets].map(
-                    (option) => (
-                      <TouchableOpacity
-                        key={option.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Select ${option.category}`}
-                        accessibilityState={{
-                          selected: filterCategoryId === option.id,
-                        }}
-                        onPress={() => {
-                          if (option.id === "all") clearFilters();
-                          else setFilterCategoryId(option.id);
-                          setShowMoreModal(false);
-                        }}
-                        style={{
-                          minHeight: BRAND.touchTarget,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: BRAND.spacing.sm,
-                          paddingVertical: BRAND.spacing.sm,
-                          borderBottomWidth: 1,
-                          borderBottomColor: THEME.border,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color:
-                              filterCategoryId === option.id
-                                ? THEME.primary
-                                : THEME.textPrimary,
-                            flex: 1,
-                            fontSize: 15,
-                          }}
-                        >
-                          {capitalizeFirst(option.category)}
-                        </Text>
-                        {filterCategoryId === option.id && (
-                          <Feather
-                            name="check"
-                            size={18}
-                            color={THEME.primary}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    ),
-                  )}
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+                {capitalizeFirst(option.category)}
+              </Text>
+              {filterCategoryId === option.id && (
+                <Feather name="check" size={18} color={THEME.primary} />
+              )}
+            </TouchableOpacity>
+          ),
+        )}
+      </FundleafSheet>
     </View>
   );
 }
