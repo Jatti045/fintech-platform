@@ -1,26 +1,22 @@
-import React, { useState } from "react";
+import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useAppDispatch, useAppSelector, useTheme } from "@/hooks/useRedux";
 import { prevMonth, nextMonth } from "@/store/slices/calendarSlice";
+import { BRAND } from "@/constants/ThemePalettes";
+import NewBudgetButton from "./NewBudgetButton";
+import MonthSelector from "@/components/home/MonthSelector";
 
 export interface BudgetHeaderProps {
   monthLabel: string;
   year?: number;
-  /** Whether to render the search bar (shown once budgets exist). */
   showSearch: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onMonthPress?: () => void;
+  onSetup?: () => void;
+  onAddBudget?: () => void;
 }
-
-/**
- * Redesigned Budget Header matching the reference design:
- * - Prominent "Budgets" title with "Your monthly flow, one dial" subtitle
- * - Understated month selector pill: [ 📅 August 2026 ⌵ ]
- * - Full-width search bar: "Search budgets, categories, or merchants..."
- * - Test fallbacks to maintain 100% test suite compatibility
- */
 export default function BudgetHeader({
   monthLabel,
   year,
@@ -28,44 +24,41 @@ export default function BudgetHeader({
   searchQuery,
   onSearchChange,
   onMonthPress,
+  onSetup,
+  onAddBudget,
 }: BudgetHeaderProps) {
   const { THEME } = useTheme();
   const dispatch = useAppDispatch();
-  const calendarYear = useAppSelector((state: any) => state?.calendar?.year);
-  const displayYear = year ?? calendarYear ?? "";
-  const [showMonthControls, setShowMonthControls] = useState(false);
-
-  const formattedMonth =
-    monthLabel.includes(String(displayYear)) || !displayYear
-      ? monthLabel
-      : `${monthLabel} ${displayYear}`;
-
-  const handleToggleMonth = () => {
-    if (onMonthPress) {
-      onMonthPress();
-    } else {
-      setShowMonthControls((prev) => !prev);
-    }
-  };
-
+  const calendar = useAppSelector((state) => state?.calendar);
+  const now = new Date();
+  const displayYear = year ?? calendar?.year ?? now.getUTCFullYear();
+  const formattedMonth = monthLabel.includes(String(displayYear))
+    ? monthLabel
+    : `${monthLabel} ${displayYear}`;
   return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-      {/* ── Top Header Row ──────────────────────────────────────────────── */}
+    <View
+      style={{
+        paddingTop: BRAND.spacing.sm,
+        gap: BRAND.spacing.md,
+        marginBottom: BRAND.spacing.md,
+      }}
+    >
       <View
         style={{
           flexDirection: "row",
+          flexWrap: "wrap",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 14,
+          gap: BRAND.spacing.sm,
         }}
       >
-        <View style={{ flex: 1, paddingRight: 8 }}>
+        <View style={{ flexGrow: 1, flexBasis: 120 }}>
           <Text
+            accessibilityRole="header"
             style={{
               color: THEME.textPrimary,
               fontSize: 28,
-              fontWeight: "800",
-              letterSpacing: -0.5,
+              fontWeight: "700",
+              letterSpacing: -0.8,
             }}
           >
             Budgets
@@ -73,153 +66,135 @@ export default function BudgetHeader({
           <Text
             style={{
               color: THEME.textSecondary,
-              fontSize: 13.5,
-              fontWeight: "400",
-              marginTop: 2,
+              fontSize: 14,
+              marginTop: BRAND.spacing.xs,
             }}
           >
-            Your monthly flow, one dial
+            Make room for what matters.
           </Text>
         </View>
-
-        {/* Month Selector Pill */}
+        {onAddBudget && <NewBudgetButton inline onPress={onAddBudget} />}
+      </View>
+      {onMonthPress ? (
         <TouchableOpacity
-          onPress={handleToggleMonth}
-          activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel={`Select month, current is ${formattedMonth}`}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: THEME.surface,
-            borderWidth: 1,
-            borderColor: THEME.border,
-            borderRadius: 12,
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-          }}
+          onPress={onMonthPress}
+          style={{ minHeight: BRAND.touchTarget, justifyContent: "center" }}
         >
-          <Feather
-            name="calendar"
-            size={14}
-            color={THEME.textPrimary}
-            style={{ marginRight: 6 }}
-          />
-          <Text
-            style={{
-              color: THEME.textPrimary,
-              fontSize: 13.5,
-              fontWeight: "600",
-              letterSpacing: -0.1,
-            }}
-          >
+          <Text style={{ color: THEME.primary, fontWeight: "600" }}>
             {formattedMonth}
           </Text>
-          <Feather
-            name="chevron-down"
-            size={14}
-            color={THEME.textSecondary}
-            style={{ marginLeft: 6 }}
-          />
         </TouchableOpacity>
-      </View>
-
-      {/* ── Expandable Month Navigation Bar ─────────────────────────────── */}
-      {showMonthControls && (
-        <View
+      ) : (
+        <MonthSelector
+          monthLabel={formattedMonth}
+          isCurrentMonth={
+            displayYear === now.getUTCFullYear() &&
+            (calendar?.month ?? now.getUTCMonth()) === now.getUTCMonth()
+          }
+          onPrev={() => dispatch(prevMonth())}
+          onNext={() => dispatch(nextMonth())}
+        />
+      )}
+      {onSetup && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Smart Month Setup"
+          onPress={onSetup}
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
+            gap: BRAND.spacing.md,
+            padding: BRAND.spacing.md,
             backgroundColor: THEME.surface,
-            borderRadius: 12,
+            borderRadius: BRAND.radius.card,
             borderWidth: 1,
             borderColor: THEME.border,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            marginBottom: 12,
           }}
         >
-          <TouchableOpacity
-            onPress={() => dispatch(prevMonth())}
-            style={{ padding: 4 }}
-            accessibilityLabel="Previous month"
-          >
-            <Feather name="chevron-left" size={18} color={THEME.textPrimary} />
-          </TouchableOpacity>
-          <Text
+          <View
             style={{
-              color: THEME.textPrimary,
-              fontSize: 14,
-              fontWeight: "600",
+              backgroundColor: THEME.subtleSurface,
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              justifyContent: "center",
+              alignItems: "center",
             }}
           >
-            {formattedMonth}
-          </Text>
-          <TouchableOpacity
-            onPress={() => dispatch(nextMonth())}
-            style={{ padding: 4 }}
-            accessibilityLabel="Next month"
-          >
-            <Feather name="chevron-right" size={18} color={THEME.textPrimary} />
-          </TouchableOpacity>
-        </View>
+            <Feather name="layers" size={20} color={THEME.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                color: THEME.textPrimary,
+                fontSize: 15,
+                fontWeight: "700",
+              }}
+            >
+              Smart Month Setup
+            </Text>
+            <Text
+              style={{
+                color: THEME.textSecondary,
+                fontSize: 12,
+                lineHeight: 18,
+                marginTop: 4,
+              }}
+            >
+              Review prior limits and spending suggestions.
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={THEME.textSecondary} />
+        </TouchableOpacity>
       )}
-
-      {/* ── Search Bar ─────────────────────────────────────────────────── */}
       {showSearch && (
         <View
           style={{
-            height: 48,
-            backgroundColor: THEME.inputBackground,
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: THEME.border,
             flexDirection: "row",
             alignItems: "center",
-            paddingHorizontal: 14,
-            marginBottom: 12,
+            backgroundColor: THEME.surface,
+            borderColor: THEME.border,
+            borderWidth: 1,
+            borderRadius: BRAND.radius.input,
+            paddingLeft: BRAND.spacing.md,
           }}
         >
-          <Feather
-            name="search"
-            size={18}
-            color={THEME.placeholderText}
-            style={{ marginRight: 10 }}
-          />
+          <Feather name="search" size={20} color={THEME.textSecondary} />
           <TextInput
+            accessibilityLabel="Search budgets"
+            placeholder="Search budgets..."
             value={searchQuery}
             onChangeText={onSearchChange}
-            placeholder="Search budgets, categories, or merchants..."
+            autoCorrect={false}
+            autoCapitalize="none"
             placeholderTextColor={THEME.placeholderText}
+            selectionColor={THEME.primary}
             style={{
               flex: 1,
+              minWidth: 0,
+              minHeight: 52,
               color: THEME.textPrimary,
-              fontSize: 14,
-              paddingVertical: 0,
+              fontSize: 15,
+              padding: BRAND.spacing.md,
             }}
           />
-          {searchQuery.length > 0 && (
+          {!!searchQuery && (
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Clear budget search"
               onPress={() => onSearchChange("")}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ marginLeft: 6 }}
+              style={{
+                width: BRAND.touchTarget,
+                minHeight: BRAND.touchTarget,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              <Feather name="x-circle" size={16} color={THEME.textSecondary} />
+              <Feather name="x" size={20} color={THEME.textSecondary} />
             </TouchableOpacity>
           )}
-
-          {/* Test suite invariant fallback */}
-          <View
-            style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
-            pointerEvents="none"
-          >
-            <TextInput
-              placeholder="Search budgets..."
-              value={searchQuery}
-              onChangeText={onSearchChange}
-            />
-          </View>
         </View>
       )}
     </View>

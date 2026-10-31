@@ -59,14 +59,38 @@ jest.mock("@/api/transaction", () => ({
   },
 }));
 
-jest.mock("@/api/financialSummary", () => ({ __esModule: true, default: {
-  fetchSummary: jest.fn(),
-  fetchReport: jest.fn(async (args) => {
-    await Promise.resolve();
-    const result = await (require("@/api/budget").default.fetchAll.mock.results.at(-1)?.value ?? { data: [] });
-    return { success: true, data: { year: args.currentYear, month: args.currentMonth, currency: "USD", generatedAt: new Date().toISOString(), incomeBasis: "UNCONFIGURED", expectedIncomeConfigured: false, transactionCount: 1, summary: { monthlyIncome: 0, netSpent: result.data.reduce((s: number, b: any) => s + b.spent, 0) }, daily: [], categories: [], budgets: result.data, previousPeriod: {} } };
-  }),
-} }));
+jest.mock("@/api/financialSummary", () => ({
+  __esModule: true,
+  default: {
+    fetchSummary: jest.fn(),
+    fetchReport: jest.fn(async (args) => {
+      await Promise.resolve();
+      const result =
+        await (require("@/api/budget").default.fetchAll.mock.results.at(-1)
+          ?.value ?? { data: [] });
+      return {
+        success: true,
+        data: {
+          year: args.currentYear,
+          month: args.currentMonth,
+          currency: "USD",
+          generatedAt: new Date().toISOString(),
+          incomeBasis: "UNCONFIGURED",
+          expectedIncomeConfigured: false,
+          transactionCount: 1,
+          summary: {
+            monthlyIncome: 0,
+            netSpent: result.data.reduce((s: number, b: any) => s + b.spent, 0),
+          },
+          daily: [],
+          categories: [],
+          budgets: result.data,
+          previousPeriod: {},
+        },
+      };
+    }),
+  },
+}));
 
 const mockedFetchAll = budgetApi.fetchAll as jest.Mock;
 
@@ -162,7 +186,6 @@ async function setup(
   return { tree, store };
 }
 
-
 function lastProps(
   mock: jest.Mock,
   matcher: (props: Record<string, unknown>) => boolean,
@@ -248,9 +271,11 @@ describe("BudgetScreen", () => {
     await setup([]);
 
     expect(renderedText("No budgets yet")).toBe(true);
-    expect(renderedText("Set up this month's budgets in one tap, or create them one by one.")).toBe(
-      true,
-    );
+    expect(
+      renderedText(
+        "Review prior limits and suggested categories in Smart Month Setup, or create budgets one by one.",
+      ),
+    ).toBe(true);
     // The one-tap setup CTA is surfaced as the primary empty-state action.
     expect(renderedText("Set up my month")).toBe(true);
   });
@@ -262,9 +287,9 @@ describe("BudgetScreen", () => {
     ]);
 
     expect(renderedText("Budgets")).toBe(true);
-    expect(renderedText("Limits used")).toBe(true); // BudgetHalo vitals
-    expect(renderedText("Daily left")).toBe(true); // BudgetTrendCard vitals
-    expect(renderedText("Channels")).toBe(true);
+    expect(renderedText("Total budgeted")).toBe(true); // BudgetHalo vitals
+    expect(renderedText("Budget remaining")).toBe(true); // BudgetTrendCard vitals
+    expect(renderedText("CATEGORIES")).toBe(true);
     expect(renderedText("Food")).toBe(true);
     expect(renderedText("Transport")).toBe(true);
   });

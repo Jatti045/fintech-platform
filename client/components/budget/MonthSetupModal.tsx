@@ -1,23 +1,26 @@
 import React from "react";
 import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/hooks/useRedux";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
-import ModalCloseButton from "../global/modalCloseButton";
-import { getCurrencySymbol } from "@/constants/Currencies";
-import Loader from "@/utils/loader";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMonthSetup } from "@/hooks/budget/useMonthSetup";
-import { hexToRgba } from "@/utils/helper";
-import type { EditableSuggestion } from "@/hooks/budget/useMonthSetup";
+import {
+  useMonthSetup,
+  type EditableSuggestion,
+} from "@/hooks/budget/useMonthSetup";
+import { BRAND } from "@/constants/ThemePalettes";
+import BrandInput from "@/components/brand/BrandInput";
+import BrandButton from "@/components/brand/BrandButton";
+import { formatCurrency } from "@/utils/helper";
 
 export interface MonthSetupModalProps {
   open: boolean;
@@ -25,16 +28,8 @@ export interface MonthSetupModalProps {
   month: number;
   year: number;
   currencyCode: string;
-  /** Optional label shown in the header, e.g. "August". */
   monthLabel?: string;
 }
-
-/**
- * Smart Month Setup bottom sheet — a single reusable flow for configuring a
- * month from suggested budgets. Consumed by the Budget screen's empty +
- * unbudgeted states and by the Home screen's no-budget guard. The user edits
- * limits, toggles categories, and confirms once before anything is applied.
- */
 export default function MonthSetupModal({
   open,
   onOpenChange,
@@ -44,8 +39,6 @@ export default function MonthSetupModal({
   monthLabel,
 }: MonthSetupModalProps) {
   const { THEME } = useTheme();
-  const currencySymbol = getCurrencySymbol((currencyCode || "USD").toUpperCase());
-
   const {
     edits,
     isLoading,
@@ -60,249 +53,335 @@ export default function MonthSetupModal({
     setAllSelected,
     apply,
   } = useMonthSetup({ month, year, open, onOpenChange, currencyCode });
-
-  const modalHeight = getModalHeight();
-
+  const close = () => {
+    if (!applying) onOpenChange(false);
+  };
+  const period = monthLabel
+    ? monthLabel.includes(String(year))
+      ? monthLabel
+      : `${monthLabel} ${year}`
+    : new Date(Date.UTC(year, month, 1)).toLocaleDateString(undefined, {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
   return (
-    <Modal visible={open} animationType="slide" transparent={true}>
+    <Modal
+      visible={open}
+      animationType="slide"
+      transparent
+      onRequestClose={close}
+    >
       <View
         style={{
           flex: 1,
           justifyContent: "flex-end",
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          backgroundColor: BRAND.overlay,
         }}
       >
         <SafeAreaView
           style={{
-            height: modalHeight,
+            height: getModalHeight(),
             backgroundColor: THEME.background,
-            padding: 18,
-            position: "relative",
+            padding: BRAND.spacing.md,
             borderTopLeftRadius: MODAL_BORDER_RADIUS,
             borderTopRightRadius: MODAL_BORDER_RADIUS,
-            overflow: "hidden",
             borderWidth: 1,
-            borderTopColor: THEME.border,
+            borderColor: THEME.border,
           }}
         >
-          <View className="relative mb-4">
-            <ModalCloseButton setOpenSheet={onOpenChange} />
-          </View>
-
-          <View className="items-center justify-center relative mb-4">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: BRAND.spacing.sm,
+            }}
+          >
             <Text
-              style={{ color: THEME.textPrimary }}
-              className="text-lg text-center font-bold"
+              accessibilityRole="header"
+              style={{
+                color: THEME.textPrimary,
+                fontSize: 22,
+                fontWeight: "700",
+                flex: 1,
+              }}
             >
-              Set up {monthLabel ? `${monthLabel} ` : ""}like your last month?
+              Smart Month Setup
             </Text>
-            <Text
-              style={{ color: THEME.textSecondary, marginTop: 4 }}
-              className="text-sm text-center"
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Close month setup"
+              disabled={applying}
+              onPress={close}
+              style={{
+                width: BRAND.touchTarget,
+                height: BRAND.touchTarget,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              Review the suggestions below, then confirm to apply them at once.
-            </Text>
+              <Feather name="x" size={22} color={THEME.textSecondary} />
+            </TouchableOpacity>
           </View>
-
-          {isLoading ? (
-            <View style={{ flex: 1 }}>
-              <Loader msg="Finding suggestions..." />
-            </View>
-          ) : error ? (
-            <View style={{ flex: 1, alignItems: "center", paddingTop: 32 }}>
-              <Text style={{ color: THEME.textSecondary, textAlign: "center" }}>
-                                We couldn&apos;t load suggestions right now.
-              </Text>
-              <TouchableOpacity onPress={() => refetch()} style={{ marginTop: 16 }}>
-                <LinearGradient
-                  colors={[THEME.primary, THEME.secondary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{ paddingVertical: 12, paddingHorizontal: 24, borderRadius: 10 }}
-                >
-                  <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>
-                    Try again
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          ) : isEmpty ? (
-            <View style={{ flex: 1, alignItems: "center", paddingTop: 32 }}>
-              <Text style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "700" }}>
-                No suggestions yet
-              </Text>
-              <Text
+          <Text
+            style={{
+              color: THEME.textSecondary,
+              fontSize: 14,
+              lineHeight: 21,
+              marginVertical: BRAND.spacing.sm,
+            }}
+          >
+            Plan {period}. Review prior limits and spending suggestions, then
+            apply your selection.
+          </Text>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            {isLoading ? (
+              <View
+                accessibilityLiveRegion="polite"
+                style={{ padding: BRAND.spacing.lg, gap: BRAND.spacing.md }}
+              >
+                <ActivityIndicator color={THEME.primary} />
+                <Text style={{ color: THEME.textSecondary }}>
+                  Finding suggestions...
+                </Text>
+              </View>
+            ) : error ? (
+              <View
+                accessibilityLiveRegion="polite"
                 style={{
-                  color: THEME.textSecondary,
-                  textAlign: "center",
-                  marginTop: 6,
-                  maxWidth: 280,
-                  lineHeight: 19,
+                  paddingVertical: BRAND.spacing.lg,
+                  gap: BRAND.spacing.md,
                 }}
               >
-                                We need more history to suggest budgets you haven&apos;t set before.
-                Create your first budget and we&apos;ll take it from there.
-              </Text>
-            </View>
-          ) : (
-            <>
-              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={{ color: THEME.danger, fontSize: 15 }}>
+                  We couldn&apos;t load suggestions right now.
+                </Text>
+                <BrandButton
+                  label="Try again"
+                  onPress={() => {
+                    void refetch();
+                  }}
+                />
+              </View>
+            ) : isEmpty ? (
+              <View
+                style={{
+                  paddingVertical: BRAND.spacing.lg,
+                  gap: BRAND.spacing.sm,
+                }}
+              >
+                <Text
+                  style={{
+                    color: THEME.textPrimary,
+                    fontSize: 18,
+                    fontWeight: "700",
+                  }}
+                >
+                  No suggestions yet
+                </Text>
+                <Text
+                  style={{
+                    color: THEME.textSecondary,
+                    fontSize: 14,
+                    lineHeight: 22,
+                  }}
+                >
+                  There are no new suggestions for this month. Categories with
+                  manual limits are left unchanged. You can create a budget or
+                  return after more spending history is available.
+                </Text>
+              </View>
+            ) : (
+              <>
                 <View
                   style={{
                     flexDirection: "row",
+                    flexWrap: "wrap",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    marginBottom: 10,
+                    gap: BRAND.spacing.sm,
                   }}
                 >
-                  <Text style={{ color: THEME.textSecondary, fontSize: 12 }}>
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    style={{ color: THEME.textSecondary, fontSize: 13 }}
+                  >
                     {selectedCount} of {edits.length} selected
                   </Text>
-                  <TouchableOpacity onPress={() => setAllSelected(!allSelected)}>
-                    <Text
-                      style={{ color: THEME.primary, fontSize: 13, fontWeight: "700" }}
-                    >
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      allSelected ? "Deselect all" : "Select all"
+                    }
+                    disabled={applying}
+                    onPress={() => setAllSelected(!allSelected)}
+                    style={{
+                      minHeight: BRAND.touchTarget,
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ color: THEME.primary, fontWeight: "600" }}>
                       {allSelected ? "Deselect all" : "Select all"}
                     </Text>
                   </TouchableOpacity>
                 </View>
-
-                {edits.map((s) => (
-                  <SuggestionRow
-                    key={s.category}
-                    suggestion={s}
-                    currencySymbol={currencySymbol}
-                    onToggle={() => toggleSelected(s.category)}
-                    onLimitChange={(v) => setLimit(s.category, v)}
-                  />
-                ))}
-                <View style={{ height: 12 }} />
-              </ScrollView>
-
-              <View style={{ marginTop: 8 }}>
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  onPress={apply}
-                  disabled={applying || selectedCount === 0}
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  contentContainerStyle={{
+                    gap: BRAND.spacing.md,
+                    paddingBottom: BRAND.spacing.lg,
+                  }}
                 >
-                  <LinearGradient
-                    colors={[THEME.primary, THEME.secondary]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{
-                      paddingVertical: 14,
-                      borderRadius: 10,
-                      alignItems: "center",
-                      opacity: selectedCount === 0 ? 0.4 : 1,
+                  {edits.map((s) => (
+                    <SuggestionRow
+                      key={s.category}
+                      suggestion={s}
+                      currencyCode={currencyCode}
+                      disabled={applying}
+                      onToggle={() => toggleSelected(s.category)}
+                      onLimitChange={(v) => setLimit(s.category, v)}
+                    />
+                  ))}
+                </ScrollView>
+                <View style={{ paddingTop: BRAND.spacing.sm }}>
+                  <BrandButton
+                    label={`Apply ${selectedCount} budget${selectedCount === 1 ? "" : "s"}`}
+                    loading={applying}
+                    loadingLabel="Applying..."
+                    disabled={selectedCount === 0}
+                    onPress={() => {
+                      void apply();
                     }}
-                  >
-                    <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>
-                      {applying
-                        ? "Applying..."
-                        : `Apply ${selectedCount} budget${selectedCount === 1 ? "" : "s"}`}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+                  />
+                </View>
+              </>
+            )}
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Cancel month setup"
+              disabled={applying}
+              onPress={close}
+              style={{
+                minHeight: BRAND.touchTarget,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: THEME.primary, fontWeight: "600" }}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
     </Modal>
   );
 }
-
 function SuggestionRow({
   suggestion,
-  currencySymbol,
+  currencyCode,
+  disabled,
   onToggle,
   onLimitChange,
 }: {
   suggestion: EditableSuggestion;
-  currencySymbol: string;
+  currencyCode: string;
+  disabled: boolean;
   onToggle: () => void;
   onLimitChange: (value: string) => void;
 }) {
   const { THEME } = useTheme();
-
-  const subtitle = suggestionSubtitle(suggestion);
-  const spendingLine =
-    suggestion.autoCreated || suggestion.spentToDate > 0
-      ? ` • ${currencySymbol}${Number.isFinite(suggestion.spentToDate) ? suggestion.spentToDate.toFixed(2) : "0.00"} spent so far`
-      : "";
-
+  const subtitle = suggestion.inherited
+    ? "From your last month's budget"
+    : suggestion.monthsSampled > 0
+      ? `Based on ${suggestion.monthsSampled} month${suggestion.monthsSampled === 1 ? "" : "s"} of recent spending`
+      : "Based on recent spending";
   return (
     <View
       style={{
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderTopColor: hexToRgba(THEME.border, 0.6),
-        gap: 10,
+        backgroundColor: THEME.surface,
+        borderRadius: BRAND.radius.card,
+        borderWidth: 1,
+        borderColor: THEME.border,
+        padding: BRAND.spacing.md,
+        gap: BRAND.spacing.sm,
       }}
     >
-      <TouchableOpacity
-        onPress={onToggle}
-        accessibilityRole="checkbox"
-        accessibilityLabel={`Select ${suggestion.category}`}
-      >
-        <Feather
-          name={suggestion.selected ? "check-circle" : "circle"}
-          size={22}
-          color={suggestion.selected ? THEME.primary : THEME.textSecondary}
-        />
-      </TouchableOpacity>
-
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{ color: THEME.textPrimary, fontSize: 14, fontWeight: "700" }}
-          numberOfLines={1}
-        >
-          {suggestion.category}
-        </Text>
-        <Text style={{ color: THEME.textSecondary, fontSize: 11, marginTop: 1 }}>
-          {subtitle}
-          {spendingLine}
-        </Text>
-      </View>
-
       <View
         style={{
           flexDirection: "row",
+          gap: BRAND.spacing.sm,
           alignItems: "center",
-          backgroundColor: THEME.inputBackground,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: THEME.border,
-          paddingHorizontal: 8,
-          width: 108,
         }}
       >
-        <Text style={{ color: THEME.textSecondary, fontWeight: "600" }}>
-          {currencySymbol}
-        </Text>
-        <TextInput
-          value={suggestion.limitInput}
-          onChangeText={onLimitChange}
-          keyboardType="numeric"
-          placeholder="0"
-          placeholderTextColor={THEME.placeholderText}
-          accessibilityLabel={`${suggestion.category} suggested limit`}
-          style={{ color: THEME.textPrimary, flex: 1, paddingVertical: 8, paddingLeft: 6 }}
-        />
+        <TouchableOpacity
+          accessibilityRole="checkbox"
+          accessibilityLabel={`Select ${suggestion.category}`}
+          accessibilityState={{ checked: suggestion.selected, disabled }}
+          disabled={disabled}
+          onPress={onToggle}
+          style={{
+            width: BRAND.touchTarget,
+            height: BRAND.touchTarget,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Feather
+            name={suggestion.selected ? "check-square" : "square"}
+            size={22}
+            color={suggestion.selected ? THEME.primary : THEME.textSecondary}
+          />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              color: THEME.textPrimary,
+              fontSize: 16,
+              fontWeight: "600",
+            }}
+          >
+            {suggestion.category}
+          </Text>
+          <Text
+            style={{
+              color: THEME.textSecondary,
+              fontSize: 12,
+              lineHeight: 19,
+              marginTop: 4,
+            }}
+          >
+            {subtitle}
+          </Text>
+        </View>
       </View>
+      {(suggestion.autoCreated || suggestion.spentToDate > 0) && (
+        <Text
+          style={{ color: THEME.textSecondary, fontSize: 12, lineHeight: 19 }}
+        >
+          {formatCurrency(
+            Number.isFinite(suggestion.spentToDate)
+              ? suggestion.spentToDate
+              : 0,
+            currencyCode,
+          )}{" "}
+          spent so far
+        </Text>
+      )}
+      <BrandInput
+        label={`Monthly limit (${currencyCode})`}
+        accessibilityLabel={`${suggestion.category} suggested limit`}
+        value={suggestion.limitInput}
+        onChangeText={onLimitChange}
+        keyboardType="decimal-pad"
+        placeholder="0"
+        editable={!disabled}
+      />
     </View>
   );
-}
-
-/** Human-readable source label for a suggestion row. */
-function suggestionSubtitle(suggestion: EditableSuggestion): string {
-  if (suggestion.inherited) {
-    return "From your last month's budget";
-  }
-  const months = suggestion.monthsSampled;
-  return months > 0
-    ? `Based on ${months} month${months === 1 ? "" : "s"} of recent spending`
-    : "Based on recent spending";
 }

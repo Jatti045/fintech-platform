@@ -2,22 +2,23 @@ import React, { useEffect, useRef } from "react";
 import { useTheme, useUser } from "@/hooks/useRedux";
 import { useBudgetOperations } from "@/hooks/budget/useBudgetOperation";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
-import ModalCloseButton from "../global/modalCloseButton";
-import { LinearGradient } from "expo-linear-gradient";
-import Loader from "@/utils/loader";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getCurrencySymbol } from "@/constants/Currencies";
+import { BRAND } from "@/constants/ThemePalettes";
+import BrandInput from "@/components/brand/BrandInput";
+import BrandButton from "@/components/brand/BrandButton";
 import PresetChips from "@/components/global/PresetChips";
 
-function BudgetModal({
+export default function BudgetModal({
   openSheet,
   setOpenSheet,
   editingBudget,
@@ -31,8 +32,6 @@ function BudgetModal({
   const { THEME } = useTheme();
   const user = useUser();
   const currencyCode = (user?.currency || "USD").toUpperCase();
-  const currencySymbol = getCurrencySymbol(currencyCode);
-
   const {
     budgetCategory: category,
     setBudgetCategory: setCategory,
@@ -42,7 +41,6 @@ function BudgetModal({
     handleCreateBudget,
     handleUpdateBudget,
   } = useBudgetOperations();
-
   const prevOpenRef = useRef(openSheet);
   useEffect(() => {
     if (!openSheet && prevOpenRef.current) {
@@ -65,160 +63,155 @@ function BudgetModal({
     }
   }, [editingBudget]);
 
-  const modalHeight = getModalHeight();
-
+  const close = () => {
+    if (!saving) setOpenSheet(false);
+  };
   return (
-    <Modal visible={openSheet} animationType="slide" transparent={true}>
+    <Modal
+      visible={openSheet}
+      animationType="slide"
+      transparent
+      onRequestClose={close}
+    >
       <View
         style={{
           flex: 1,
           justifyContent: "flex-end",
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          backgroundColor: BRAND.overlay,
         }}
       >
         <SafeAreaView
           style={{
-            height: modalHeight,
+            height: getModalHeight(),
             backgroundColor: THEME.background,
-            padding: 18,
-            position: "relative",
+            padding: BRAND.spacing.md,
             borderTopLeftRadius: MODAL_BORDER_RADIUS,
             borderTopRightRadius: MODAL_BORDER_RADIUS,
-            overflow: "hidden",
             borderWidth: 1,
-            borderTopColor: THEME.border,
+            borderColor: THEME.border,
           }}
         >
-          <View className="relative mb-4">
-            <ModalCloseButton setOpenSheet={setOpenSheet} />
-          </View>
-
-          <View className="items-center justify-center relative mb-4">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: BRAND.spacing.sm,
+              marginBottom: BRAND.spacing.md,
+            }}
+          >
             <Text
-              style={{ color: THEME.textPrimary }}
-              className="text-lg text-center font-bold"
+              accessibilityRole="header"
+              style={{
+                color: THEME.textPrimary,
+                fontSize: 24,
+                fontWeight: "700",
+                flex: 1,
+              }}
             >
               {editingBudget ? "Update Budget" : "Create Budget"}
             </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Close budget form"
+              disabled={saving}
+              onPress={close}
+              style={{
+                width: BRAND.touchTarget,
+                height: BRAND.touchTarget,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Feather name="x" size={22} color={THEME.textSecondary} />
+            </TouchableOpacity>
           </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View className="mt-4">
-              <Text style={{ color: THEME.textSecondary }} className="mb-2">
-                Category Name
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              contentContainerStyle={{
+                gap: BRAND.spacing.lg,
+                paddingBottom: BRAND.spacing.xl,
+              }}
+            >
+              <Text
+                style={{
+                  color: THEME.textSecondary,
+                  fontSize: 14,
+                  lineHeight: 22,
+                }}
+              >
+                Choose a category and set its monthly spending limit. Amounts
+                are saved in {currencyCode}.
               </Text>
-              <TextInput
+              <BrandInput
+                label="Category name"
                 value={category}
                 onChangeText={setCategory}
                 placeholder="e.g., Groceries"
-                placeholderTextColor={THEME.placeholderText}
                 accessibilityLabel="Budget category"
-                className="py-3 px-3 rounded-md"
-                style={{
-                  backgroundColor: THEME.inputBackground,
-                  color: THEME.textPrimary,
-                  borderColor: THEME.border,
-                  borderWidth: 1,
-                }}
+                autoCapitalize="sentences"
+                editable={!saving}
               />
-              <Text
-                style={{ color: THEME.textSecondary, marginTop: 6 }}
-                className="text-sm"
-              >
-                Tip: Pick a short category name like &apos;Groceries&apos; or
-                &apos;Transport&apos;.
-              </Text>
-            </View>
-
-            <View className="mt-4">
-              <Text style={{ color: THEME.textSecondary }} className="mb-2">
-                Limit
-              </Text>
-              <View
-                style={{
-                  backgroundColor: THEME.inputBackground,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: THEME.border,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Text style={{ color: THEME.textSecondary, fontWeight: "600" }}>
-                  {currencySymbol}
-                </Text>
-                <TextInput
+              <View style={{ gap: BRAND.spacing.sm }}>
+                <BrandInput
+                  label={`Monthly limit (${currencyCode})`}
                   value={limit}
                   onChangeText={(v) => setLimit(v.replace(/[^0-9.]/g, ""))}
                   placeholder="Amount"
-                  placeholderTextColor={THEME.placeholderText}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   accessibilityLabel="Budget limit amount"
-                  style={{
-                    color: THEME.textPrimary,
-                    flex: 1,
-                    paddingVertical: 8,
-                  }}
+                  editable={!saving}
                 />
-              </View>
-              <Text
-                style={{ color: THEME.textSecondary, marginTop: 6 }}
-                className="text-sm"
-              >
-                Tip: Enter numbers only. Tap a preset below to quickly set a
-                limit.
-              </Text>
-
-              {/* preset chips */}
-              <PresetChips selected={limit} setSelected={setLimit} />
-              <Text
-                style={{ color: THEME.textSecondary, marginTop: 2 }}
-                className="text-xs"
-              >
-                Amounts are saved in your default currency ({currencyCode}).
-              </Text>
-            </View>
-
-            <View className="mt-6">
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => {
-                  if (editingBudget) {
-                    handleUpdateBudget(editingBudget, setOpenSheet);
-                  } else {
-                    handleCreateBudget(setOpenSheet);
-                  }
-                }}
-              >
-                <LinearGradient
-                  colors={[THEME.primary, THEME.secondary]}
-                  start={[0, 0]}
-                  end={[1, 1]}
+                <Text
                   style={{
-                    paddingVertical: 14,
-                    borderRadius: 10,
-                    alignItems: "center",
+                    color: THEME.textSecondary,
+                    fontSize: 12,
+                    lineHeight: 19,
                   }}
                 >
-                  <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>
-                    {editingBudget
-                      ? saving
-                        ? "Updating..."
-                        : "Update Budget"
-                      : "Save Budget"}
-                  </Text>
-                </LinearGradient>
+                  Enter an amount or choose a preset.
+                </Text>
+                <PresetChips
+                  selected={limit}
+                  setSelected={setLimit}
+                  disabled={saving}
+                />
+              </View>
+              <BrandButton
+                label={editingBudget ? "Update Budget" : "Save Budget"}
+                loading={saving}
+                loadingLabel="Saving budget..."
+                onPress={() => {
+                  if (saving) return;
+                  if (editingBudget)
+                    void handleUpdateBudget(editingBudget, setOpenSheet);
+                  else void handleCreateBudget(setOpenSheet);
+                }}
+              />
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Cancel budget"
+                disabled={saving}
+                onPress={close}
+                style={{
+                  minHeight: BRAND.touchTarget,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ color: THEME.primary, fontWeight: "600" }}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
-            </View>
-          </ScrollView>
-          {saving && <Loader msg="Saving budget..." />}
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
     </Modal>
   );
 }
-
-export default BudgetModal;

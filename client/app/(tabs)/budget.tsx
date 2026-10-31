@@ -1,6 +1,7 @@
 import React from "react";
-import { RefreshControl, ScrollView } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BRAND } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 import { useBudgetScreen } from "@/hooks/budget/useBudgetScreen";
 import {
@@ -8,7 +9,6 @@ import {
   BudgetHeader,
   BudgetModal,
   MonthSetupModal,
-  NewBudgetButton,
 } from "@/components/budget";
 
 /**
@@ -59,19 +59,13 @@ export default function BudgetScreen() {
       className="flex-1"
       style={{ backgroundColor: THEME.background }}
     >
-      <BudgetHeader
-        monthLabel={monthLabel}
-        year={year}
-        showSearch={hasBudgets}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
-
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={{
-          paddingBottom: 120,
+          paddingBottom: BRAND.spacing.xl,
           paddingHorizontal: 16,
           paddingTop: 8,
         }}
@@ -81,37 +75,42 @@ export default function BudgetScreen() {
             onRefresh={onRefresh}
             progressBackgroundColor={THEME.background}
             colors={[THEME.primary]}
+            tintColor={THEME.primary}
           />
         }
       >
-        <BudgetContent
-          isInitialLoading={isInitialLoading}
-          hasBudgets={hasBudgets}
-          searchQuery={searchQuery}
-          filteredBudgets={filteredBudgets}
-          budgetedBudgets={budgetedBudgets}
-          unbudgetedBudgets={unbudgetedBudgets}
-          selectedBudget={selectedBudget}
-          monthLabel={monthLabel}
-          activeCurrency={activeCurrency}
-          transactions={transactions}
-          month={month}
-          year={year}
-          onToggle={handleToggle}
-          onEdit={handleEditPress}
-          onDelete={handleDeleteBudget}
-          onSetLimit={handleEditPress}
-          onSetup={handleOpenSetup}
-        />
+        <View style={{ width: "100%", maxWidth: 760, alignSelf: "center" }}>
+          <BudgetHeader
+            monthLabel={monthLabel}
+            year={year}
+            showSearch={hasBudgets}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSetup={handleOpenSetup}
+            onAddBudget={handleNewBudget}
+          />
+          <BudgetContent
+            isInitialLoading={isInitialLoading}
+            hasBudgets={hasBudgets}
+            searchQuery={searchQuery}
+            filteredBudgets={filteredBudgets}
+            budgetedBudgets={budgetedBudgets}
+            unbudgetedBudgets={unbudgetedBudgets}
+            selectedBudget={selectedBudget}
+            monthLabel={monthLabel}
+            activeCurrency={activeCurrency}
+            transactions={transactions}
+            month={month}
+            year={year}
+            onToggle={handleToggle}
+            onEdit={handleEditPress}
+            onDelete={handleDeleteBudget}
+            onSetLimit={handleEditPress}
+            onSetup={handleOpenSetup}
+            onClearSearch={() => setSearchQuery("")}
+          />
+        </View>
       </ScrollView>
-
-      {/* Floating action button */}
-      <NewBudgetButton
-        onPress={handleNewBudget}
-        primary={THEME.primary}
-        secondary={THEME.secondary}
-        textPrimary={THEME.textPrimary}
-      />
 
       {/* Create / Edit modal — self-contained via useBudgetOperations */}
       <BudgetModal

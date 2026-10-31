@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
 import { useFinancialReport } from "@/hooks/reporting/useFinancialReport";
 import ReportStatus from "@/components/reporting/ReportStatus";
+import { BRAND } from "@/constants/ThemePalettes";
 import BudgetHalo from "./BudgetHalo";
 import BudgetIncomeSummary from "./BudgetIncomeSummary";
 import BudgetReservoirRow from "./BudgetReservoirRow";
@@ -32,15 +33,10 @@ export interface BudgetContentProps {
   onSetLimit: (budget: IBudget) => void;
   /** Opens Smart Month Setup (empty state + unbudgeted section). */
   onSetup: () => void;
+  onClearSearch?: () => void;
 }
 
-/**
- * Main body of the redesigned Budgets screen matching the reference mockup:
- * 1. Monthly Overview hero card (Ring dial with SPENT, left, BUDGET LIMITS breakdown)
- * 2. Income / Main Budget Summary card
- * 3. Categories section with unified list container, progress bars, and "Show all categories >"
- * 4. Lightweight Unbudgeted Spending section
- */
+/** Monthly reporting values stay independent of the category search and row selection. */
 export default function BudgetContent({
   searchQuery,
   selectedBudget,
@@ -53,6 +49,7 @@ export default function BudgetContent({
   onDelete,
   onSetLimit,
   onSetup,
+  onClearSearch,
 }: BudgetContentProps) {
   const [showAllCategories, setShowAllCategories] = useState(false);
   const reporting = useFinancialReport(month, year);
@@ -60,29 +57,83 @@ export default function BudgetContent({
   const { THEME } = useTheme();
   const isSearching = searchQuery.trim().length > 0;
 
-  const status = <ReportStatus report={report} loading={reporting.isFetching} error={reporting.error} stale={reporting.stale} onRetry={() => { void reporting.refetch(); }} />;
-  if (!report) return status;
-  if (!report.budgets.length) return <>{status}<EmptyBudgetState onSetup={onSetup} /></>;
-  const allBudgets: DisplayBudget[] = report.budgets.map(b => ({
-    ...b, date: new Date(b.date), displayLimit: b.limit, displaySpent: b.spent, displayCurrency: report.currency,
+  const status = (
+    <ReportStatus
+      report={report}
+      loading={reporting.isFetching}
+      error={reporting.error}
+      stale={reporting.stale}
+      onRetry={() => {
+        void reporting.refetch();
+      }}
+    />
+  );
+  if (!report)
+    return (
+      <>
+        {status}
+        {reporting.isFetching && (
+          <View
+            accessible={false}
+            style={{
+              backgroundColor: THEME.surface,
+              borderColor: THEME.border,
+              borderWidth: 1,
+              borderRadius: BRAND.radius.card,
+              padding: BRAND.spacing.lg,
+              gap: BRAND.spacing.md,
+            }}
+          >
+            {["70%", "90%", "60%"].map((width) => (
+              <View
+                key={width}
+                style={{
+                  width: width as `${number}%`,
+                  height: 20,
+                  borderRadius: 8,
+                  backgroundColor: THEME.surfaceHover,
+                }}
+              />
+            ))}
+          </View>
+        )}
+      </>
+    );
+  if (!report.budgets.length)
+    return (
+      <>
+        {status}
+        <EmptyBudgetState onSetup={onSetup} />
+      </>
+    );
+  const allBudgets = report.budgets.map((b) => ({
+    ...b,
+    date: new Date(b.date),
+    displayLimit: b.limit,
+    displaySpent: b.spent,
+    displayCurrency: report.currency,
   }));
-  const matching = allBudgets.filter(b => b.category.toLowerCase().includes(searchQuery.trim().toLowerCase()));
-  const limited = matching.filter(b => !b.autoCreated && !(b.limit <= 0 && b.spent > 0));
-  const unbudgeted = matching.filter(b => b.autoCreated || b.limit <= 0 && b.spent > 0);
+  const matching = allBudgets.filter((b) =>
+    b.category.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+  );
+  const limited = matching.filter(
+    (b) => !b.autoCreated && !(b.limit <= 0 && b.spent > 0),
+  );
+  const unbudgeted = matching.filter(
+    (b) => b.autoCreated || (b.limit <= 0 && b.spent > 0),
+  );
   const totalSpent = report.summary.netSpent;
   const totalLimit = report.budgets.reduce((sum, b) => sum + b.limit, 0);
   const monthlyIncome = report.summary.monthlyIncome;
 
   // Initial display limit: show 6 categories unless expanded or searching
   const categoriesToShow =
-    showAllCategories || isSearching
-      ? limited
-      : limited.slice(0, 6);
+    showAllCategories || isSearching ? limited : limited.slice(0, 6);
 
   return (
     <>
       {status}
-      {/* ── 1. Monthly Overview Card ────────────────────────────────────── */}
+      {/* ── 1. Monthly summary ────────────────────────────────────── */}
       <BudgetHalo
         budgets={allBudgets}
         monthlySpent={totalSpent}
@@ -91,7 +142,7 @@ export default function BudgetContent({
         currencyCode={report.currency}
       />
 
-      {/* ── 2. Income / Main Budget Summary Card ────────────────────────── */}
+      {/* ── 2. Income context ────────────────────────── */}
       <BudgetIncomeSummary
         income={monthlyIncome}
         totalSpent={totalSpent}
@@ -106,6 +157,8 @@ export default function BudgetContent({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: BRAND.spacing.sm,
           marginTop: 6,
           marginBottom: 10,
         }}
@@ -133,90 +186,131 @@ export default function BudgetContent({
           </Text>
         </View>
 
-        <Text style={{ color: THEME.textSecondary, fontSize: 13 }}>
-          {isSearching ? "Matching categories spent" : "Total category spending"}{" "}
+        <Text
+          style={{
+            color: THEME.textSecondary,
+            fontSize: 13,
+            flexShrink: 1,
+            maxWidth: "100%",
+          }}
+        >
+          {isSearching
+            ? "Matching categories spent"
+            : "Total category spending"}{" "}
           <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>
-            {formatCurrency(matching.reduce((sum, b) => sum + b.spent, 0), report.currency)}
+            {formatCurrency(
+              matching.reduce((sum, b) => sum + b.spent, 0),
+              report.currency,
+            )}
           </Text>
         </Text>
       </View>
 
-      {!matching.length && <Text style={{ color: THEME.textSecondary }}>No budgets match “{searchQuery}”</Text>}
-      {/* ── Unified Categories List Container ───────────────────────────── */}
-      <View
-        style={{
-          backgroundColor: THEME.surface,
-          borderRadius: 20,
-          borderWidth: 1,
-          borderColor: THEME.border,
-          overflow: "hidden",
-          marginBottom: 14,
-        }}
-      >
-        {categoriesToShow.map((budget, index) => {
-          const isLast =
-            index === categoriesToShow.length - 1 &&
-            (limited.length <= 6 || showAllCategories || isSearching);
-
-          return (
-            <BudgetReservoirRow
-              key={budget.id}
-              budget={budget}
-              displayLimit={budget.displayLimit}
-              displaySpent={budget.displaySpent}
-              currencyCode={budget.displayCurrency || activeCurrency}
-              expanded={selectedBudget?.id === budget.id}
-              isLast={isLast}
-              onToggle={onToggle}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          );
-        })}
-
-        {/* "Show all categories >" expandable toggle */}
-        {limited.length > 6 && !isSearching && (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => setShowAllCategories((prev) => !prev)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: 16,
-              paddingVertical: 14,
-              borderTopWidth: 1,
-              borderTopColor: THEME.border,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Feather
-                name="list"
-                size={16}
-                color={THEME.textSecondary}
-                style={{ marginRight: 10 }}
-              />
-              <Text
-                style={{
-                  color: THEME.textSecondary,
-                  fontSize: 13.5,
-                  fontWeight: "500",
-                }}
-              >
-                {showAllCategories
-                  ? "Show less"
-                  : `Show all categories (${limited.length})`}
+      {!matching.length && (
+        <View style={{ padding: BRAND.spacing.md, gap: BRAND.spacing.sm }}>
+          <Text style={{ color: THEME.textSecondary }}>
+            No budgets match “{searchQuery}”
+          </Text>
+          {onClearSearch && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Clear budget search"
+              onPress={onClearSearch}
+              style={{ minHeight: BRAND.touchTarget, justifyContent: "center" }}
+            >
+              <Text style={{ color: THEME.primary, fontWeight: "600" }}>
+                Clear search
               </Text>
-            </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+      {/* ── Unified Categories List Container ───────────────────────────── */}
+      {limited.length > 0 && (
+        <View
+          style={{
+            backgroundColor: THEME.surface,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: THEME.border,
+            overflow: "hidden",
+            marginBottom: 14,
+          }}
+        >
+          {categoriesToShow.map((budget, index) => {
+            const isLast =
+              index === categoriesToShow.length - 1 &&
+              (limited.length <= 6 || showAllCategories || isSearching);
 
-            <Feather
-              name={showAllCategories ? "chevron-up" : "chevron-right"}
-              size={14}
-              color={THEME.textSecondary}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
+            return (
+              <BudgetReservoirRow
+                key={budget.id}
+                budget={budget}
+                displayLimit={budget.displayLimit}
+                displaySpent={budget.displaySpent}
+                remaining={budget.remaining}
+                utilizationPercentage={budget.utilizationPercentage}
+                currencyCode={budget.displayCurrency || activeCurrency}
+                expanded={selectedBudget?.id === budget.id}
+                isLast={isLast}
+                onToggle={onToggle}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            );
+          })}
+
+          {/* "Show all categories >" expandable toggle */}
+          {limited.length > 6 && !isSearching && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={
+                showAllCategories
+                  ? "Show fewer categories"
+                  : "Show all categories"
+              }
+              accessibilityState={{ expanded: showAllCategories }}
+              activeOpacity={0.7}
+              onPress={() => setShowAllCategories((prev) => !prev)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                borderTopWidth: 1,
+                borderTopColor: THEME.border,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather
+                  name="list"
+                  size={16}
+                  color={THEME.textSecondary}
+                  style={{ marginRight: 10 }}
+                />
+                <Text
+                  style={{
+                    color: THEME.textSecondary,
+                    fontSize: 13.5,
+                    fontWeight: "500",
+                  }}
+                >
+                  {showAllCategories
+                    ? "Show less"
+                    : `Show all categories (${limited.length})`}
+                </Text>
+              </View>
+
+              <Feather
+                name={showAllCategories ? "chevron-up" : "chevron-right"}
+                size={14}
+                color={THEME.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* ── 4. Lightweight Unbudgeted Spending Section ─────────────────── */}
       {unbudgeted.length > 0 && (
@@ -226,15 +320,6 @@ export default function BudgetContent({
           onUseSuggestions={onSetup}
         />
       )}
-
-      {/* ── Test Suite Invariant Fallbacks (Invisible) ─────────────────── */}
-      <View
-        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
-        pointerEvents="none"
-      >
-        <Text>Channels</Text>
-        <Text>Daily left</Text>
-      </View>
     </>
   );
 }

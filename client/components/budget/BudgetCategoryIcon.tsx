@@ -2,27 +2,13 @@ import React from "react";
 import { View } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
-import { hexToRgba } from "@/utils/colorUtils";
 
 export interface BudgetCategoryIconProps {
   category: string;
   size?: number;
 }
 
-/**
- * BudgetCategoryIcon — provides the restrained category icons with tinted
- * surfaces matching the Fundleaf design system and reference mockup:
- * - Food & Drink: amber with fork/knife
- * - General Services: neutral surface with settings cog
- * - General Merchandise: neutral surface with shopping bag
- * - Entertainment: crimson with game controller
- * - Travel: sky blue with airplane
- * - Transportation: blue with car
- * - Housing: purple with home
- * - Health: rose with heart
- * - Personal Care: violet with sparkles
- * - Education: blue with book
- */
+/** Existing category-to-icon mapping, with surfaces and accents from the active theme. */
 export default function BudgetCategoryIcon({
   category = "",
   size = 38,
@@ -45,12 +31,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#F59E0B", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="restaurant" size={iconSize} color="#F59E0B" />
+        <Ionicons name="restaurant" size={iconSize} color={THEME.primary} />
       </View>
     );
   }
@@ -123,12 +109,16 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#F87171", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="game-controller" size={iconSize} color="#F87171" />
+        <Ionicons
+          name="game-controller"
+          size={iconSize}
+          color={THEME.primary}
+        />
       </View>
     );
   }
@@ -147,12 +137,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#60A5FA", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="airplane" size={iconSize} color="#60A5FA" />
+        <Ionicons name="airplane" size={iconSize} color={THEME.primary} />
       </View>
     );
   }
@@ -172,12 +162,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#60A5FA", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="car" size={iconSize} color="#60A5FA" />
+        <Ionicons name="car" size={iconSize} color={THEME.primary} />
       </View>
     );
   }
@@ -196,12 +186,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#A78BFA", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="home" size={iconSize} color="#A78BFA" />
+        <Ionicons name="home" size={iconSize} color={THEME.primary} />
       </View>
     );
   }
@@ -220,12 +210,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#F43F5E", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="heart" size={iconSize} color="#F43F5E" />
+        <Ionicons name="heart" size={iconSize} color={THEME.primary} />
       </View>
     );
   }
@@ -242,12 +232,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#C084FC", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="sparkles" size={iconSize} color="#C084FC" />
+        <Ionicons name="sparkles" size={iconSize} color={THEME.primary} />
       </View>
     );
   }
@@ -265,12 +255,12 @@ export default function BudgetCategoryIcon({
           width: size,
           height: size,
           borderRadius: 10,
-          backgroundColor: hexToRgba("#60A5FA", 0.16),
+          backgroundColor: THEME.subtleSurface,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Ionicons name="book" size={iconSize} color="#60A5FA" />
+        <Ionicons name="book" size={iconSize} color={THEME.primary} />
       </View>
     );
   }

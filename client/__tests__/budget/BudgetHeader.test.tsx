@@ -74,7 +74,7 @@ describe("BudgetHeader", () => {
     renderHeader({ monthLabel: "March" });
 
     expect(renderedText("Budgets")).toBe(true);
-    expect(renderedText("Your monthly flow, one dial")).toBe(true);
+    expect(renderedText("Make room for what matters.")).toBe(true);
     expect(renderedText("March")).toBe(true);
   });
 

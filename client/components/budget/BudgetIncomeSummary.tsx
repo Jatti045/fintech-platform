@@ -1,9 +1,8 @@
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
+import { BRAND } from "@/constants/ThemePalettes";
 import { formatCurrency } from "@/utils/helper";
-import { hexToRgba } from "@/utils/colorUtils";
 
 export interface BudgetIncomeSummaryProps {
   income: number;
@@ -12,14 +11,6 @@ export interface BudgetIncomeSummaryProps {
   currencyCode?: string;
   onPressLimit?: () => void;
 }
-
-/**
- * BudgetIncomeSummary — matches Section 6 of the mockup:
- * - Income icon with monthly income amount
- * - "No limit set >" (or total limit)
- * - Mint green progress bar showing spending relative to income
- * - $X spent vs $Y remaining
- */
 export default function BudgetIncomeSummary({
   income,
   totalSpent,
@@ -32,129 +23,103 @@ export default function BudgetIncomeSummary({
   const remaining = displayIncome - totalSpent;
   const ratio = displayIncome > 0 ? Math.min(1, totalSpent / displayIncome) : 0;
   const percent = Math.round(ratio * 100);
-
   return (
     <View
       style={{
         backgroundColor: THEME.surface,
-        borderRadius: 20,
+        borderRadius: BRAND.radius.card,
         borderWidth: 1,
         borderColor: THEME.border,
-        padding: 16,
-        marginBottom: 16,
+        padding: BRAND.spacing.md,
+        marginBottom: BRAND.spacing.lg,
       }}
     >
-      {/* ── Top row: Income amount + Limit indicator ──────────────────── */}
+      <Text
+        accessibilityRole="header"
+        style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "700" }}
+      >
+        Income context
+      </Text>
       <View
         style={{
           flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: BRAND.spacing.md,
+          marginTop: BRAND.spacing.md,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              backgroundColor: hexToRgba(THEME.success, 0.15),
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: 10,
-            }}
-          >
-            <Feather name="arrow-up" size={18} color={THEME.success} />
-          </View>
-          <View>
+        {[
+          { label: "Monthly income basis", amount: displayIncome },
+          { label: "Income remaining", amount: remaining },
+        ].map((item) => (
+          <View key={item.label} style={{ flexGrow: 1, flexBasis: 120 }}>
+            <Text style={{ color: THEME.textSecondary, fontSize: 12 }}>
+              {item.label}
+            </Text>
             <Text
               style={{
-                color: THEME.textSecondary,
-                fontSize: 11,
+                color: item.amount < 0 ? THEME.danger : THEME.textPrimary,
+                fontSize: 19,
                 fontWeight: "700",
-                letterSpacing: 0.5,
+                fontVariant: ["tabular-nums"],
+                marginTop: 4,
               }}
             >
-              INCOME
-            </Text>
-            <Text
-              style={{
-                color: THEME.textPrimary,
-                fontSize: 20,
-                fontWeight: "800",
-                letterSpacing: -0.5,
-                marginTop: 1,
-              }}
-            >
-              {formatCurrency(displayIncome, currencyCode)}
+              {formatCurrency(item.amount, currencyCode)}
             </Text>
           </View>
-        </View>
-
-        <TouchableOpacity
-          onPress={onPressLimit}
-          activeOpacity={0.7}
-          disabled={!onPressLimit}
-          style={{ flexDirection: "row", alignItems: "center" }}
-        >
-          <Text
-            style={{ color: THEME.textSecondary, fontSize: 13, marginRight: 3 }}
-          >
-            {totalLimit > 0
-              ? `Limit: ${formatCurrency(totalLimit, currencyCode)}`
-              : "No limit set"}
-          </Text>
-          <Feather name="chevron-right" size={14} color={THEME.textSecondary} />
-        </TouchableOpacity>
+        ))}
       </View>
-
-      {/* ── Progress bar ────────────────────────────────────────────────── */}
       <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="Spending relative to income"
+        accessibilityValue={{
+          min: 0,
+          max: 100,
+          now: Math.max(0, Math.min(100, percent)),
+          text:
+            displayIncome > 0
+              ? `${percent}% of income spent`
+              : "No income basis",
+        }}
         style={{
-          height: 7,
+          height: 6,
           backgroundColor: THEME.surfaceHover,
-          borderRadius: 3.5,
-          marginVertical: 12,
+          borderRadius: 3,
           overflow: "hidden",
+          marginVertical: BRAND.spacing.md,
         }}
       >
         <View
           style={{
-            height: "100%",
+            height: 6,
             width: `${Math.max(0, Math.min(100, percent))}%`,
-            backgroundColor: THEME.success,
-            borderRadius: 3.5,
+            backgroundColor: remaining < 0 ? THEME.danger : THEME.primary,
           }}
         />
       </View>
-
-      {/* ── Bottom row: Spent vs Remaining ──────────────────────────────── */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
+      <Text
+        style={{ color: THEME.textSecondary, fontSize: 12, lineHeight: 19 }}
       >
-        <Text
-          style={{
-            color: THEME.textSecondary,
-            fontSize: 12.5,
-            fontWeight: "500",
-          }}
+        {formatCurrency(totalSpent, currencyCode)} spent ·{" "}
+        {totalLimit > 0
+          ? `Limit: ${formatCurrency(totalLimit, currencyCode)}`
+          : "No limit set"}
+      </Text>
+      {onPressLimit && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Review month setup"
+          onPress={onPressLimit}
+          style={{ minHeight: BRAND.touchTarget, justifyContent: "center" }}
         >
-          {formatCurrency(totalSpent, currencyCode)} spent
-        </Text>
-        <Text
-          style={{
-            color: THEME.textSecondary,
-            fontSize: 12.5,
-            fontWeight: "500",
-          }}
-        >
-          {formatCurrency(remaining, currencyCode)} remaining
-        </Text>
-      </View>
+          <Text
+            style={{ color: THEME.primary, fontSize: 13, fontWeight: "600" }}
+          >
+            Review month setup
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
