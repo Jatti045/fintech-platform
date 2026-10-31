@@ -230,13 +230,16 @@ function TransactionModal({
     }
   };
 
-  const close = useSheetDismiss(() => setOpenSheet(false), dirty, saving);
+  // New drafts are disposable. Only edits to an existing transaction require
+  // confirmation; use the same policy for gestures, Back, backdrop and Cancel.
+  const protectedDirty = Boolean(editingTransaction) && dirty;
+  const close = useSheetDismiss(() => setOpenSheet(false), protectedDirty, saving);
   return (
     <FundleafSheet
       visible={openSheet}
       onDismiss={close}
       title={editingTransaction ? "Edit Transaction" : "Add New Transaction"}
-      dirty={dirty}
+      dirty={protectedDirty}
       busy={saving}
     >
       {/* Type selector — Expense by default, income optional */}
