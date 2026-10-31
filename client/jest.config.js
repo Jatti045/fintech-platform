@@ -7,12 +7,10 @@ module.exports = {
   // The app's tsconfig uses `jsx: "react-native"` (leaves JSX for Babel), but
   // Jest has no Babel step — compile JSX to React.createElement in tests.
   transform: {
-    "^.+\\.tsx?$": [
-      "ts-jest",
-      { tsconfig: { jsx: "react" } },
-    ],
+    "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react" } }],
   },
   moduleNameMapper: {
+    "\\.(png|jpg|jpeg|webp)$": "<rootDir>/__mocks__/styleMock.js",
     "^@/(.*)$": "<rootDir>/$1",
     // Stub out native/Expo modules that ship un-transpiled ESM
     "^expo-haptics$": "<rootDir>/__mocks__/expo-haptics.ts",

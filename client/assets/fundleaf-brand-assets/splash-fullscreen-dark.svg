@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1242" height="2688" viewBox="0 0 1242 2688"><defs>
+  <linearGradient id="leaf" x1="0" y1="1" x2="1" y2="0" gradientUnits="objectBoundingBox">
+   <stop offset="0%" stop-color="#008A53"/><stop offset="50%" stop-color="#26B44A"/><stop offset="100%" stop-color="#A8EB62"/>
+  </linearGradient>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0A8561"/><stop offset="42%" stop-color="#07624A"/><stop offset="100%" stop-color="#002B27"/></linearGradient>
+  <radialGradient id="glow" cx="25%" cy="10%" r="110%"><stop offset="0%" stop-color="#78DAB4" stop-opacity=".16"/><stop offset="100%" stop-color="#78DAB4" stop-opacity="0"/></radialGradient>
+  <linearGradient id="lightbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#F6FBF8"/></linearGradient>
+  <linearGradient id="wavem" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#A6E8C6"/><stop offset="100%" stop-color="#50C797"/></linearGradient>
+ </defs><rect width="1242" height="2688" fill="url(#bg)"/>
+<g transform="translate(363 950) scale(0.516000)"><path d="M 167,798 C 74,691 66,528 116,391 C 170,247 286,183 436,163 C 594,143 724,147 848,108 C 875,319 870,495 780,644 C 679,815 502,838 264,831 C 320,723 419,665 570,623 C 400,614 255,670 167,798 Z" fill="url(#leaf)"/><rect x="333" y="485" width="85" height="145" rx="22" fill="#FFFFFF"/>
+<rect x="454" y="391" width="85" height="239" rx="22" fill="#FFFFFF"/>
+<rect x="575" y="292" width="85" height="338" rx="22" fill="#FFFFFF"/><path d="M 146,867 C 209,737 358,634 581,618 C 421,663 295,753 217,858 Z" fill="#FFFFFF" /></g>
+<text x="621" y="1560" font-family="Inter Display,Inter,Arial,sans-serif" font-size="128" text-anchor="middle" font-weight="750" letter-spacing="-5" fill="#FFFFFF">Fundleaf</text>
+<text x="621" y="1641" font-family="Inter,Arial,sans-serif" font-size="42" text-anchor="middle" letter-spacing="3.3" fill="#D0EDE2">Your money, your control.</text><path d="M0 2180 C280 2045 522 2290 740 2240 C930 2205 1080 1990 1242 2060 L1242 2688 L0 2688 Z" fill="#0C775B" opacity=".7"/>
+<path d="M0 2400 C230 2270 428 2310 620 2340 C780 2360 1040 2190 1242 2130 L1242 2688 L0 2688 Z" fill="#23A86B" opacity=".8"/>
+<path d="M0 2630 C260 2415 444 2530 692 2475 C962 2430 1070 2390 1242 2260 L1242 2688 L0 2688 Z" fill="#066447" opacity=".8"/></svg>

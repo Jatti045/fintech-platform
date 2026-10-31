@@ -52,8 +52,8 @@ export async function persistTheme(themeName: string): Promise<void> {
 import type { ThemeOption } from "@/types/profile/types";
 
 export const THEME_OPTIONS: ThemeOption[] = [
-  { name: "Light", color: "#B8942F", icon: "sunny-outline" },
-  { name: "Dark", color: "#D4AF6A", icon: "moon-outline" },
+  { name: "Light", color: "#0C8057", icon: "sunny-outline" },
+  { name: "Dark", color: "#6CE0A0", icon: "moon-outline" },
   { name: "Ember", color: "#E8865A", icon: "flame-outline" },
   { name: "Aurora", color: "#7C6CF6", icon: "sparkles-outline" },
 ];

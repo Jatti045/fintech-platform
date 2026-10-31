@@ -182,7 +182,7 @@ class MonthlyInsightServiceTest {
 
     /**
      * Regression: the AI context must carry the human-readable 1-based month
-     * matching the selected month. Budgee's API month is 0-based, and the
+     * matching the selected month. Fundleaf's API month is 0-based, and the
      * context previously serialized the raw index — so a user viewing
      * September 2026 (index 8) got an AI summary about "August".
      */

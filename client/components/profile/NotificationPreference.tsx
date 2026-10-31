@@ -84,7 +84,7 @@ export default function NotificationPreference({
             }}
           >
             {permissionDenied
-              ? "Notifications are off for Budgee in device settings. Turn them on there to receive reminders."
+              ? "Notifications are off for Fundleaf in device settings. Turn them on there to receive reminders."
               : subtitle}
           </Text>
         </View>

@@ -11,7 +11,7 @@ export interface BudgetCategoryIconProps {
 
 /**
  * BudgetCategoryIcon — provides the restrained category icons with tinted
- * surfaces matching the Budgee design system and reference mockup:
+ * surfaces matching the Fundleaf design system and reference mockup:
  * - Food & Drink: amber with fork/knife
  * - General Services: neutral surface with settings cog
  * - General Merchandise: neutral surface with shopping bag

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+  <linearGradient id="leaf" x1="0" y1="1" x2="1" y2="0" gradientUnits="objectBoundingBox">
+   <stop offset="0%" stop-color="#008A53"/><stop offset="50%" stop-color="#26B44A"/><stop offset="100%" stop-color="#A8EB62"/>
+  </linearGradient>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0A8561"/><stop offset="42%" stop-color="#07624A"/><stop offset="100%" stop-color="#002B27"/></linearGradient>
+  <radialGradient id="glow" cx="25%" cy="10%" r="110%"><stop offset="0%" stop-color="#78DAB4" stop-opacity=".16"/><stop offset="100%" stop-color="#78DAB4" stop-opacity="0"/></radialGradient>
+  <linearGradient id="lightbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="100%" stop-color="#F6FBF8"/></linearGradient>
+  <linearGradient id="wavem" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#A6E8C6"/><stop offset="100%" stop-color="#50C797"/></linearGradient>
+ </defs><rect width="1024" height="1024" fill="#063F36"/></svg>

@@ -4,7 +4,7 @@ import { Stack } from "expo-router";
 import { Provider } from "react-redux";
 import { store, loadUserFromStorage, useAuth } from "../store";
 import { useAppDispatch, useTheme } from "@/hooks/useRedux";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Image, StatusBar, View } from "react-native";
 import { loadThemeFromStorage } from "@/store/slices/themeSlice";
 import { hydrateApiCache } from "@/store/api/cachePersistence";
 import { AlertProvider } from "@/utils/themedAlert";
@@ -14,7 +14,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 
 export function AppRoutes() {
   const dispatch = useAppDispatch();
-  const { THEME } = useTheme();
+  const { THEME, selectedTheme } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
 
   useNotifications();
@@ -29,6 +29,12 @@ export function AppRoutes() {
           alignItems: "center",
         }}
       >
+        <Image
+          source={require("@/assets/fundleaf-brand-assets/splash-mark.png")}
+          resizeMode="contain"
+          accessible={false}
+          style={{ width: 140, height: 140, marginBottom: 24 }}
+        />
         <ActivityIndicator size="large" color={THEME.primary} />
       </View>
     );
@@ -53,10 +59,15 @@ export function AppRoutes() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" redirect={!isAuthenticated} />
-      <Stack.Screen name="(auth)" redirect={isAuthenticated} />
-    </Stack>
+    <>
+      <StatusBar
+        barStyle={selectedTheme === "Light" ? "dark-content" : "light-content"}
+      />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" redirect={!isAuthenticated} />
+        <Stack.Screen name="(auth)" redirect={isAuthenticated} />
+      </Stack>
+    </>
   );
 }
 

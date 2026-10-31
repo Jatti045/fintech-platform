@@ -21,7 +21,7 @@ import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
 
 /**
- * Verifies that Budgee keeps working when Redis is unreachable: the configured
+ * Verifies that Fundleaf keeps working when Redis is unreachable: the configured
  * Redis port points at nothing, so every cache access fails. Financial reads
  * must fall back to PostgreSQL and mutations must still succeed — Redis is a
  * cache, never a hard dependency.

@@ -11,8 +11,8 @@
 	<groupId>com.fintechapp</groupId>
 	<artifactId>fintech-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>fintech-api</name>
-	<description>fintech-api</description>
+	<name>Fundleaf API</name>
+	<description>Open-source personal finance and budgeting application</description>
 	<url/>
 	<licenses>
 		<license/>

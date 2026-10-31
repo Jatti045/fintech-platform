@@ -11,7 +11,7 @@ export interface NewBudgetButtonProps {
 }
 
 /**
- * Floating action button to create a new budget matching the Budgee design system:
+ * Floating action button to create a new budget matching the Fundleaf design system:
  * - Solid theme pill
  * - High-contrast icon and text
  * - Natural soft shadow, no glow or gradients

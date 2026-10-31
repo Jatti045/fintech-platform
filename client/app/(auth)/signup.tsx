@@ -1,12 +1,7 @@
 import React from "react";
-import {
-  KeyboardAvoidingView,
-  ScrollView,
-  Text,
-  View,
-  useWindowDimensions,
-} from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Text, View } from "react-native";
+import AuthScreen from "@/components/auth/AuthScreen";
+import { BRAND } from "@/constants/ThemePalettes";
 import { Link, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/hooks/useRedux";
@@ -14,7 +9,6 @@ import { useThemedAlert } from "@/utils/themedAlert";
 import { useSignUp } from "@/hooks/auth/useSignUp";
 import SignUpForm from "@/components/auth/SignUpForm";
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton";
-import Loader from "@/utils/loader";
 import { NOTIFICATION_ONBOARDING_STORAGE_KEY } from "@/constants/notifications";
 import { logger } from "@/utils/logger";
 import type { ISignupData } from "@/types/user/types";
@@ -23,7 +17,7 @@ import type { ISignupData } from "@/types/user/types";
  * SignUpScreen is a composition/orchestration layer only:
  *
  *  - `useSignUp` owns signup behavior (validation, Redux dispatch, errors)
- *  - `SignUpForm` owns the form fields + local password-visibility state
+ *  - `SignUpForm` owns the form fields and shared inputs own password visibility
  *  - `GoogleAuthButton` owns its own Google authentication
  *
  * The screen handles layout, responsive sizing, the success alert, and
@@ -32,10 +26,6 @@ import type { ISignupData } from "@/types/user/types";
 const SignUpScreen = () => {
   const { THEME } = useTheme();
   const { showAlert } = useThemedAlert();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isSmallScreen = width < 380;
-  const isTablet = width > 768;
 
   const signUp = useSignUp();
 
@@ -59,75 +49,42 @@ const SignUpScreen = () => {
   };
 
   return (
-    <SafeAreaView
-      style={{ backgroundColor: THEME.background }}
-      className="flex-1"
+    <AuthScreen
+      title="Create your account"
+      description="A little clarity for your everyday finances."
     >
-      <KeyboardAvoidingView behavior="padding" className="flex-1">
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingTop: insets.top,
-            paddingBottom: Math.max(insets.bottom, 20),
+      {/* Sign Up Form */}
+      <SignUpForm isLoading={signUp.isLoading} onSubmit={handleSignUp} />
+
+      <View
+        style={{
+          marginTop: BRAND.spacing.lg,
+          flexDirection: "row",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: BRAND.spacing.xs,
+        }}
+      >
+        <Text style={{ color: THEME.textSecondary, fontSize: 14 }}>
+          Already have an account?
+        </Text>
+        <Link
+          href="/(auth)/login"
+          accessibilityRole="link"
+          style={{
+            color: THEME.primary,
+            fontSize: 14,
+            fontWeight: "700",
+            paddingVertical: BRAND.spacing.md,
+            paddingHorizontal: BRAND.spacing.xs,
           }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         >
-          {/* Header Section */}
-          <View
-            className={`flex-1 justify-center px-6 ${isTablet ? "items-center" : ""}`}
-          >
-            <View className={`${isTablet ? "w-full max-w-lg" : "w-full"}`}>
-              {/* App Title and Welcome */}
-              <View className="items-center mb-8">
-                <View className="mb-2">
-                  <Text
-                    style={{ color: THEME.textPrimary }}
-                    className={`${isSmallScreen ? "text-3xl" : "text-4xl"} font-bold text-center mb-2`}
-                  >
-                    Budgee
-                  </Text>
-                  <Text
-                    style={{ color: THEME.textSecondary }}
-                    className={`${isSmallScreen ? "text-sm" : "text-base"} text-center leading-5`}
-                  >
-                    Create your account to get started with budgeting.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Sign Up Form */}
-              <SignUpForm
-                isLoading={signUp.isLoading}
-                onSubmit={handleSignUp}
-              />
-
-              {/* Login Link */}
-              <View className="items-center">
-                <Text
-                  style={{ color: THEME.textSecondary }}
-                  className="text-base"
-                >
-                  Already have an account?{" "}
-                  <Link href="/(auth)/login">
-                    <Text
-                      style={{
-                        color: THEME.secondary,
-                        fontWeight: "600",
-                      }}
-                    >
-                      Sign In
-                    </Text>
-                  </Link>
-                </Text>
-              </View>
-              <GoogleAuthButton />
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-      {signUp.isLoading && <Loader msg="Creating Account..." />}
-    </SafeAreaView>
+          Sign In
+        </Link>
+      </View>
+      <GoogleAuthButton />
+    </AuthScreen>
   );
 };
 

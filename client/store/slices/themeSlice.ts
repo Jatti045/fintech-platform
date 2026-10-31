@@ -5,8 +5,8 @@ import type { ITheme, IThemeState } from "@/types/theme/types";
 import { logger } from "@/utils/logger";
 
 const initialState: IThemeState = {
-  selectedTheme: "Dark",
-  THEME: THEME_PALETTES.DARK,
+  selectedTheme: "System",
+  THEME: THEME_PALETTES.LIGHT,
 };
 
 export const loadThemeFromStorage = createAsyncThunk(
@@ -27,8 +27,11 @@ const themeSlice = createSlice({
   initialState,
   reducers: {
     setTheme: (state, action) => {
-      const key = action.payload.toUpperCase() as keyof typeof THEME_PALETTES;
-      state.selectedTheme = action.payload;
+      const name =
+        typeof action.payload === "string" ? action.payload : "Light";
+      const key = name.toUpperCase() as keyof typeof THEME_PALETTES;
+      state.selectedTheme =
+        name === "System" ? "System" : THEME_PALETTES[key] ? name : "Light";
       state.THEME = THEME_PALETTES[key] ?? THEME_PALETTES.LIGHT;
     },
   },
@@ -37,12 +40,17 @@ const themeSlice = createSlice({
       .addCase(loadThemeFromStorage.fulfilled, (state, action) => {
         const storedTheme = action.payload;
         if (!storedTheme) {
-          state.selectedTheme = "Light";
+          state.selectedTheme = "System";
           state.THEME = THEME_PALETTES.LIGHT;
           return;
         }
         const key = storedTheme.toUpperCase() as keyof typeof THEME_PALETTES;
-        state.selectedTheme = THEME_PALETTES[key] ? storedTheme : "Light";
+        state.selectedTheme =
+          storedTheme === "System"
+            ? "System"
+            : THEME_PALETTES[key]
+              ? storedTheme
+              : "Light";
         state.THEME = THEME_PALETTES[key] ?? THEME_PALETTES.LIGHT;
       })
       .addCase(loadThemeFromStorage.rejected, (state, action) => {

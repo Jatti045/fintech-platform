@@ -10,7 +10,7 @@ import type { ProfileHeaderProps } from "@/types/profile/types";
 /**
  * Profile Account Card matching the approved mockup:
  * Left: Circular avatar with thin gold border & camera icon.
- * Right: User name, email, and gold-outlined "Budgee member" pill.
+ * Right: User name, email, and gold-outlined "Fundleaf member" pill.
  * Far Right: Subtle interactive chevron.
  */
 export default function ProfileHeader({
@@ -74,7 +74,7 @@ export default function ProfileHeader({
           {displayEmail}
         </Text>
 
-        {/* Budgee member pill */}
+        {/* Fundleaf member pill */}
         <View
           style={{
             alignSelf: "flex-start",
@@ -102,7 +102,7 @@ export default function ProfileHeader({
               letterSpacing: -0.1,
             }}
           >
-            Budgee member
+            Fundleaf member
           </Text>
         </View>
       </View>

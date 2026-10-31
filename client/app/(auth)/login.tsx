@@ -1,12 +1,7 @@
 import React from "react";
-import {
-  KeyboardAvoidingView,
-  ScrollView,
-  Text,
-  View,
-  useWindowDimensions,
-} from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Text, View } from "react-native";
+import AuthScreen from "@/components/auth/AuthScreen";
+import { BRAND } from "@/constants/ThemePalettes";
 import { Link, router } from "expo-router";
 import { useTheme } from "@/hooks/useRedux";
 import { useLogin } from "@/hooks/auth/useLogin";
@@ -24,15 +19,11 @@ import ResetPasswordModal from "@/components/auth/PasswordRecovery/ResetPassword
  *  - `usePasswordRecovery` owns the forgot-password state machine
  *  - `LoginForm` / `GoogleAuthButton` / the recovery modals are presentational
  *
- * The screen connects them, handles responsive layout via `useWindowDimensions`,
+ * The screen connects them, uses the shared responsive AuthScreen layout,
  * and performs navigation after successful authentication.
  */
 const LoginScreen = () => {
   const { THEME } = useTheme();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isSmallScreen = width < 380;
-  const isTablet = width > 768;
 
   const login = useLogin();
   const passwordRecovery = usePasswordRecovery();
@@ -45,79 +36,50 @@ const LoginScreen = () => {
   };
 
   return (
-    <SafeAreaView
-      style={{ backgroundColor: THEME.background }}
-      className="flex-1"
+    <AuthScreen
+      title="Welcome back"
+      description="Sign in to keep your finances in focus."
     >
-      <KeyboardAvoidingView behavior="padding" className="flex-1">
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingTop: insets.top,
-            paddingBottom: Math.max(insets.bottom, 20),
+      {/* Login Form */}
+      <LoginForm
+        email={login.email}
+        password={login.password}
+        isLoading={login.isLoading}
+        error={login.loginError}
+        onEmailChange={login.setEmail}
+        onPasswordChange={login.setPassword}
+        onSubmit={handleLogin}
+        onForgotPassword={passwordRecovery.open}
+      />
+
+      <View
+        style={{
+          marginTop: BRAND.spacing.lg,
+          flexDirection: "row",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: BRAND.spacing.xs,
+        }}
+      >
+        <Text style={{ color: THEME.textSecondary, fontSize: 14 }}>
+          Don&apos;t have an account?
+        </Text>
+        <Link
+          href="/(auth)/signup"
+          accessibilityRole="link"
+          style={{
+            color: THEME.primary,
+            fontSize: 14,
+            fontWeight: "700",
+            paddingVertical: BRAND.spacing.md,
+            paddingHorizontal: BRAND.spacing.xs,
           }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         >
-          {/* Header Section */}
-          <View
-            className={`flex-1 justify-center px-6 ${isTablet ? "items-center" : ""}`}
-          >
-            <View className={`${isTablet ? "w-full max-w-lg" : "w-full"}`}>
-              {/* App Title and Welcome */}
-              <View className="items-center mb-8">
-                <View className="mb-2">
-                  <Text
-                    style={{ color: THEME.textPrimary }}
-                    className={`${isSmallScreen ? "text-3xl" : "text-4xl"} font-bold text-center mb-2`}
-                  >
-                    Budgee
-                  </Text>
-                  <Text
-                    style={{ color: THEME.textSecondary }}
-                    className={`${isSmallScreen ? "text-sm" : "text-base"} text-center leading-5`}
-                  >
-                    Welcome back! Please enter your details.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Login Form */}
-              <LoginForm
-                email={login.email}
-                password={login.password}
-                isLoading={login.isLoading}
-                error={login.loginError}
-                onEmailChange={login.setEmail}
-                onPasswordChange={login.setPassword}
-                onSubmit={handleLogin}
-                onForgotPassword={passwordRecovery.open}
-              />
-
-              {/* Sign Up Link */}
-              <View className="items-center">
-                <Text
-                  style={{ color: THEME.textSecondary }}
-                  className="text-base"
-                >
-                  Don&apos;t have an account?{" "}
-                  <Link href="/(auth)/signup">
-                    <Text
-                      style={{
-                        color: THEME.secondary,
-                        fontWeight: "600",
-                      }}
-                    >
-                      Sign Up
-                    </Text>
-                  </Link>
-                </Text>
-              </View>
-              <GoogleAuthButton />
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          Sign Up
+        </Link>
+      </View>
+      <GoogleAuthButton />
 
       {/* Password Recovery flow */}
       <ForgotPasswordModal
@@ -140,7 +102,7 @@ const LoginScreen = () => {
         otp={passwordRecovery.otp}
         onSubmit={passwordRecovery.submitNewPassword}
       />
-    </SafeAreaView>
+    </AuthScreen>
   );
 };
 

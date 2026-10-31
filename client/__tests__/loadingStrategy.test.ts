@@ -1,7 +1,7 @@
 /**
  * loadingStrategy.test.ts
  *
- * Regression tests for the Budgee hybrid loading strategy.
+ * Regression tests for the Fundleaf hybrid loading strategy.
  *
  * Architecture invariants verified here:
  *

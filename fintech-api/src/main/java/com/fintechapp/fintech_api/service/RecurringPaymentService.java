@@ -30,7 +30,7 @@ import com.fintechapp.fintech_api.repository.TransactionRepository;
  * history. Read-only and computed on demand; nothing is persisted.
  *
  * <p><b>Conservatism is the design goal</b> — a missed bill costs one glance
- * at the calendar, but a false positive erodes trust in every number Budgee
+ * at the calendar, but a false positive erodes trust in every number Fundleaf
  * shows. The detector therefore requires:</p>
  *
  * <ul>

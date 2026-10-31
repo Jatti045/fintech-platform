@@ -28,6 +28,9 @@ const hostComponent = (name: string) =>
   jest.fn((props: Record<string, unknown>) => React.createElement(name, props));
 
 export const View = hostComponent("View");
+export const Image = hostComponent("Image");
+export const StatusBar = hostComponent("StatusBar");
+export const useColorScheme = jest.fn(() => "light");
 export const Text = hostComponent("Text");
 export const Switch = hostComponent("Switch");
 export const TextInput = hostComponent("TextInput");

@@ -33,7 +33,7 @@ import com.fintechapp.fintech_api.repository.UserRepository;
 
 /**
  * Produces the "Explain my month" insight: a concise AI-generated explanation
- * layered on top of Budgee's deterministic financial data.
+ * layered on top of Fundleaf's deterministic financial data.
  *
  * <p>Every financial fact is computed by the existing services
  * ({@link FinancialSummaryService}, {@link BudgetService},
@@ -59,8 +59,8 @@ public class MonthlyInsightService {
 
 
     private static final String SYSTEM_PROMPT = """
-            You are Budgee's financial explanation assistant. You receive one JSON object \
-            of financial facts that Budgee has already computed for the user's month: \
+            You are Fundleaf's financial explanation assistant. You receive one JSON object \
+            of financial facts that Fundleaf has already computed for the user's month: \
             income, expenses, net, per-category spending with the change versus the \
             previous month, budget usage, and recurring-payment price changes.
 
@@ -295,7 +295,7 @@ public class MonthlyInsightService {
 
     /**
      * The single canonical zero-based → human-readable month conversion for
-     * the AI boundary. Budgee's API month is 0-based (0 = January); the AI
+     * the AI boundary. Fundleaf's API month is 0-based (0 = January); the AI
      * must see 1 = January … 12 = December, spelled out.
      */
     private static String monthName(int zeroBasedMonth) {

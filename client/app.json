@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Budgee",
+    "name": "Fundleaf",
     "slug": "budgee-app",
     "version": "3.6.1",
-    "description": "Budgee — budgeting made easy",
+    "description": "Open-source personal finance and budgeting application",
     "orientation": "portrait",
     "privacy": "public",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/fundleaf-brand-assets/app-icon.png",
     "scheme": "client",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -22,12 +22,18 @@
           }
         ]
       },
-      "bundleIdentifier": "com.budgee.finance"
+      "bundleIdentifier": "com.budgee.finance",
+      "icon": {
+        "light": "./assets/fundleaf-brand-assets/app-icon-light.png",
+        "dark": "./assets/fundleaf-brand-assets/app-icon-dark.png"
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/fundleaf-brand-assets/adaptive-icon-foreground.png",
+        "backgroundImage": "./assets/fundleaf-brand-assets/adaptive-icon-background.png",
+        "backgroundColor": "#0C8057",
+        "monochromeImage": "./assets/fundleaf-brand-assets/adaptive-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.budgee.finance",
@@ -39,30 +45,35 @@
       ],
       "blockedPermissions": [
         "RECORD_AUDIO"
-      ]
+      ],
+      "icon": "./assets/fundleaf-brand-assets/app-icon.png"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/fundleaf-brand-assets/app-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
+          "image": "./assets/fundleaf-brand-assets/splash-mark.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F7FAF8",
+          "dark": {
+            "image": "./assets/fundleaf-brand-assets/splash-mark.png",
+            "backgroundColor": "#071D17"
+          }
         }
       ],
       "expo-localization",
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
-          "color": "#ffffff",
+          "icon": "./assets/fundleaf-brand-assets/adaptive-icon-monochrome.png",
+          "color": "#0C8057",
           "defaultChannel": "purchase-reminders"
         }
       ],

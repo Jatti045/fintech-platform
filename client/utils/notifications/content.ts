@@ -59,7 +59,7 @@ function utcDayIndex(): number {
 
 /**
  * Structured content for an upcoming-bill reminder. Deliberately hedged
- * wording: Budgee predicts from history, it does not know a charge will
+ * wording: Fundleaf predicts from history, it does not know a charge will
  * happen, so the message says "usually" / "about" — never "will".
  */
 export function getUpcomingBillContent(

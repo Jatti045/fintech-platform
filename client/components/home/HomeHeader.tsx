@@ -12,7 +12,7 @@ type Props = {
 
 /**
  * Dashboard Header matching the reference design:
- * Left: "Budgee" title and secondary muted greeting with emoji.
+ * Left: "Fundleaf" title and secondary muted greeting with emoji.
  * Right: Two understated, circular utility buttons:
  *   [ Information ] [ Settings ]
  *   - Information: opens the Help & Usage modal
@@ -57,7 +57,7 @@ export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
             letterSpacing: -0.5,
           }}
         >
-          Budgee
+          Fundleaf
         </Text>
         <Text
           style={{

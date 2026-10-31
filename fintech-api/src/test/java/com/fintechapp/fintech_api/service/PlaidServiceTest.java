@@ -567,7 +567,7 @@ class PlaidServiceTest {
         Map<String, Object> body = (Map<String, Object>) bodyCaptor.getValue();
         assertEquals(ACCESS_TOKEN, body.get("access_token"));
         assertFalse(body.containsKey("products"));
-        assertEquals("Budgee", body.get("client_name"));
+        assertEquals("Fundleaf", body.get("client_name"));
         assertEquals(List.of("US"), body.get("country_codes"));
         assertEquals("en", body.get("language"));
         assertEquals("https://example.com/webhook", body.get("webhook"));

@@ -152,7 +152,7 @@ public class PlaidService {
         String userId = requireUserId(authenticatedUser);
 
         Map<String, Object> body = baseBody();
-        body.put("client_name", "Budgee");
+        body.put("client_name", "Fundleaf");
         body.put("country_codes", settings.countryCodes());
         body.put("language", settings.language());
         body.put("user", Map.of("client_user_id", userId));
@@ -379,7 +379,7 @@ public class PlaidService {
 
         Map<String, Object> body = baseBody();
         body.put("access_token", accessToken);
-        body.put("client_name", "Budgee");
+        body.put("client_name", "Fundleaf");
         body.put("country_codes", settings.countryCodes());
         body.put("language", settings.language());
         body.put("user", Map.of("client_user_id", userId));

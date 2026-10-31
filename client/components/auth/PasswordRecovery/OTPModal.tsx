@@ -164,12 +164,12 @@ function OTPModal({ visible, onClose, email, onVerify }: OTPModalProps) {
                       {isSubmitting ? (
                         <ActivityIndicator
                           size="small"
-                          color={THEME.textPrimary}
+                          color={THEME.onPrimary}
                         />
                       ) : (
                         <Text
                           style={{
-                            color: THEME.textPrimary,
+                            color: THEME.onPrimary,
                             fontWeight: "700",
                           }}
                         >

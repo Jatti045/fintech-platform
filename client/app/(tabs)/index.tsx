@@ -15,13 +15,13 @@ import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentTransactions from "@/components/home/RecentTransactions";
 
 /**
- * Budgee Dashboard (Home Tab).
+ * Fundleaf Dashboard (Home Tab).
  *
  * Minimal, premium, polished, clean, and highly legible financial product UI.
  * Rebuilt to closely match the reference design:
  *   - Dark near-black background (#0B0B0D)
  *   - Restrained surfaces, hairline subtle borders (#232326), no glassmorphic glow
- *   - Clear hierarchy: Budgee Header → Month Selector → Monthly Overview
+ *   - Clear hierarchy: Fundleaf Header → Month Selector → Monthly Overview
  *     → 3 Metrics (Income/Spent/Net) → Explain My Month → Upcoming Bills
  *     → Recent Transactions
  *   - Redux, RTK Query, financial calculations, and help modal
@@ -72,7 +72,7 @@ export default function Index() {
           />
         }
       >
-        {/* 1. Header: Budgee, Greeting, Info & Settings */}
+        {/* 1. Header: Fundleaf, Greeting, Info & Settings */}
         <HomeHeader
           onInfoPress={handleInfoPress}
           onSettingsPress={() => router.push("/(tabs)/profile")}

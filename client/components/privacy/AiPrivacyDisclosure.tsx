@@ -14,9 +14,9 @@ export default function AiPrivacyDisclosure({ visible, preference, saving, error
           <Text style={{ color: THEME.textPrimary, fontSize: 19, fontWeight: "700", marginBottom: 14 }}>AI explanations and your privacy</Text>
           <ScrollView>
             <Text style={{ color: THEME.textSecondary, lineHeight: 21 }}>
-              To explain your month, Budgee sends income and spending totals, category labels, budget usage, and recurring bill names and price changes to {preference?.providerName || "an external AI provider"}.
+              To explain your month, Fundleaf sends income and spending totals, category labels, budget usage, and recurring bill names and price changes to {preference?.providerName || "an external AI provider"}.
               {"\n\n"}Individual transaction records, stored account identifiers, bank credentials, and login tokens are excluded. Names or labels you entered may contain personal information.
-              {"\n\n"}Retention and training rules depend on the configured provider. Budgee does not promise zero retention or exclusion from training.
+              {"\n\n"}Retention and training rules depend on the configured provider. Fundleaf does not promise zero retention or exclusion from training.
               {"\n\n"}You choose when to generate an explanation. Enabling this preference does not generate one. You can disable future processing in Profile → AI privacy. Data already sent cannot be recalled.
             </Text>
             {preference?.privacyPolicyUrl && (

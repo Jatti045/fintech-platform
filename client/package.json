@@ -1,5 +1,6 @@
 {
-  "name": "client",
+  "name": "fundleaf",
+  "description": "Open-source personal finance and budgeting application",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {

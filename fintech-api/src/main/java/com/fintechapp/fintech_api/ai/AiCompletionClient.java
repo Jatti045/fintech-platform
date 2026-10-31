@@ -1,7 +1,7 @@
 package com.fintechapp.fintech_api.ai;
 
 /**
- * The single seam between Budgee's financial logic and any AI provider.
+ * The single seam between Fundleaf's financial logic and any AI provider.
  *
  * <p>Implementations translate a system prompt + user content into one
  * completion. Providers are swapped through configuration ({@code app.ai.*});

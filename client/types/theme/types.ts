@@ -6,6 +6,11 @@ export interface ITheme {
   surfaceHover: string;
   primary: string;
   primaryHover: string;
+  onPrimary: string;
+  onDanger: string;
+  disabledBackground: string;
+  subtleSurface: string;
+  errorSurface: string;
   secondary: string;
   textPrimary: string;
   textSecondary: string;

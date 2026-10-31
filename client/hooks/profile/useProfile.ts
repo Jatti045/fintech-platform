@@ -225,7 +225,7 @@ export function useProfile(): UseProfileReturn {
           showAlert({
             title: "Notifications are off",
             message:
-              "Budgee doesn't have notification permission. Enable it in your device settings to receive reminders.",
+              "Fundleaf doesn't have notification permission. Enable it in your device settings to receive reminders.",
             buttons: [
               { text: "Cancel", style: "cancel" },
               { text: "Open Settings", onPress: () => Linking.openSettings() },
@@ -455,7 +455,7 @@ export function useProfile(): UseProfileReturn {
       const name = item.institutionName || "Bank";
       showAlert({
         title: "Disconnect Bank?",
-        message: `Disconnect ${name}? Your already-synced transactions will remain in Budgee.`,
+        message: `Disconnect ${name}? Your already-synced transactions will remain in Fundleaf.`,
         buttons: [
           { text: "Cancel", style: "cancel" },
           {

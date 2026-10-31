@@ -15,7 +15,7 @@ import com.fintechapp.fintech_api.dto.insight.MonthlyInsightResponse;
 import com.fintechapp.fintech_api.service.MonthlyInsightService;
 
 /**
- * Exposes AI-generated explanations on top of Budgee's deterministic financial
+ * Exposes AI-generated explanations on top of Fundleaf's deterministic financial
  * aggregates. All facts come from the existing financial services; the provider
  * never calculates and its errors are never surfaced raw.
  */

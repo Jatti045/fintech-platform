@@ -5,7 +5,7 @@ import { useTheme } from "@/hooks/useRedux";
 import { hexToRgba } from "@/utils/colorUtils";
 
 /**
- * Minimal, quiet empty state for the Budget screen matching the Budgee design system:
+ * Minimal, quiet empty state for the Budget screen matching the Fundleaf design system:
  * - Clean icon container with theme tint
  * - Primary title and muted subtitle
  * - Solid theme CTA button with high-contrast text

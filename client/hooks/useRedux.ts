@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { useColorScheme } from "react-native";
+import { THEME_PALETTES } from "@/constants/ThemePalettes";
 import {
   useDispatch,
   useSelector,
@@ -152,10 +155,7 @@ export const useCalendar = () => {
  * own `endpointName`), so the check scans entries for a matching endpoint
  * rather than indexing by endpoint name.
  */
-const isMutationPending = (
-  state: RootState,
-  endpointName: string,
-): boolean => {
+const isMutationPending = (state: RootState, endpointName: string): boolean => {
   const mutations = state.api.mutations as Record<string, any> | undefined;
   if (!mutations) return false;
   for (const key of Object.keys(mutations)) {
@@ -181,7 +181,19 @@ export const useTransactionMutationStatus = () => {
 // Custom hook for theme state selection (returns the slice reference —
 // stable unless the theme itself changes, so no custom equality needed)
 export const useTheme = () => {
-  return useAppSelector((state) => state.theme);
+  const theme = useAppSelector((state) => state.theme);
+  const colorScheme = useColorScheme();
+  return useMemo(() => {
+    if (theme.selectedTheme !== "System") return theme;
+    // Expose the effective name to existing controls that choose foreground
+    // contrast by theme name; keep the stored preference as System.
+    return {
+      ...theme,
+      selectedTheme: colorScheme === "dark" ? "Dark" : "Light",
+      THEME:
+        colorScheme === "dark" ? THEME_PALETTES.DARK : THEME_PALETTES.LIGHT,
+    };
+  }, [theme, colorScheme]);
 };
 
 // Custom hook for notification preference state selection

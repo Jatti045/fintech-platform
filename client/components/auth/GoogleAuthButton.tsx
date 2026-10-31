@@ -1,34 +1,57 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import React, { useEffect } from "react";
-import { useAppDispatch, useTheme } from "@/hooks/useRedux";
+import React, { useEffect, useState } from "react";
+import { useAppDispatch, useAuth, useTheme } from "@/hooks/useRedux";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { googleAuth } from "@/store/slices/userSlice";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { router } from "expo-router";
+import { BRAND } from "@/constants/ThemePalettes";
 
 export default function GoogleAuthButton() {
   const { THEME } = useTheme();
   const { showAlert } = useThemedAlert();
   const dispatch = useAppDispatch();
+  const { isLoading } = useAuth();
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const disabled = isLoading || isSigningIn;
 
   const signInWithGoogle = async () => {
-    await GoogleSignin.hasPlayServices();
-    const userInfo = await GoogleSignin.signIn();
-    const idToken = userInfo.data?.idToken?.toString();
+    if (disabled) return;
+    setIsSigningIn(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken?.toString();
 
-    if (idToken === undefined) {
-      return;
-    }
+      if (idToken === undefined) {
+        return;
+      }
 
-    const payload = await dispatch(googleAuth(idToken)).unwrap();
-    if (payload?.success) {
-      router.push("/(tabs)");
-    } else {
+      const payload = await dispatch(googleAuth(idToken)).unwrap();
+      if (payload?.success) {
+        router.push("/(tabs)");
+      } else {
+        showAlert({
+          title: "Error",
+          message: payload.message || "Something went wrong",
+        });
+      }
+    } catch (error) {
+      // Native cancellation should quietly return to the form.
+      if (
+        typeof error === "object" &&
+        error &&
+        "code" in error &&
+        error.code === "SIGN_IN_CANCELLED"
+      )
+        return;
       showAlert({
-        title: "Error",
-        message: payload.message || "Something went wrong",
+        title: "Google sign-in unavailable",
+        message: "Please try again or sign in with your email and password.",
       });
+    } finally {
+      setIsSigningIn(false);
     }
   };
 
@@ -54,16 +77,21 @@ export default function GoogleAuthButton() {
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel="Continue with Google"
+        disabled={disabled}
+        accessibilityState={{ disabled, busy: isSigningIn }}
         style={{
-          borderWidth: 2,
+          minHeight: 54,
+          borderRadius: BRAND.radius.button,
+          opacity: disabled ? 0.6 : 1,
+          borderWidth: 1,
           borderColor: THEME.border,
           backgroundColor: THEME.inputBackground,
         }}
         onPress={signInWithGoogle}
         activeOpacity={0.8}
-        className={"py-4 px-5 rounded-full"}
+        className={"py-4 px-4"}
       >
-        <View className={"flex-row items-center justify-center gap-5"}>
+        <View className={"flex-row items-center justify-center gap-2"}>
           <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
             <Path
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -83,10 +111,14 @@ export default function GoogleAuthButton() {
             />
           </Svg>
           <Text
-            style={{ color: THEME.textPrimary }}
-            className={"text-xl font-medium"}
+            style={{
+              color: THEME.textPrimary,
+              flexShrink: 1,
+              textAlign: "center",
+            }}
+            className={"text-base font-semibold"}
           >
-            Continue With Google
+            {isSigningIn ? "Connecting..." : "Continue With Google"}
           </Text>
         </View>
       </TouchableOpacity>

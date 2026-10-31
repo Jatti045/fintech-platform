@@ -130,6 +130,8 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
                 return (
                   <TouchableOpacity
                     key={`${button.text}-${index}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={button.text}
                     style={[
                       styles.button,
                       buttons.length === 2 && styles.buttonHorizontal,
@@ -151,7 +153,11 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
                       style={[
                         styles.buttonText,
                         {
-                          color: isCancel ? THEME.textPrimary : "#FFFFFF",
+                          color: isCancel
+                            ? THEME.textPrimary
+                            : isDestructive
+                              ? THEME.onDanger
+                              : THEME.onPrimary,
                           fontWeight: isDestructive ? "700" : "600",
                         },
                       ]}
@@ -209,6 +215,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   button: {
+    minHeight: 48,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 10,

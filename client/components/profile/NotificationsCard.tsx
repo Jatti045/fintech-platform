@@ -79,7 +79,7 @@ export default function NotificationsCard({
             }}
           >
             {notificationPermissionDenied
-              ? "Notifications are off for Budgee in device settings. Turn them on there to receive reminders."
+              ? "Notifications are off for Fundleaf in device settings. Turn them on there to receive reminders."
               : "Get notified about recurring and upcoming purchases."}
           </Text>
         </View>
@@ -141,7 +141,7 @@ export default function NotificationsCard({
             }}
           >
             {notificationPermissionDenied
-              ? "Notifications are off for Budgee in device settings. Turn them on there to receive reminders."
+              ? "Notifications are off for Fundleaf in device settings. Turn them on there to receive reminders."
               : "Get notified about upcoming bills and payments."}
           </Text>
         </View>

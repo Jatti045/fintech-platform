@@ -68,7 +68,7 @@ function renderedText(matches: string) {
 const UI_TEXT =
   "A gentle nudge at 12 PM and 6 PM to log your purchases.";
 const DENIED_TEXT =
-  "Notifications are off for Budgee in device settings. Turn them on there to receive reminders.";
+  "Notifications are off for Fundleaf in device settings. Turn them on there to receive reminders.";
 const OPEN_SETTINGS_TEXT = "Open Settings";
 
 describe("NotificationPreference (Purchase Reminders)", () => {

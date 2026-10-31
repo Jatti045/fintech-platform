@@ -3,13 +3,13 @@ package com.fintechapp.fintech_api.dto.insight;
 import java.util.List;
 
 /**
- * The structured, minimum-necessary financial facts Budgee sends to the AI
+ * The structured, minimum-necessary financial facts Fundleaf sends to the AI
  * provider for the monthly explanation. Every value here is computed by
- * Budgee's deterministic services — the AI never calculates or classifies.
+ * Fundleaf's deterministic services — the AI never calculates or classifies.
  *
  * <p>Month representation: {@code month} is the human-readable 1-based month
  * (1 = January … 12 = December) and {@code monthName} spells it out. The API
- * itself uses Budgee's zero-based month convention; the conversion happens
+ * itself uses Fundleaf's zero-based month convention; the conversion happens
  * exactly once, when this context is built, so the AI never sees a 0-based
  * index and mistakes September for August.</p>
  *
