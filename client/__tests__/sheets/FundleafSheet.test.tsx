@@ -28,7 +28,11 @@ const button = (tree: renderer.ReactTestRenderer, label: string) =>
   tree.root
     .findAllByType(TouchableOpacity)
     .find((n) => n.props.accessibilityLabel === label)!;
-afterEach(() => jest.clearAllMocks());
+afterEach(() => {
+  jest.clearAllMocks();
+  require("@gorhom/bottom-sheet").sheetLifecycle.deferDismiss = false;
+  require("@gorhom/bottom-sheet").sheetLifecycle.deferPresent = false;
+});
 it.each(["Light", "Dark"])(
   "%s uses shared handle, keyboard, sizing and backdrop configuration",
   (appearance) => {
@@ -182,9 +186,262 @@ it("does not dismiss a never-presented modal and presents only once per opening"
 
 it("ignores a late animation callback after unmount", () => {
   const close = jest.fn();
-  const tree = mount(<FundleafSheet visible onDismiss={close} title="Leaving">Content</FundleafSheet>);
+  const tree = mount(
+    <FundleafSheet visible onDismiss={close} title="Leaving">
+      Content
+    </FundleafSheet>,
+  );
   const callback = tree.root.findByType(BottomSheetModal).props.onDismiss;
   act(() => tree.unmount());
   act(() => callback());
   expect(close).not.toHaveBeenCalled();
+});
+
+it.each([
+  "swipe",
+  "backdrop",
+  "back",
+  "cancel",
+  "save",
+  "selection",
+  "programmatic",
+])(
+  "reopens repeatedly after %s and synchronizes the owner exactly once",
+  (method) => {
+    const { sheetInstances, sheetLifecycle } = require("@gorhom/bottom-sheet");
+    sheetLifecycle.deferDismiss = false;
+    const dismissed = jest.fn();
+    function Harness() {
+      const [visible, setVisible] = React.useState(false);
+      return (
+        <>
+          <TouchableOpacity
+            accessibilityLabel="Open cycle"
+            onPress={() => setVisible(true)}
+          />
+          <TouchableOpacity
+            accessibilityLabel="Programmatic close"
+            onPress={() => setVisible(false)}
+          />
+          <FundleafSheet
+            visible={visible}
+            title="Cycle"
+            onDismiss={() => {
+              dismissed();
+              setVisible(false);
+            }}
+          >
+            <TouchableOpacity
+              accessibilityLabel="Cancel cycle"
+              onPress={() => setVisible(false)}
+            />
+          </FundleafSheet>
+        </>
+      );
+    }
+    const tree = mount(<Harness />);
+    for (let i = 0; i < 5; i++) {
+      act(() => button(tree, "Open cycle").props.onPress());
+      expect(button(tree, "Dismiss Cycle")).toBeTruthy();
+      act(() => {
+        if (method === "swipe") sheetInstances.get("Cycle").swipe();
+        else if (method === "backdrop")
+          button(tree, "Dismiss Cycle backdrop").props.onPress();
+        else if (method === "back")
+          (BackHandler.addEventListener as jest.Mock).mock.calls.at(-1)![1]();
+        else if (method === "cancel")
+          button(tree, "Cancel cycle").props.onPress();
+        else button(tree, "Programmatic close").props.onPress();
+      });
+      expect(button(tree, "Dismiss Cycle")).toBeUndefined();
+      expect(dismissed).toHaveBeenCalledTimes(
+        ["swipe", "backdrop", "back"].includes(method) ? i + 1 : 0,
+      );
+    }
+    act(() => tree.unmount());
+  },
+);
+
+it("queues rapid reopening until the previous close completes", () => {
+  const { sheetInstances, sheetLifecycle } = require("@gorhom/bottom-sheet");
+  sheetLifecycle.deferDismiss = true;
+  const dismissed = jest.fn();
+  let setVisible!: React.Dispatch<React.SetStateAction<boolean>>;
+  function Harness() {
+    const [visible, update] = React.useState(true);
+    setVisible = update;
+    return (
+      <FundleafSheet
+        visible={visible}
+        title="Rapid"
+        onDismiss={() => {
+          dismissed();
+          update(false);
+        }}
+      >
+        Content
+      </FundleafSheet>
+    );
+  }
+  const tree = mount(<Harness />);
+  act(() => setVisible(false));
+  act(() => setVisible(true));
+  expect(sheetLifecycle.present).toHaveBeenCalledTimes(1);
+  act(() => sheetInstances.get("Rapid").completeClose());
+  expect(sheetLifecycle.present).toHaveBeenCalledTimes(2);
+  expect(button(tree, "Dismiss Rapid")).toBeTruthy();
+  expect(dismissed).not.toHaveBeenCalled();
+  sheetLifecycle.deferDismiss = false;
+  act(() => sheetInstances.get("Rapid").swipe());
+  expect(dismissed).toHaveBeenCalledTimes(1);
+  expect(button(tree, "Dismiss Rapid")).toBeUndefined();
+  act(() => tree.unmount());
+});
+
+it("can close and reopen a nested sheet while its parent stays usable", () => {
+  const { sheetInstances } = require("@gorhom/bottom-sheet");
+  function Harness() {
+    const [child, setChild] = React.useState(false);
+    return (
+      <FundleafSheet visible title="Outer" onDismiss={jest.fn()}>
+        <TouchableOpacity
+          accessibilityLabel="Open inner"
+          onPress={() => setChild(true)}
+        />
+        <FundleafSheet
+          visible={child}
+          title="Inner"
+          onDismiss={() => setChild(false)}
+        >
+          Inner content
+        </FundleafSheet>
+      </FundleafSheet>
+    );
+  }
+  const tree = mount(<Harness />);
+  for (let i = 0; i < 3; i++) {
+    act(() => button(tree, "Open inner").props.onPress());
+    expect(button(tree, "Dismiss Inner")).toBeTruthy();
+    act(() => sheetInstances.get("Inner").swipe());
+    expect(button(tree, "Dismiss Inner")).toBeUndefined();
+    expect(button(tree, "Dismiss Outer")).toBeTruthy();
+  }
+  act(() => tree.unmount());
+});
+
+it("keeps canceled unsaved work usable, then discards and reopens normally", () => {
+  const { sheetInstances } = require("@gorhom/bottom-sheet");
+  function Harness() {
+    const [visible, setVisible] = React.useState(true);
+    const [draft, setDraft] = React.useState("");
+    const close = useSheetDismiss(
+      () => {
+        setVisible(false);
+        setDraft("");
+      },
+      !!draft,
+      false,
+    );
+    return (
+      <>
+        <TouchableOpacity
+          accessibilityLabel="Reopen draft"
+          onPress={() => setVisible(true)}
+        />
+        <FundleafSheet
+          visible={visible}
+          dirty={!!draft}
+          title="Protected"
+          onDismiss={close}
+        >
+          <BrandInput
+            label="Protected input"
+            value={draft}
+            onChangeText={setDraft}
+          />
+        </FundleafSheet>
+      </>
+    );
+  }
+  const tree = mount(<Harness />);
+  act(() => tree.root.findByType(TextInput).props.onChangeText("Travel"));
+  act(() => button(tree, "Dismiss Protected backdrop").props.onPress());
+  act(() => button(tree, "Keep editing").props.onPress());
+  expect(tree.root.findByType(TextInput).props.value).toBe("Travel");
+  act(() => button(tree, "Dismiss Protected").props.onPress());
+  act(() => button(tree, "Discard changes").props.onPress());
+  expect(button(tree, "Dismiss Protected")).toBeUndefined();
+  act(() => button(tree, "Reopen draft").props.onPress());
+  expect(tree.root.findByType(TextInput).props.value).toBe("");
+  act(() => sheetInstances.get("Protected").swipe());
+  expect(button(tree, "Dismiss Protected")).toBeUndefined();
+  act(() => tree.unmount());
+});
+
+it("waits for an opening modal before processing a close, then reopens", () => {
+  const { sheetInstances, sheetLifecycle } = require("@gorhom/bottom-sheet");
+  sheetLifecycle.deferPresent = true;
+  let setVisible!: React.Dispatch<React.SetStateAction<boolean>>;
+  function Harness() {
+    const [visible, update] = React.useState(true);
+    setVisible = update;
+    return (
+      <FundleafSheet
+        visible={visible}
+        title="Opening"
+        onDismiss={() => update(false)}
+      >
+        Content
+      </FundleafSheet>
+    );
+  }
+  const tree = mount(<Harness />);
+  act(() => setVisible(false));
+  expect(sheetLifecycle.dismiss).not.toHaveBeenCalled();
+  act(() => sheetInstances.get("Opening").completeOpen());
+  expect(sheetLifecycle.dismiss).toHaveBeenCalledTimes(1);
+  expect(button(tree, "Dismiss Opening")).toBeUndefined();
+  act(() => setVisible(true));
+  act(() => sheetInstances.get("Opening").completeOpen());
+  expect(button(tree, "Dismiss Opening")).toBeTruthy();
+  act(() => tree.unmount());
+});
+
+it("consumes Back while a nested sheet finishes closing without closing its parent", () => {
+  const { sheetInstances, sheetLifecycle } = require("@gorhom/bottom-sheet");
+  sheetLifecycle.deferDismiss = true;
+  const parentClose = jest.fn(),
+    childClose = jest.fn();
+  let setChild!: React.Dispatch<React.SetStateAction<boolean>>;
+  function Harness() {
+    const [child, update] = React.useState(true);
+    setChild = update;
+    return (
+      <>
+        <FundleafSheet visible title="Back parent" onDismiss={parentClose}>
+          Parent
+        </FundleafSheet>
+        <FundleafSheet
+          visible={child}
+          title="Back child"
+          onDismiss={childClose}
+        >
+          Child
+        </FundleafSheet>
+      </>
+    );
+  }
+  const tree = mount(<Harness />);
+  const childBack = (BackHandler.addEventListener as jest.Mock).mock.calls.at(
+    -1,
+  )![1];
+  act(() => setChild(false));
+  act(() => {
+    expect(childBack()).toBe(true);
+  });
+  expect(parentClose).not.toHaveBeenCalled();
+  expect(childClose).not.toHaveBeenCalled();
+  act(() => sheetInstances.get("Back child").completeClose());
+  expect(button(tree, "Dismiss Back parent")).toBeTruthy();
+  act(() => tree.unmount());
 });

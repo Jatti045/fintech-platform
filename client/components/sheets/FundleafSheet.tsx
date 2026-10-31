@@ -46,33 +46,81 @@ export default function FundleafSheet({
   const { height } = useWindowDimensions();
   const sheet = useRef<BottomSheetModal>(null);
   const id = useRef(Symbol("sheet"));
-  const latest = useRef({ onDismiss, visible, busy });
-  latest.current = { onDismiss, visible, busy };
+  const latest = useRef({ onDismiss, visible, busy, dirty });
+  latest.current = { onDismiss, visible, busy, dirty };
   const requestClose = useCallback(() => {
     if (!latest.current.busy) latest.current.onDismiss();
   }, []);
-  useEffect(() => {
+  // Gorhom resets its internal status before onDismiss. Never dismiss it a
+  // second time from visibility cleanup: that poisons the next presentation.
+  const phase = useRef<"closed" | "presenting" | "open" | "closing">("closed");
+  const mounted = useRef(true);
+  const backSubscription = useRef<ReturnType<
+    typeof BackHandler.addEventListener
+  > | null>(null);
+  const deactivate = useCallback(() => {
+    backSubscription.current?.remove();
+    backSubscription.current = null;
+    const index = activeSheets.indexOf(id.current);
+    if (index >= 0) activeSheets.splice(index, 1);
+  }, []);
+  const activate = useCallback(() => {
+    if (backSubscription.current) return;
     const key = id.current;
-    const modal = sheet.current;
-    latest.current.visible = visible;
-    // Never dismiss an unpresented modal: Gorhom treats that as a closing transition.
-    if (!visible) return;
     activeSheets.push(key);
-    modal?.present();
-    const back = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (activeSheets[activeSheets.length - 1] !== key) return false;
-      requestClose();
-      return true;
-    });
+    backSubscription.current = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (activeSheets[activeSheets.length - 1] !== key) return false;
+        // Consume Back throughout the animation without closing an underlying
+        // sheet or notifying an owner that already requested this close.
+        if (phase.current !== "closing" || latest.current.visible)
+          requestClose();
+        return true;
+      },
+    );
+  }, [requestClose]);
+  const present = useCallback(() => {
+    if (!mounted.current || phase.current !== "closed") return;
+    phase.current = "presenting";
+    activate();
+    sheet.current?.present();
+  }, [activate]);
+  const dismiss = useCallback(() => {
+    if (phase.current !== "open") return;
+    phase.current = "closing";
+    sheet.current?.dismiss();
+  }, []);
+  useEffect(() => {
+    const modal = sheet.current;
+    mounted.current = true;
     return () => {
-      // Late animation callbacks must not prompt or update an unmounted owner.
-      latest.current.visible = false;
-      back.remove();
-      const index = activeSheets.indexOf(key);
-      if (index >= 0) activeSheets.splice(index, 1);
-      modal?.dismiss();
+      mounted.current = false;
+      deactivate();
+      const wasOpen = phase.current === "open";
+      phase.current = "closed";
+      if (wasOpen) modal?.dismiss();
     };
-  }, [visible, requestClose]);
+  }, [deactivate]);
+  useEffect(() => {
+    if (visible) present();
+    else dismiss();
+  }, [visible, present, dismiss]);
+  const handleDismiss = useCallback(() => {
+    if (!mounted.current || phase.current === "closed") return;
+    const commanded = phase.current === "closing";
+    deactivate();
+    phase.current = "closed";
+    if (!latest.current.visible) return;
+    if (commanded) {
+      // A new open intent arrived while the previous close was animating.
+      present();
+    } else {
+      requestClose();
+      // A late gesture must not bypass saving or unsaved-work protection.
+      if (latest.current.busy || latest.current.dirty) present();
+    }
+  }, [deactivate, present, requestClose]);
   const backdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
@@ -133,6 +181,7 @@ export default function FundleafSheet({
     <BottomSheetModal
       ref={sheet}
       accessible={false}
+      accessibilityLabel={title}
       accessibilityRole="none"
       backgroundComponent={SheetBackground}
       stackBehavior="push"
@@ -153,9 +202,15 @@ export default function FundleafSheet({
         borderTopRightRadius: BRAND.radius.card,
       }}
       handleComponent={handle}
-      onDismiss={() => {
-        if (latest.current.visible && !latest.current.busy) requestClose();
+      onChange={(index) => {
+        if (index >= 0 && phase.current === "presenting") {
+          phase.current = "open";
+          // present() mounts on the next animation frame. If visibility changed
+          // during opening, wait until it exists before asking it to dismiss.
+          if (!latest.current.visible) dismiss();
+        }
       }}
+      onDismiss={handleDismiss}
     >
       <SheetInputContext.Provider value>
         <BottomSheetScrollView
