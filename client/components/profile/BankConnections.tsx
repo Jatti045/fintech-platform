@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,18 +11,15 @@ import { usePlaidHealth } from "@/hooks/plaid/usePlaidHealth";
 import type { BankConnectionsProps } from "@/types/profile/types";
 import type { IPlaidItem } from "@/types/plaid/types";
 
-/**
- * Bank Connections — card matching the approved mockup:
- * First row: Theme bank icon, "Bank Connections", "Auto-sync your transactions securely", chevron.
- * Divider.
- * Second row: Connected bank item with subtle red "Disconnect" button.
- */
+
 export default function BankConnections({
   THEME: propTheme,
   linking,
   onLinkBank,
   items,
   loadingItems,
+  itemsError = false,
+  onRetry,
   disconnectingId,
   onDisconnect,
 }: BankConnectionsProps) {
@@ -47,7 +45,8 @@ export default function BankConnections({
           borderWidth: 1,
           borderRadius: 10,
           paddingHorizontal: 10,
-          paddingVertical: 8,
+          paddingVertical: 12,
+          minHeight: 48,
           marginTop: 8,
           flexDirection: "row",
           alignItems: "center",
@@ -94,7 +93,8 @@ export default function BankConnections({
           borderWidth: 1,
           borderRadius: 10,
           paddingHorizontal: 10,
-          paddingVertical: 8,
+          paddingVertical: 12,
+          minHeight: 48,
           marginTop: 8,
           flexDirection: "row",
           alignItems: "center",
@@ -103,7 +103,7 @@ export default function BankConnections({
         <Ionicons name="refresh" size={15} color={theme.primary} />
         <Text
           style={{
-            color: theme.primary,
+            color: theme.textPrimary,
             fontSize: 12,
             fontWeight: "700",
             marginLeft: 6,
@@ -129,7 +129,7 @@ export default function BankConnections({
     <View
       style={{
         backgroundColor: theme.surface,
-        borderRadius: 20,
+        borderRadius: BRAND.radius.card,
         borderWidth: 1,
         borderColor: theme.border,
         padding: 16,
@@ -143,7 +143,7 @@ export default function BankConnections({
         disabled={linking}
         accessibilityRole="button"
         accessibilityLabel="Connect a bank account"
-        style={{ flexDirection: "row", alignItems: "center" }}
+        style={{ flexDirection: "row", alignItems: "center", minHeight: 48 }}
       >
         <View
           style={{
@@ -189,6 +189,10 @@ export default function BankConnections({
         )}
       </TouchableOpacity>
 
+      {itemsError ? <View style={{ marginTop: 16, gap: 8 }}>
+        <Text accessibilityLiveRegion="polite" style={{ color: theme.danger }}>Could not refresh bank connections. Existing connections may be out of date.</Text>
+        {onRetry ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry bank connections" disabled={loadingItems} onPress={onRetry} style={{ minHeight: 48, justifyContent: "center" }}><Text style={{ color: theme.primary }}>Try again</Text></TouchableOpacity> : null}
+      </View> : null}
       {/* ── Divider & Row 2: Connected Items or Empty State ────────────── */}
       {loadingItems && items.length === 0 ? (
         <View
@@ -249,7 +253,7 @@ export default function BankConnections({
 
                   <View style={{ flex: 1, paddingRight: 6 }}>
                     <Text
-                      numberOfLines={1}
+                      numberOfLines={2}
                       style={{
                         color: theme.textPrimary,
                         fontSize: 14,
@@ -259,14 +263,14 @@ export default function BankConnections({
                       {name}
                     </Text>
                     <Text
-                      numberOfLines={1}
+                      numberOfLines={2}
                       style={{
                         color: theme.textSecondary,
                         fontSize: 11.5,
                         marginTop: 1,
                       }}
                     >
-                      Connected {formatDate(item.createdAt)}
+                      {item.status === "REQUIRES_REAUTH" ? "Reconnect required" : "Connected"} · {formatDate(item.createdAt)}
                       {item.lastSyncedAt
                         ? ` · Last synced ${formatRelativeTime(item.lastSyncedAt)}`
                       : ""}
@@ -293,7 +297,8 @@ export default function BankConnections({
                       borderColor: hexToRgba(theme.danger, 0.25),
                       borderRadius: 8,
                       paddingHorizontal: 12,
-                      paddingVertical: 6,
+                      paddingVertical: 12,
+                      minHeight: 48,
                       marginLeft: 8,
                     }}
                   >
@@ -319,7 +324,7 @@ export default function BankConnections({
             );
           })}
         </View>
-      ) : (
+      ) : itemsError ? null : (
         <View
           style={{
             marginTop: 12,

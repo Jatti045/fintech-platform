@@ -23,7 +23,7 @@ const BrandInput = forwardRef<TextInput, Props>(function BrandInput(
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   const toggleLabel =
-    label === "Confirm Password" ? "confirm password" : "password";
+    label.toLowerCase();
   return (
     <View style={{ gap: BRAND.spacing.sm }}>
       <Text

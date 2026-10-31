@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, Text, Switch, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -35,7 +36,7 @@ export default function NotificationsCard({
     <View
       style={{
         backgroundColor: THEME.surface,
-        borderRadius: 20,
+        borderRadius: BRAND.radius.card,
         borderWidth: 1,
         borderColor: THEME.border,
         padding: 16,
@@ -85,13 +86,14 @@ export default function NotificationsCard({
         </View>
 
         <Switch
+          accessibilityLabel="Purchase reminders"
           value={
             notificationPermissionDenied ? false : purchaseRemindersEnabled
           }
           disabled={notificationPermissionDenied}
           onValueChange={onTogglePurchaseReminders}
           trackColor={{ false: THEME.border, true: THEME.primary }}
-          thumbColor="#FFFFFF"
+          thumbColor={THEME.onPrimary}
         />
       </View>
 
@@ -147,11 +149,12 @@ export default function NotificationsCard({
         </View>
 
         <Switch
+          accessibilityLabel="Upcoming bill reminders"
           value={notificationPermissionDenied ? false : billRemindersEnabled}
           disabled={notificationPermissionDenied}
           onValueChange={onToggleBillReminders}
           trackColor={{ false: THEME.border, true: THEME.primary }}
-          thumbColor="#FFFFFF"
+          thumbColor={THEME.onPrimary}
         />
       </View>
 
@@ -166,6 +169,7 @@ export default function NotificationsCard({
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
+          minHeight: 48,
           paddingVertical: 11,
           borderRadius: 12,
           backgroundColor: THEME.surfaceHover,
@@ -179,7 +183,7 @@ export default function NotificationsCard({
           color={THEME.primary}
           style={{ marginRight: 8 }}
         />
-        <Text style={{ color: THEME.primary, fontWeight: "700", fontSize: 13 }}>
+        <Text style={{ color: THEME.textPrimary, fontWeight: "700", fontSize: 13 }}>
           Open Settings
         </Text>
       </TouchableOpacity>

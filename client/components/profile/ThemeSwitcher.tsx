@@ -7,19 +7,12 @@ import { hexToRgba } from "@/utils/colorUtils";
 import { THEME_OPTIONS } from "@/utils/profile/profileService";
 import type { ThemeSwitcherProps } from "@/types/profile/types";
 
-/**
- * Appearance row + 4 compact theme tiles matching the approved mockup:
- * - Palette icon, "Appearance", "Choose your preferred theme"
- * - 4 tiles: Light, Dark, Ember, Aurora
- * - Selected tile: theme primary border, theme surfaceHover background, primary circle with checkmark
- * - Unselected tiles: theme inputBackground surface, theme color icon
- */
+
 export default function ThemeSwitcher({
   selectedTheme,
   onThemeSelect,
 }: ThemeSwitcherProps) {
-  const { selectedTheme: activeThemeName, THEME } = useTheme();
-  const checkmarkColor = activeThemeName === "Light" ? "#FFFFFF" : "#0B0B0D";
+  const { THEME } = useTheme();
 
   return (
     <View>
@@ -63,7 +56,7 @@ export default function ThemeSwitcher({
       <View
         style={{
           flexDirection: "row",
-          justifyContent: "space-between",
+          flexWrap: "wrap",
           alignItems: "center",
           gap: 8,
           marginTop: 14,
@@ -89,7 +82,9 @@ export default function ThemeSwitcher({
                 backgroundColor: isActive
                   ? THEME.surfaceHover
                   : THEME.inputBackground,
-                flex: 1,
+                minWidth: 76,
+                flexGrow: 1,
+                minHeight: 80,
               }}
             >
               {/* Icon Circle */}
@@ -111,7 +106,7 @@ export default function ThemeSwitcher({
                 <Ionicons
                   name={isActive ? "checkmark" : (opt.icon as any)}
                   size={15}
-                  color={isActive ? checkmarkColor : opt.color}
+                  color={isActive ? THEME.onPrimary : THEME.primary}
                 />
               </View>
 

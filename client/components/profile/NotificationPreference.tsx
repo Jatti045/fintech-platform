@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -41,7 +42,7 @@ export default function NotificationPreference({
     <View
       style={{
         backgroundColor: theme.surface,
-        borderRadius: 20,
+        borderRadius: BRAND.radius.card,
         borderWidth: 1,
         borderColor: theme.border,
         padding: 16,
@@ -90,11 +91,12 @@ export default function NotificationPreference({
         </View>
 
         <Switch
+          accessibilityLabel={title}
           value={permissionDenied ? false : enabled}
           disabled={permissionDenied}
           onValueChange={onToggle}
           trackColor={{ false: theme.border, true: theme.primary }}
-          thumbColor="#FFFFFF"
+          thumbColor={theme.onPrimary}
         />
       </View>
 
@@ -123,7 +125,7 @@ export default function NotificationPreference({
             style={{ marginRight: 6 }}
           />
           <Text
-            style={{ color: theme.primary, fontWeight: "700", fontSize: 13 }}
+            style={{ color: theme.textPrimary, fontWeight: "700", fontSize: 13 }}
           >
             Open Settings
           </Text>

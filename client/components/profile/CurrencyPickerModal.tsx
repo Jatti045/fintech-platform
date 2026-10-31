@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, Text, TouchableOpacity, FlatList, Modal } from "react-native";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
@@ -25,11 +26,11 @@ export default function CurrencyPickerModal({
   const modalHeight = getModalHeight();
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View
         style={{
           flex: 1,
-          backgroundColor: "rgba(0, 0, 0, 0.7)",
+          backgroundColor: BRAND.overlay,
           justifyContent: "flex-end",
         }}
       >
@@ -39,6 +40,7 @@ export default function CurrencyPickerModal({
             borderTopLeftRadius: MODAL_BORDER_RADIUS,
             borderTopRightRadius: MODAL_BORDER_RADIUS,
             height: modalHeight,
+            width: "100%", maxWidth: 760, alignSelf: "center",
             paddingBottom: 30,
             borderWidth: 1,
             borderColor: THEME.border,
@@ -58,6 +60,7 @@ export default function CurrencyPickerModal({
           >
             <Text
               style={{
+                flex: 1,
                 color: THEME.textPrimary,
                 fontSize: 17,
                 fontWeight: "700",
@@ -67,6 +70,8 @@ export default function CurrencyPickerModal({
             </Text>
             <TouchableOpacity
               onPress={onClose}
+              accessibilityRole="button" accessibilityLabel="Close currency picker"
+              style={{ minHeight: 48, minWidth: 48, alignItems: "center", justifyContent: "center" }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="close" size={22} color={THEME.textSecondary} />
@@ -83,6 +88,7 @@ export default function CurrencyPickerModal({
               return (
                 <TouchableOpacity
                   onPress={() => onSelect(item.code)}
+                  accessibilityRole="button" accessibilityLabel={`${item.code} — ${item.name}`} accessibilityState={{ selected: isSelected }}
                   activeOpacity={0.7}
                   style={{
                     flexDirection: "row",

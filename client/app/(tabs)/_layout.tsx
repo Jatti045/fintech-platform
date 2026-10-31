@@ -12,7 +12,7 @@ interface TabIndicatorProps {
   color?: string;
 }
 
-function TabIndicator({ focused, color = "#D4AF6A" }: TabIndicatorProps) {
+function TabIndicator({ focused, color }: TabIndicatorProps) {
   if (!focused) return <View style={{ height: 4, marginTop: 4 }} />;
 
   return (

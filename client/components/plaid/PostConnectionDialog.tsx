@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { Modal, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
@@ -33,7 +34,7 @@ export default function PostConnectionDialog({
       <View
         style={{
           flex: 1,
-          backgroundColor: "rgba(0, 0, 0, 0.55)",
+          backgroundColor: BRAND.overlay,
           justifyContent: "center",
           alignItems: "center",
           paddingHorizontal: 32,
@@ -55,7 +56,7 @@ export default function PostConnectionDialog({
               width: 56,
               height: 56,
               borderRadius: 28,
-              backgroundColor: "rgba(76, 175, 80, 0.12)",
+              backgroundColor: THEME.subtleSurface,
               alignItems: "center",
               justifyContent: "center",
               marginBottom: 16,
@@ -105,7 +106,7 @@ export default function PostConnectionDialog({
           >
             <Text
               style={{
-                color: "#FFFFFF",
+                color: THEME.onPrimary,
                 fontSize: 15,
                 fontWeight: "600",
               }}

@@ -1,3 +1,4 @@
+import { useTheme } from "@/hooks/useRedux";
 import React, { useRef } from "react";
 import {
   Animated,
@@ -32,6 +33,7 @@ export default function SwipeableRow({
   dangerColor,
   actionStyle,
 }: SwipeableRowProps) {
+  const { THEME } = useTheme();
   const swipeableRef = useRef<Swipeable>(null);
 
   const renderRightActions = (
@@ -51,6 +53,8 @@ export default function SwipeableRow({
           { backgroundColor: dangerColor },
           actionStyle,
         ]}
+        accessibilityRole="button"
+        accessibilityLabel="Delete item"
         activeOpacity={0.7}
         onPress={() => {
           hapticHeavy();
@@ -59,7 +63,7 @@ export default function SwipeableRow({
         }}
       >
         <Animated.View style={{ transform: [{ scale }] }}>
-          <Feather name="trash-2" size={22} color="#fff" />
+          <Feather name="trash-2" size={22} color={THEME.onDanger} />
         </Animated.View>
       </TouchableOpacity>
     );

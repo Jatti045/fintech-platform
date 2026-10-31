@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { Modal, View, Text, TouchableOpacity, ScrollView, Linking } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
@@ -9,8 +10,8 @@ export default function AiPrivacyDisclosure({ visible, preference, saving, error
   const { THEME } = useTheme();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(0,0,0,0.55)" }}>
-        <View style={{ backgroundColor: THEME.surface, borderRadius: 20, padding: 22, maxHeight: "85%" }}>
+      <View style={{ flex: 1, justifyContent: "center", padding: 24, backgroundColor: BRAND.overlay }}>
+        <View style={{ backgroundColor: THEME.surface, borderRadius: BRAND.radius.card, padding: 22, maxHeight: "85%" }}>
           <Text style={{ color: THEME.textPrimary, fontSize: 19, fontWeight: "700", marginBottom: 14 }}>AI explanations and your privacy</Text>
           <ScrollView>
             <Text style={{ color: THEME.textSecondary, lineHeight: 21 }}>
@@ -27,8 +28,8 @@ export default function AiPrivacyDisclosure({ visible, preference, saving, error
           </ScrollView>
           {error && <Text style={{ color: THEME.danger, marginTop: 12 }}>Could not confirm consent. Check your preference and try again.</Text>}
           <TouchableOpacity onPress={onAccept} disabled={saving || !preference} accessibilityRole="button" accessibilityLabel="Enable AI explanations"
-            style={{ backgroundColor: THEME.primary, padding: 14, borderRadius: 12, marginTop: 20 }}>
-            <Text style={{ color: THEME.background, textAlign: "center", fontWeight: "700" }}>{saving ? "Saving…" : "Enable AI explanations"}</Text>
+            style={{ backgroundColor: THEME.primary, minHeight: 48, padding: 14, borderRadius: BRAND.radius.button, marginTop: 20 }}>
+            <Text style={{ color: THEME.onPrimary, textAlign: "center", fontWeight: "700" }}>{saving ? "Saving…" : "Enable AI explanations"}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onCancel} disabled={saving} accessibilityRole="button" accessibilityLabel="Keep AI disabled" style={{ padding: 14 }}>
             <Text style={{ color: THEME.textPrimary, textAlign: "center" }}>Keep AI disabled</Text>

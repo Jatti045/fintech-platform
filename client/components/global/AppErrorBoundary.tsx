@@ -12,7 +12,7 @@ type State = {
 };
 
 class AppErrorBoundaryClass extends React.Component<
-  Props & { background: string; textPrimary: string; primary: string },
+  Props & { background: string; textPrimary: string; primary: string; onPrimary: string },
   State
 > {
   state: State = { hasError: false };
@@ -74,11 +74,12 @@ class AppErrorBoundaryClass extends React.Component<
             marginTop: 16,
             backgroundColor: this.props.primary,
             paddingHorizontal: 16,
-            paddingVertical: 10,
+            paddingVertical: 14,
+            minHeight: 48,
             borderRadius: 8,
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "700" }}>Retry</Text>
+          <Text style={{ color: this.props.onPrimary, fontWeight: "700" }}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
@@ -92,6 +93,7 @@ export default function AppErrorBoundary({ children }: Props) {
       background={THEME.background}
       textPrimary={THEME.textPrimary}
       primary={THEME.primary}
+      onPrimary={THEME.onPrimary}
     >
       {children}
     </AppErrorBoundaryClass>

@@ -112,6 +112,8 @@ export interface UseProfileReturn {
   /** Active bank connections + loading/disconnect state */
   plaidItems: IPlaidItem[];
   loadingItems: boolean;
+  itemsError: boolean;
+  retryItems: () => Promise<void>;
   disconnectingId: string | null;
   /** Confirmation-gated disconnect flow for a connected bank item */
   handleDisconnectBank: (item: IPlaidItem) => void;
@@ -138,7 +140,8 @@ export function useProfile(): UseProfileReturn {
   const dispatch = useAppDispatch();
   const { user, error } = useAuth();
   const calendar = useCalendar();
-  const { THEME, selectedTheme } = useTheme();
+  const { THEME } = useTheme();
+  const selectedTheme = useAppSelector(state => state.theme.selectedTheme);
   const { showAlert } = useThemedAlert();
 
   // ── local state ──────────────────────────────────────────────────────────
@@ -162,6 +165,7 @@ export function useProfile(): UseProfileReturn {
   const [linking, setLinking] = useState(false);
   const [plaidItems, setPlaidItems] = useState<IPlaidItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [itemsError, setItemsError] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   // The item linked in the most recent Plaid Link flow; drives the
   // post-connection "your transactions are now syncing" dialog.
@@ -170,11 +174,12 @@ export function useProfile(): UseProfileReturn {
   // Load the connected-banks list once on mount (and on pull-to-refresh).
   const loadPlaidItems = useCallback(async () => {
     setLoadingItems(true);
+    setItemsError(false);
     try {
       const response = await plaidAPI.fetchItems();
       setPlaidItems(response?.data?.items ?? []);
     } catch {
-      // Swallow — the connect row remains usable and refresh will retry.
+      setItemsError(true);
     } finally {
       setLoadingItems(false);
     }
@@ -849,6 +854,8 @@ export function useProfile(): UseProfileReturn {
     handleLinkBank,
     plaidItems,
     loadingItems,
+    itemsError,
+    retryItems: loadPlaidItems,
     disconnectingId,
     handleDisconnectBank,
     connectedItem,

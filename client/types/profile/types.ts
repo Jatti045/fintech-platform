@@ -91,6 +91,8 @@ export interface BankConnectionsProps extends ThemedProps {
   items: IPlaidItem[];
   /** True while the connected-items list is being fetched. */
   loadingItems: boolean;
+  itemsError?: boolean;
+  onRetry?: () => void;
   /** Id of the item currently being disconnected (spinner state), or null. */
   disconnectingId: string | null;
   /** Prompts for confirmation and disconnects the given bank item. */

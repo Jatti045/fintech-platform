@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,11 +7,7 @@ import { useTheme } from "@/hooks/useRedux";
 import { hexToRgba } from "@/utils/colorUtils";
 import type { SettingsListProps } from "@/types/profile/types";
 
-/**
- * SettingsList — Security & Account actions matching the approved design system:
- * - Neutral actions (Log Out, Change Password) in a subtle card with dividers.
- * - Destructive action (Delete Account) in a separate restrained danger-tinted card.
- */
+
 export default function SettingsList({ items }: SettingsListProps) {
   const { THEME } = useTheme();
   const destructiveIndex = items.findIndex((i) => i.isDestructive);
@@ -24,7 +21,7 @@ export default function SettingsList({ items }: SettingsListProps) {
       <View
         style={{
           backgroundColor: THEME.surface,
-          borderRadius: 20,
+          borderRadius: BRAND.radius.card,
           borderWidth: 1,
           borderColor: THEME.border,
           overflow: "hidden",
@@ -65,7 +62,7 @@ export default function SettingsList({ items }: SettingsListProps) {
 
               <Text
                 style={{
-                  color: THEME.textPrimary,
+                  color: item.icon === "log-out-outline" ? THEME.danger : THEME.textPrimary,
                   fontSize: 14.5,
                   fontWeight: "600",
                   flex: 1,
@@ -99,7 +96,7 @@ export default function SettingsList({ items }: SettingsListProps) {
         <View
           style={{
             backgroundColor: THEME.surface,
-            borderRadius: 20,
+            borderRadius: BRAND.radius.card,
             borderWidth: 1,
             borderColor: hexToRgba(THEME.danger, 0.25),
             marginTop: 10,

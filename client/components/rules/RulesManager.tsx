@@ -28,10 +28,10 @@ export default function RulesManager({ visible, onClose, seed }: { visible: bool
     // Initialization is scoped to each modal opening; user edits remain stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
-  const button = (label: string, action: () => void, disabled = busy) => <TouchableOpacity key={label} disabled={disabled} onPress={action} accessibilityRole="button" accessibilityLabel={label} style={{ padding: 12, borderRadius: 10, backgroundColor: THEME.surfaceHover, marginVertical: 4 }}><Text style={{ color: THEME.primary }}>{label}</Text></TouchableOpacity>;
-  const input = (label: string, key: keyof RuleDraft, numeric = false) => <View key={key}><Text style={{ color: THEME.textSecondary, marginTop: 10 }}>{label}</Text><TextInput accessibilityLabel={label} value={String(draft?.[key] ?? "")} editable={!busy} keyboardType={numeric ? "number-pad" : "default"} onChangeText={value => setDraft(d => d ? { ...d, [key]: numeric ? Number(value) : value || null } : d)} style={{ color: THEME.textPrimary, padding: 10, borderWidth: 1, borderColor: THEME.border, borderRadius: 8 }} /></View>;
+  const button = (label: string, action: () => void, disabled = busy) => <TouchableOpacity key={label} disabled={disabled} onPress={action} accessibilityRole="button" accessibilityLabel={label} style={{ minHeight: 48, padding: 14, borderRadius: 14, backgroundColor: THEME.surfaceHover, marginVertical: 4 }}><Text style={{ color: THEME.textPrimary }}>{label}</Text></TouchableOpacity>;
+  const input = (label: string, key: keyof RuleDraft, numeric = false) => <View key={key}><Text style={{ color: THEME.textSecondary, marginTop: 10 }}>{label}</Text><TextInput accessibilityLabel={label} value={String(draft?.[key] ?? "")} editable={!busy} keyboardType={numeric ? "number-pad" : "default"} onChangeText={value => setDraft(d => d ? { ...d, [key]: numeric ? Number(value) : value || null } : d)} style={{ color: THEME.textPrimary, minHeight: 54, backgroundColor: THEME.inputBackground, padding: 14, borderWidth: 1, borderColor: THEME.border, borderRadius: 14 }} /></View>;
   return <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-    <View style={{ flex: 1, backgroundColor: THEME.background, padding: 20, paddingTop: 50 }}>
+    <View style={{ flex: 1, backgroundColor: THEME.background, padding: 20, paddingTop: 50, width: "100%", maxWidth: 760, alignSelf: "center" }}>
       <Text style={{ color: THEME.textPrimary, fontSize: 22, fontWeight: "700" }}>Transaction rules</Text>
       {button("Close rules", onClose)}
       {busy && <ActivityIndicator color={THEME.primary} />}

@@ -90,7 +90,7 @@ describe("ThemePalettes", () => {
 
   it("does not expose product/company names in theme options", () => {
     const names = THEME_OPTIONS.map((o) => o.name);
-    expect(names).toEqual(["Light", "Dark", "Ember", "Aurora"]);
+    expect(names).toEqual(["System", "Light", "Dark", "Ember", "Aurora"]);
     for (const name of names) {
       expect(name.toLowerCase()).not.toContain("anthropic");
       expect(name.toLowerCase()).not.toContain("chatgpt");

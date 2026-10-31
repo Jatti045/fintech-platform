@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import { View, Text, ActivityIndicator } from "react-native";
 import React from "react";
 import { useTheme } from "@/hooks/useRedux";
@@ -12,7 +13,7 @@ const Loader = ({ msg }: { msg: string }) => {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backgroundColor: BRAND.overlay,
         justifyContent: "center",
         alignItems: "center",
         zIndex: 1000,

@@ -346,3 +346,30 @@ describe("Profile financial reporting states", () => {
     expect(captured.current!.actualMonthlyIncome).toBe(5000);
   });
 });
+
+
+it("Profile exposes the saved System preference while rendering the effective palette and persists changes", async () => {
+  const { captured, store } = setup();
+  await renderer.act(async () => { await flush(); });
+  expect(captured.current!.selectedTheme).toBe("System");
+  for (const name of ["Dark", "Light", "System", "Ember", "Aurora"]) {
+    await renderer.act(async () => { await captured.current!.handleThemeSelect(name); });
+    expect(store.getState().theme.selectedTheme).toBe(name);
+    expect(captured.current!.selectedTheme).toBe(name);
+    expect(require("@/utils/profile/profileService").persistTheme).toHaveBeenLastCalledWith(name);
+  }
+});
+
+it("failed bank refresh keeps known connections and retry recovers", async () => {
+  mockedFetchItems.mockResolvedValue({ data: { items: [{id:"bank-1",institutionName:"Test bank"}] } });
+  const { captured } = setup();
+  await renderer.act(async () => { await flush(); });
+  mockedFetchItems.mockRejectedValueOnce(new Error("offline"));
+  await renderer.act(async () => { await captured.current!.retryItems(); });
+  expect(captured.current!.itemsError).toBe(true);
+  expect(captured.current!.plaidItems[0].id).toBe("bank-1");
+  mockedFetchItems.mockResolvedValue({data:{items:[]}});
+  await renderer.act(async () => { await captured.current!.retryItems(); });
+  expect(captured.current!.itemsError).toBe(false);
+  expect(captured.current!.plaidItems).toEqual([]);
+});

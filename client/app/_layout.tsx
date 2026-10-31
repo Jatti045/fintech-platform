@@ -61,7 +61,7 @@ export function AppRoutes() {
   return (
     <>
       <StatusBar
-        barStyle={selectedTheme === "Light" ? "dark-content" : "light-content"}
+        barStyle={selectedTheme === "Light" || selectedTheme === "Ember" ? "dark-content" : "light-content"}
       />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" redirect={!isAuthenticated} />

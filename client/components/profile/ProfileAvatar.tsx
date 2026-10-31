@@ -1,6 +1,5 @@
 import React from "react";
-import { View, Image, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, Image, TouchableOpacity } from "react-native";
 
 import { useTheme } from "@/hooks/useRedux";
 import type { ProfileAvatarProps } from "@/types/profile/types";
@@ -12,6 +11,8 @@ import type { ProfileAvatarProps } from "@/types/profile/types";
 export default function ProfileAvatar({
   THEME: propTheme,
   user,
+  uploading,
+  deleting,
   onPickImage,
   onDeleteImage,
 }: ProfileAvatarProps) {
@@ -34,6 +35,7 @@ export default function ProfileAvatar({
     >
       {user?.profilePic ? (
         <TouchableOpacity
+          disabled={uploading || deleting}
           onPress={onPickImage}
           onLongPress={onDeleteImage}
           activeOpacity={0.8}
@@ -47,6 +49,7 @@ export default function ProfileAvatar({
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
+          disabled={uploading || deleting}
           onPress={onPickImage}
           activeOpacity={0.8}
           accessibilityRole="button"
@@ -60,7 +63,7 @@ export default function ProfileAvatar({
             backgroundColor: theme.surfaceHover,
           }}
         >
-          <Ionicons name="camera" size={26} color={theme.textSecondary} />
+          <Text style={{ color: theme.textPrimary, fontSize: 24, fontWeight: "700" }}>{user?.username?.trim().slice(0, 2).toUpperCase() || "FL"}</Text>
         </TouchableOpacity>
       )}
     </View>

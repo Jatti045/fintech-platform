@@ -49,11 +49,13 @@ export async function persistTheme(themeName: string): Promise<void> {
 // ─── Theme Options ──────────────────────────────────────────────────────────
 // Static config – extracted so the UI component is purely presentational.
 
+import { THEME_PALETTES } from "@/constants/ThemePalettes";
 import type { ThemeOption } from "@/types/profile/types";
 
 export const THEME_OPTIONS: ThemeOption[] = [
-  { name: "Light", color: "#0C8057", icon: "sunny-outline" },
-  { name: "Dark", color: "#6CE0A0", icon: "moon-outline" },
-  { name: "Ember", color: "#E8865A", icon: "flame-outline" },
-  { name: "Aurora", color: "#7C6CF6", icon: "sparkles-outline" },
+  { name: "System", color: "", icon: "phone-portrait-outline" },
+  { name: "Light", color: THEME_PALETTES.LIGHT.primary, icon: "sunny-outline" },
+  { name: "Dark", color: THEME_PALETTES.DARK.primary, icon: "moon-outline" },
+  { name: "Ember", color: THEME_PALETTES.EMBER.primary, icon: "flame-outline" },
+  { name: "Aurora", color: THEME_PALETTES.AURORA.primary, icon: "sparkles-outline" },
 ];

@@ -1,24 +1,19 @@
 import React, { useState } from "react";
 import {
-  View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import { useTheme } from "@/hooks/useRedux";
-import ModalCloseButton from "@/components/global/modalCloseButton";
+import { BRAND } from "@/constants/ThemePalettes";
+import BrandInput from "@/components/brand/BrandInput";
+import BrandButton from "@/components/brand/BrandButton";
 import type { ChangePasswordModalProps } from "@/types/profile/types";
 
-/**
- * Clean modal for changing the user's password.
- * Matches the minimal, premium design system.
- */
 export default function ChangePasswordModal({
   THEME: propTheme,
   visible,
@@ -26,192 +21,117 @@ export default function ChangePasswordModal({
   onSubmit,
   saving,
 }: ChangePasswordModalProps) {
-  const { selectedTheme, THEME: reduxTheme } = useTheme();
+  const { THEME: reduxTheme } = useTheme();
   const theme = propTheme || reduxTheme;
-  const ctaTextColor = selectedTheme === "Light" ? "#FFFFFF" : "#0B0B0D";
-
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const handleClose = () => {
+    if (saving) return;
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
     onClose();
   };
-
-  const handleSubmit = async () => {
-    await onSubmit(currentPassword, newPassword, confirmPassword);
-  };
-
   if (!visible) return null;
-
-  const modalHeight = getModalHeight();
-
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
-      <View
+    <Modal
+      visible
+      animationType="slide"
+      transparent
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{
           flex: 1,
           justifyContent: "flex-end",
-          backgroundColor: "rgba(0, 0, 0, 0.7)",
+          backgroundColor: BRAND.overlay,
         }}
       >
         <SafeAreaView
+          edges={["bottom"]}
           style={{
-            height: modalHeight,
+            maxHeight: "95%",
+            width: "100%",
+            maxWidth: 760,
+            alignSelf: "center",
             backgroundColor: theme.background,
-            padding: 18,
-            position: "relative",
-            borderTopLeftRadius: MODAL_BORDER_RADIUS,
-            borderTopRightRadius: MODAL_BORDER_RADIUS,
-            overflow: "hidden",
+            borderTopLeftRadius: BRAND.radius.card,
+            borderTopRightRadius: BRAND.radius.card,
             borderWidth: 1,
             borderColor: theme.border,
           }}
         >
-          <View className="relative mb-2">
-            <ModalCloseButton setOpenSheet={handleClose} />
-          </View>
-
-          <View style={{ alignItems: "center", marginTop: 8 }}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ padding: 24, gap: 16 }}
+          >
             <Text
+              accessibilityRole="header"
               style={{
                 color: theme.textPrimary,
-                fontSize: 18,
-                fontWeight: "700",
+                fontSize: 24,
+                fontWeight: "800",
               }}
             >
               Change Password
             </Text>
-          </View>
-
-          <ScrollView
-            style={{ marginTop: 18 }}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Current */}
-            <View style={{ marginBottom: 14 }}>
-              <Text
-                style={{
-                  color: theme.textSecondary,
-                  fontSize: 13,
-                  fontWeight: "500",
-                  marginBottom: 6,
-                }}
-              >
-                Current Password
-              </Text>
-              <TextInput
-                secureTextEntry
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                placeholder="Current password"
-                placeholderTextColor={theme.placeholderText}
-                style={{
-                  backgroundColor: theme.inputBackground,
-                  borderColor: theme.border,
-                  borderWidth: 1,
-                  color: theme.textPrimary,
-                  padding: 13,
-                  borderRadius: 12,
-                  fontSize: 15,
-                }}
-              />
-            </View>
-
-            {/* New */}
-            <View style={{ marginBottom: 14 }}>
-              <Text
-                style={{
-                  color: theme.textSecondary,
-                  fontSize: 13,
-                  fontWeight: "500",
-                  marginBottom: 6,
-                }}
-              >
-                New Password
-              </Text>
-              <TextInput
-                secureTextEntry
-                value={newPassword}
-                onChangeText={setNewPassword}
-                placeholder="New password"
-                placeholderTextColor={theme.placeholderText}
-                style={{
-                  backgroundColor: theme.inputBackground,
-                  borderColor: theme.border,
-                  borderWidth: 1,
-                  color: theme.textPrimary,
-                  padding: 13,
-                  borderRadius: 12,
-                  fontSize: 15,
-                }}
-              />
-            </View>
-
-            {/* Confirm */}
-            <View style={{ marginBottom: 18 }}>
-              <Text
-                style={{
-                  color: theme.textSecondary,
-                  fontSize: 13,
-                  fontWeight: "500",
-                  marginBottom: 6,
-                }}
-              >
-                Confirm New Password
-              </Text>
-              <TextInput
-                secureTextEntry
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Confirm new password"
-                placeholderTextColor={theme.placeholderText}
-                style={{
-                  backgroundColor: theme.inputBackground,
-                  borderColor: theme.border,
-                  borderWidth: 1,
-                  color: theme.textPrimary,
-                  padding: 13,
-                  borderRadius: 12,
-                  fontSize: 15,
-                }}
-              />
-            </View>
-
-            {/* Submit */}
-            <View style={{ marginTop: 6 }}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={handleSubmit}
-                disabled={saving}
-                style={{
-                  backgroundColor: saving ? theme.surfaceHover : theme.primary,
-                  borderRadius: 12,
-                  paddingVertical: 14,
-                  alignItems: "center",
-                }}
-              >
-                {saving ? (
-                  <ActivityIndicator color={ctaTextColor} />
-                ) : (
-                  <Text
-                    style={{
-                      color: ctaTextColor,
-                      fontWeight: "800",
-                      fontSize: 15,
-                    }}
-                  >
-                    Update Password
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            <Text style={{ color: theme.textSecondary }}>
+              Keep your Fundleaf account secure.
+            </Text>
+            <BrandInput
+              label="Current Password"
+              placeholder="Current password"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              password
+              autoComplete="current-password"
+              editable={!saving}
+            />
+            <BrandInput
+              label="New Password"
+              placeholder="New password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              password
+              autoComplete="new-password"
+              editable={!saving}
+            />
+            <BrandInput
+              label="Confirm New Password"
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              password
+              autoComplete="new-password"
+              editable={!saving}
+            />
+            <BrandButton
+              label="Update Password"
+              loading={saving}
+              loadingLabel="Updating password…"
+              onPress={() => {
+                if (!saving)
+                  void onSubmit(currentPassword, newPassword, confirmPassword);
+              }}
+            />
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Cancel password change"
+              disabled={saving}
+              onPress={handleClose}
+              style={{
+                minHeight: 48,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: theme.textSecondary }}>Cancel</Text>
+            </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

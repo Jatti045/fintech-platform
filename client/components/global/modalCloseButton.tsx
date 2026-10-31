@@ -17,6 +17,8 @@ function ModalCloseButton({
       className="rounded-full p-2 items-center justify-center"
       style={{
         position: "absolute",
+        minWidth: 48,
+        minHeight: 48,
         backgroundColor: THEME.surface,
         right: 16,
         zIndex: 1000,

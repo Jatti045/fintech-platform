@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React, { useState } from "react";
 import { View, Text, Switch } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
@@ -15,13 +16,13 @@ export default function AiPrivacyPreference() {
     try { await update({ enabled, disclosureVersion: enabled ? data?.disclosureVersion : undefined }).unwrap(); setOpen(false); }
     catch { setFailed(true); }
   };
-  return <View style={{ padding: 16, marginBottom: 12, borderRadius: 20, backgroundColor: THEME.surface }}>
+  return <View style={{ padding: 16, marginBottom: 12, borderRadius: BRAND.radius.card, borderWidth: 1, borderColor: THEME.border, backgroundColor: THEME.surface }}>
     <View style={{ flexDirection: "row", alignItems: "center" }}>
       <View style={{ flex: 1 }}>
         <Text style={{ color: THEME.textPrimary, fontWeight: "700" }}>AI privacy</Text>
         <Text style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 5 }}>{isLoading ? "Loading preference…" : data?.enabled ? "External AI explanations enabled" : "External AI processing disabled"}</Text>
       </View>
-      <Switch accessibilityLabel="Allow external AI explanations" value={Boolean(data?.enabled)} disabled={isLoading || saving || !data}
+      <Switch trackColor={{ false: THEME.border, true: THEME.primary }} thumbColor={THEME.onPrimary} accessibilityLabel="Allow external AI explanations" value={Boolean(data?.enabled)} disabled={isLoading || saving || !data}
         onValueChange={enabled => enabled ? setOpen(true) : void save(false)} />
     </View>
     {(error || failed) && <Text style={{ color: THEME.danger, marginTop: 8 }}>Could not update AI privacy. Try again.</Text>}

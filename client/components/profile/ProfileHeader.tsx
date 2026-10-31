@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -7,12 +8,7 @@ import { hexToRgba } from "@/utils/colorUtils";
 import ProfileAvatar from "./ProfileAvatar";
 import type { ProfileHeaderProps } from "@/types/profile/types";
 
-/**
- * Profile Account Card matching the approved mockup:
- * Left: Circular avatar with thin gold border & camera icon.
- * Right: User name, email, and gold-outlined "Fundleaf member" pill.
- * Far Right: Subtle interactive chevron.
- */
+
 export default function ProfileHeader({
   THEME: propTheme,
   user,
@@ -23,14 +19,14 @@ export default function ProfileHeader({
 }: ProfileHeaderProps) {
   const { THEME: reduxTheme } = useTheme();
   const theme = propTheme || reduxTheme;
-  const displayName = user?.username || "James A";
-  const displayEmail = user?.email || "james.attia@gmail.com";
+  const displayName = user?.username || "Your account";
+  const displayEmail = user?.email || "Account details unavailable";
 
   return (
     <View
       style={{
         backgroundColor: theme.surface,
-        borderRadius: 20,
+        borderRadius: BRAND.radius.card,
         borderWidth: 1,
         borderColor: theme.border,
         padding: 16,
@@ -96,7 +92,7 @@ export default function ProfileHeader({
           />
           <Text
             style={{
-              color: theme.primary,
+              color: theme.textPrimary,
               fontSize: 11,
               fontWeight: "700",
               letterSpacing: -0.1,
@@ -112,8 +108,9 @@ export default function ProfileHeader({
         onPress={onPickImage}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Edit profile"
-        style={{ paddingLeft: 8 }}
+        accessibilityLabel="Change profile picture"
+        disabled={uploading || deleting}
+        style={{ minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center" }}
       >
         <Ionicons
           name="chevron-forward"

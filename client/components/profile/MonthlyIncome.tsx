@@ -1,5 +1,8 @@
+import BrandButton from "@/components/brand/BrandButton";
+import BrandInput from "@/components/brand/BrandInput";
+import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
-import { Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
@@ -13,7 +16,7 @@ export interface MonthlyIncomeProps {
   monthLabel: string;
   saving: boolean;
   onSave: () => void;
-  /** Actual inflow (sum of INCOME transactions) for the selected month. */
+
   actualIncome?: number | null;
   loading?: boolean;
   error?: boolean;
@@ -23,13 +26,14 @@ export interface MonthlyIncomeProps {
 /**
  * MonthlyIncome — card matching the approved mockup:
  * - Theme trend icon, "Monthly Income", "Set your expected monthly income as a planning baseline."
- * - Subtle dark green container showing "Earned this month" and actual amount.
+ * - Subtle dark green container showing "Recorded income · {monthLabel}" and actual amount.
  * - Dark numeric input with hairline border.
  * - Solid theme "Save Monthly Income" button.
  */
 export default function MonthlyIncome({
   THEME: propTheme,
   input,
+  monthLabel,
   setInput,
   saving,
   onSave,
@@ -38,9 +42,8 @@ export default function MonthlyIncome({
   error = false,
   currencyCode = "USD",
 }: MonthlyIncomeProps) {
-  const { selectedTheme, THEME: reduxTheme } = useTheme();
+  const { THEME: reduxTheme } = useTheme();
   const theme = propTheme || reduxTheme;
-  const saveBtnTextColor = selectedTheme === "Light" ? "#FFFFFF" : "#0B0B0D";
 
   const expected = Number(input) || 0;
   const actual = actualIncome;
@@ -53,7 +56,7 @@ export default function MonthlyIncome({
     <View
       style={{
         backgroundColor: theme.surface,
-        borderRadius: 20,
+        borderRadius: BRAND.radius.card,
         borderWidth: 1,
         borderColor: theme.border,
         padding: 16,
@@ -107,9 +110,7 @@ export default function MonthlyIncome({
           paddingVertical: 10,
           marginTop: 14,
           marginBottom: 12,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
+          gap: 8,
         }}
       >
         <Text
@@ -119,7 +120,7 @@ export default function MonthlyIncome({
             fontWeight: "500",
           }}
         >
-          Earned this month
+          Recorded income · {monthLabel}
         </Text>
         <Text
           style={{
@@ -133,52 +134,8 @@ export default function MonthlyIncome({
         </Text>
       </View>
 
-      {/* Numeric Input */}
-      <TextInput
-        value={input}
-        onChangeText={setInput}
-        keyboardType="decimal-pad"
-        placeholder="0.00"
-        placeholderTextColor={theme.placeholderText}
-        style={{
-          backgroundColor: theme.inputBackground,
-          borderColor: theme.border,
-          borderWidth: 1,
-          color: theme.textPrimary,
-          borderRadius: 12,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
-          fontSize: 16,
-          fontWeight: "700",
-          marginBottom: 10,
-        }}
-        accessibilityLabel="Monthly income"
-      />
-
-      {/* Save Button */}
-      <TouchableOpacity
-        onPress={onSave}
-        disabled={saving || loading}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel="Save monthly income"
-        style={{
-          backgroundColor: saving ? theme.surfaceHover : theme.primary,
-          borderRadius: 12,
-          paddingVertical: 13,
-          alignItems: "center",
-        }}
-      >
-        <Text
-          style={{
-            color: saving ? theme.textSecondary : saveBtnTextColor,
-            fontWeight: "800",
-            fontSize: 14,
-          }}
-        >
-          {saving ? "Saving…" : "Save Monthly Income"}
-        </Text>
-      </TouchableOpacity>
+      <BrandInput label="Monthly income" value={input} onChangeText={setInput} keyboardType="decimal-pad" placeholder="0.00" editable={!saving && !loading} accessibilityLabel="Monthly income" />
+      <View style={{ marginTop: 16 }}><BrandButton label="Save Monthly Income" loadingLabel="Saving…" loading={saving} disabled={loading} onPress={onSave} /></View>
     </View>
   );
 }

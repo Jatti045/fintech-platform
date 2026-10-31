@@ -6,10 +6,7 @@ import { useTheme } from "@/hooks/useRedux";
 import { getCurrencyByCode, DEFAULT_CURRENCY } from "@/constants/Currencies";
 import type { CurrencySelectorProps } from "@/types/profile/types";
 
-/**
- * Default Currency row matching the approved mockup:
- * Flag icon in rounded square, "Default Currency", subtitle "USD — US Dollar", chevron.
- */
+
 export default function CurrencySelector({
   userCurrency,
   onPress,
@@ -24,7 +21,7 @@ export default function CurrencySelector({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Default currency ${code}`}
-      style={{ flexDirection: "row", alignItems: "center" }}
+      style={{ flexDirection: "row", alignItems: "center", minHeight: 48 }}
     >
       <View
         style={{

@@ -1,3 +1,4 @@
+import { BRAND } from "@/constants/ThemePalettes";
 // ─── Notification Onboarding Modal ──────────────────────────────────────────
 // A concise, optional prompt shown once after account creation. It explains
 // the benefit of notifications and offers an explicit enable/decline choice.
@@ -9,7 +10,6 @@ import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/hooks/useRedux";
 import { hexToRgba } from "@/utils/helper";
-import GlassPanel from "@/components/global/GlassPanel";
 
 interface NotificationOnboardingModalProps {
   visible: boolean;
@@ -34,13 +34,13 @@ export default function NotificationOnboardingModal({
       <View
         style={{
           flex: 1,
-          backgroundColor: hexToRgba("#000000", 0.5),
+          backgroundColor: BRAND.overlay,
           alignItems: "center",
           justifyContent: "center",
           padding: 24,
         }}
       >
-        <GlassPanel padding={22} radius={24} style={{ width: "100%", maxWidth: 420 }}>
+        <View style={{ padding: 22, borderRadius: BRAND.radius.card, borderWidth: 1, borderColor: THEME.border, backgroundColor: THEME.surface, width: "100%", maxWidth: 420 }}>
           <View style={{ alignItems: "center", marginBottom: 16 }}>
             <View
               style={{
@@ -90,7 +90,7 @@ export default function NotificationOnboardingModal({
             }}
             accessibilityRole="button"
           >
-            <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 15 }}>
+            <Text style={{ color: THEME.onPrimary, fontWeight: "800", fontSize: 15 }}>
               Enable notifications
             </Text>
           </TouchableOpacity>
@@ -104,7 +104,7 @@ export default function NotificationOnboardingModal({
               Not now
             </Text>
           </TouchableOpacity>
-        </GlassPanel>
+        </View>
       </View>
     </Modal>
   );
