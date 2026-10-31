@@ -4,7 +4,6 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
 import { useFinancialReport } from "@/hooks/reporting/useFinancialReport";
-import ReportStatus from "@/components/reporting/ReportStatus";
 import { BRAND } from "@/constants/ThemePalettes";
 import BudgetHalo from "./BudgetHalo";
 import BudgetIncomeSummary from "./BudgetIncomeSummary";
@@ -57,21 +56,9 @@ export default function BudgetContent({
   const { THEME } = useTheme();
   const isSearching = searchQuery.trim().length > 0;
 
-  const status = (
-    <ReportStatus
-      report={report}
-      loading={reporting.isFetching}
-      error={reporting.error}
-      stale={reporting.stale}
-      onRetry={() => {
-        void reporting.refetch();
-      }}
-    />
-  );
   if (!report)
     return (
       <>
-        {status}
         {reporting.isFetching && (
           <View
             accessible={false}
@@ -102,7 +89,6 @@ export default function BudgetContent({
   if (!report.budgets.length)
     return (
       <>
-        {status}
         <EmptyBudgetState onSetup={onSetup} />
       </>
     );
@@ -132,7 +118,6 @@ export default function BudgetContent({
 
   return (
     <>
-      {status}
       {/* ── 1. Monthly summary ────────────────────────────────────── */}
       <BudgetHalo
         budgets={allBudgets}

@@ -9,14 +9,11 @@ import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
 import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
 import MonthSelector from "@/components/home/MonthSelector";
-import ReportStatus from "@/components/reporting/ReportStatus";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
 import FinancialMetrics from "@/components/home/FinancialMetrics";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentTransactions from "@/components/home/RecentTransactions";
 import BudgetOverview from "@/components/home/BudgetOverview";
-import DashboardState from "@/components/home/DashboardState";
-import DashboardCard from "@/components/home/DashboardCard";
 
 /** Home uses server-owned reporting values; interactions stay in the existing hooks and routes. */
 export default function Index() {
@@ -57,21 +54,6 @@ export default function Index() {
             onPrev={home.handlePrevMonth}
             onNext={home.handleNextMonth}
           />
-          {!report && reporting.isFetching ? (
-            <DashboardCard padding={BRAND.spacing.lg}>
-              <DashboardState loading message="Loading financial report…" />
-            </DashboardCard>
-          ) : (
-            <ReportStatus
-              report={report}
-              loading={reporting.isFetching}
-              error={reporting.error}
-              stale={reporting.stale}
-              onRetry={() => {
-                void reporting.refetch();
-              }}
-            />
-          )}
           {report && (
             <>
               <MonthlyOverview
