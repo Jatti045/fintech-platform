@@ -1,6 +1,6 @@
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import "../global.css";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { Provider } from "react-redux";
 import { store, loadUserFromStorage, useAuth } from "../store";
@@ -17,6 +17,7 @@ export function AppRoutes() {
   const dispatch = useAppDispatch();
   const { THEME, selectedTheme } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
+  const [isRestoring, setIsRestoring] = useState(!isAuthenticated);
 
   useNotifications();
 
@@ -42,11 +43,26 @@ export function AppRoutes() {
   }
 
   useEffect(() => {
+    let isMounted = true;
     // Attempt to load stored auth on app start
-    void dispatch(loadUserFromStorage()).then(() => hydrateApiCache(store));
+    void dispatch(loadUserFromStorage())
+      .then((action) => {
+        if (loadUserFromStorage.fulfilled.match(action)) {
+          return hydrateApiCache(store);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) {
+          setIsRestoring(false);
+        }
+      });
     dispatch(loadThemeFromStorage());
     // Seed the RTK Query cache with last-known month data for instant,
     // offline-friendly cold starts (revalidated against the network after).
+    return () => {
+      isMounted = false;
+    };
   }, [dispatch]);
 
   // Only a loading session RESTORE (the user is not yet authenticated) may
@@ -55,7 +71,7 @@ export function AppRoutes() {
   // tear down the Stack — remounting a fresh navigator resets the active
   // tab/route (e.g. back to Home). Genuinely unauthenticated / session-invalid
   // users still land on the auth flow via the Stack.Screen redirect flags.
-  if (isLoading && !isAuthenticated) {
+  if ((isLoading || isRestoring) && !isAuthenticated) {
     return SplashScreen();
   }
 
@@ -71,6 +87,7 @@ export function AppRoutes() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" redirect={!isAuthenticated} />
         <Stack.Screen name="(auth)" redirect={isAuthenticated} />
+        <Stack.Screen name="dock-preview" redirect={!isAuthenticated} />
       </Stack>
     </>
   );
@@ -83,7 +100,7 @@ export default function RootLayout() {
         <AlertProvider>
           <BottomSheetModalProvider>
             <AppErrorBoundary>
-              <Stack screenOptions={{headerShown:false}} />
+              <AppRoutes />
             </AppErrorBoundary>
           </BottomSheetModalProvider>
         </AlertProvider>
