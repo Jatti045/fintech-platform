@@ -1,3 +1,4 @@
+import { FLOATING_TAB_BAR, getFloatingTabBarHeight } from "@/constants/appConfig";
 import React, { useEffect } from "react";
 import {
   ActivityIndicator,
@@ -5,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -33,6 +35,7 @@ export default function PlaidStatusBanner() {
   const dispatch = useAppDispatch();
   const { THEME } = useTheme();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const {
     reauthItems,
     retryableItems,
@@ -192,7 +195,7 @@ export default function PlaidStatusBanner() {
       pointerEvents="box-none"
       style={{
         position: "absolute",
-        bottom: 80,
+        bottom: getFloatingTabBarHeight(fontScale) + FLOATING_TAB_BAR.gap * 2 + insets.bottom,
         left: 0,
         right: 0,
         zIndex: 100,

@@ -87,6 +87,8 @@ export const Modal = jest.fn((props: Record<string, unknown>) => {
 });
 
 export const Keyboard = {
+  isVisible: jest.fn(() => false),
+  addListener: jest.fn(() => ({ remove: jest.fn() })),
   dismiss: jest.fn(),
 };
 

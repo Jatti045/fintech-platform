@@ -51,3 +51,6 @@ export const Animated = {
 // The real module's default export is the `Animated` namespace (Animated.View,
 // Animated.Text, Animated.createAnimatedComponent, …).
 export default Animated;
+
+export const ReduceMotion = { System: "system", Always: "always", Never: "never" };
+export const LinearTransition = { duration: (duration: number) => ({ reduceMotion: (reduceMotion: string) => ({duration, reduceMotion}) }) };

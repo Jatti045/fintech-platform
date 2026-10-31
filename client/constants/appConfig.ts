@@ -42,3 +42,15 @@ export const getModalHeight = () => Dimensions.get("window").height * 0.8;
  * Modal border radius for rounded top corners.
  */
 export const MODAL_BORDER_RADIUS = 24;
+
+// The dock reserves this space in navigator flow, keeping lists and FABs clear.
+export const FLOATING_TAB_BAR = {
+  height: 68,
+  margin: 20,
+  gap: 12,
+  padding: 6,
+  maxWidth: 560,
+  animationDuration: 200,
+} as const;
+export const getFloatingTabBarHeight = (fontScale = 1) =>
+  Math.ceil(FLOATING_TAB_BAR.height + Math.max(0, Math.min(fontScale, 2) - 1) * 28);

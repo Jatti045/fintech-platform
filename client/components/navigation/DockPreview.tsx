@@ -1,0 +1,12 @@
+import React,{useState} from "react";
+import {View,Text,ScrollView,TouchableOpacity} from "react-native";
+import {SafeAreaView} from "react-native-safe-area-context";
+import {useTheme,useAppDispatch} from "@/hooks/useRedux";
+import {setTheme} from "@/store/slices/themeSlice";
+import BrandInput from "@/components/brand/BrandInput";
+import FundleafSheet from "@/components/sheets/FundleafSheet";
+export default function DockPreview({title}:{title:string}){
+ const {THEME}=useTheme(),dispatch=useAppDispatch();const [count,setCount]=useState(0),[sheet,setSheet]=useState(false),[text,setText]=useState("");
+ const button=(label:string,onPress:()=>void)=><TouchableOpacity key={label} accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={{padding:16,borderWidth:1,borderColor:THEME.border,borderRadius:14}}><Text style={{color:THEME.textPrimary}}>{label}</Text></TouchableOpacity>;
+ return <SafeAreaView edges={["top","left","right"]} style={{flex:1,backgroundColor:THEME.background}}><ScrollView contentContainerStyle={{padding:24,gap:16}} keyboardShouldPersistTaps="handled"><Text style={{color:THEME.textPrimary,fontSize:28,fontWeight:"800"}}>{title}</Text><Text style={{color:THEME.textSecondary}}>Navigation preview · no account data</Text><View style={{backgroundColor:THEME.surface,borderWidth:1,borderColor:THEME.border,borderRadius:24,padding:24,gap:16}}><Text style={{color:THEME.textPrimary,fontSize:22,fontWeight:"700"}}>Your money, your control.</Text><Text style={{color:THEME.textSecondary}}>Fundleaf</Text>{button(`Local state: ${count}`,()=>setCount(n=>n+1))}</View><View style={{flexDirection:"row",gap:12}}>{button("Light theme",()=>dispatch(setTheme("Light")))}{button("Dark theme",()=>dispatch(setTheme("Dark")))}</View>{button("Open sheet",()=>setSheet(true))}<BrandInput label={`${title} note`} value={text} onChangeText={setText}/>{[1,2,3,4].map(n=><View key={n} style={{padding:24,borderRadius:24,borderWidth:1,borderColor:THEME.border,backgroundColor:THEME.surface}}><Text style={{color:THEME.textSecondary}}>Preview content {n}</Text></View>)}<Text style={{color:THEME.textPrimary}}>End of content</Text></ScrollView><FundleafSheet visible={sheet} onDismiss={()=>setSheet(false)} title="Navigation layer check"><Text style={{color:THEME.textSecondary}}>The navigation dock stays behind this sheet and backdrop.</Text><BrandInput label="Sheet note" value={text} onChangeText={setText}/>{button("Close sheet",()=>setSheet(false))}</FundleafSheet></SafeAreaView>;
+}

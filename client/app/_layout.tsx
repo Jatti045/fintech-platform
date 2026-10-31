@@ -83,7 +83,7 @@ export default function RootLayout() {
         <AlertProvider>
           <BottomSheetModalProvider>
             <AppErrorBoundary>
-              <AppRoutes />
+              <Stack screenOptions={{headerShown:false}} />
             </AppErrorBoundary>
           </BottomSheetModalProvider>
         </AlertProvider>
