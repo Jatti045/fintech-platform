@@ -2,6 +2,7 @@ import React from "react";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { RefreshControl, ScrollView, View } from "react-native";
+import { BRAND } from "@/constants/ThemePalettes";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
 import { useTheme } from "@/hooks/useRedux";
 import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
@@ -13,43 +14,16 @@ import MonthlyOverview from "@/components/home/MonthlyOverview";
 import FinancialMetrics from "@/components/home/FinancialMetrics";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentTransactions from "@/components/home/RecentTransactions";
+import BudgetOverview from "@/components/home/BudgetOverview";
+import DashboardState from "@/components/home/DashboardState";
+import DashboardCard from "@/components/home/DashboardCard";
 
-/**
- * Fundleaf Dashboard (Home Tab).
- *
- * Minimal, premium, polished, clean, and highly legible financial product UI.
- * Rebuilt to closely match the reference design:
- *   - Dark near-black background (#0B0B0D)
- *   - Restrained surfaces, hairline subtle borders (#232326), no glassmorphic glow
- *   - Clear hierarchy: Fundleaf Header → Month Selector → Monthly Overview
- *     → 3 Metrics (Income/Spent/Net) → Explain My Month → Upcoming Bills
- *     → Recent Transactions
- *   - Redux, RTK Query, financial calculations, and help modal
- */
+/** Home uses server-owned reporting values; interactions stay in the existing hooks and routes. */
 export default function Index() {
-  const {
-    reporting,
-    displayTransactions,
-    activeCurrency,
-    monthlyIncome,
-    expenseTotal,
-    monthLabel,
-    isCurrentMonth,
-    month,
-    year,
-    upcomingBills,
-    handleDismissBill,
-    helpOpen,
-    setHelpOpen,
-    refreshing,
-    onRefresh,
-    handlePrevMonth,
-    handleNextMonth,
-    handleInfoPress,
-  } = useHomeScreen();
-
+  const home = useHomeScreen();
   const { THEME } = useTheme();
-
+  const { reporting } = home;
+  const report = reporting.report;
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -57,79 +31,97 @@ export default function Index() {
     >
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 8,
-          paddingBottom: 24,
+          paddingHorizontal: BRAND.spacing.md,
+          paddingTop: BRAND.spacing.md,
+          paddingBottom: BRAND.spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
+            refreshing={home.refreshing}
+            onRefresh={home.onRefresh}
             progressBackgroundColor={THEME.surface}
             colors={[THEME.primary]}
             tintColor={THEME.primary}
           />
         }
       >
-        {/* 1. Header: Fundleaf, Greeting, Info & Settings */}
-        <HomeHeader
-          onInfoPress={handleInfoPress}
-          onSettingsPress={() => router.push("/(tabs)/profile")}
-        />
-
-        {/* 2. Month Selector: [ < ]  Month Year  [ > ] */}
-        <MonthSelector
-          monthLabel={monthLabel}
-          isCurrentMonth={isCurrentMonth}
-          onPrev={handlePrevMonth}
-          onNext={handleNextMonth}
-        />
-
-        {/* 3. Main Monthly Overview: $2,005 left to spend, progress bar, spending trend */}
-        <ReportStatus report={reporting.report} loading={reporting.isFetching} error={reporting.error} stale={reporting.stale} onRetry={() => { void reporting.refetch(); }} />
-        {reporting.report && <>
-        <MonthlyOverview
-          monthlyIncome={monthlyIncome}
-          totalSpent={expenseTotal}
-          monthLabel={monthLabel}
-          currencyCode={reporting.report.currency}
-          isCurrentMonth={isCurrentMonth}
-          daily={reporting.report.daily}
-          month={month}
-          year={year}
-        />
-
-        {/* 4. Three Metrics: Income / Spent / Net */}
-        <FinancialMetrics
-          monthlyIncome={monthlyIncome}
-          totalSpent={expenseTotal}
-          currencyCode={reporting.report.currency}
-          report={reporting.report}
-        />
-        </>}
-
-        {/* 5. Explain My Month: AI feature panel */}
-        <MonthlyInsightCard month={month} year={year} />
-
-        {/* 6. Upcoming Bills: Spotify, Netflix, OpenAI compact cards */}
-        <UpcomingBillsCard
-          bills={upcomingBills}
-          currencyCode={activeCurrency}
-          onDismiss={handleDismissBill}
-        />
-
-        {/* 7. Recent Transactions: unified subtle surface */}
-        <RecentTransactions
-          transactions={displayTransactions}
-          currencyCode={activeCurrency}
-        />
-
-        <View style={{ height: 40 }} />
+        <View style={{ width: "100%", maxWidth: 680, alignSelf: "center" }}>
+          <HomeHeader
+            onInfoPress={home.handleInfoPress}
+            onSettingsPress={() => router.push("/(tabs)/profile")}
+          />
+          <MonthSelector
+            monthLabel={home.monthLabel}
+            isCurrentMonth={home.isCurrentMonth}
+            onPrev={home.handlePrevMonth}
+            onNext={home.handleNextMonth}
+          />
+          {!report && reporting.isFetching ? (
+            <DashboardCard padding={BRAND.spacing.lg}>
+              <DashboardState loading message="Loading financial report…" />
+            </DashboardCard>
+          ) : (
+            <ReportStatus
+              report={report}
+              loading={reporting.isFetching}
+              error={reporting.error}
+              stale={reporting.stale}
+              onRetry={() => {
+                void reporting.refetch();
+              }}
+            />
+          )}
+          {report && (
+            <>
+              <MonthlyOverview
+                monthlyIncome={home.monthlyIncome}
+                totalSpent={home.expenseTotal}
+                monthLabel={home.monthLabel}
+                currencyCode={report.currency}
+                isCurrentMonth={home.isCurrentMonth}
+                daily={report.daily}
+                month={home.month}
+                year={home.year}
+                report={report}
+              />
+              <FinancialMetrics
+                monthlyIncome={home.monthlyIncome}
+                totalSpent={home.expenseTotal}
+                currencyCode={report.currency}
+                report={report}
+              />
+              <BudgetOverview
+                report={report}
+                onOpenBudgets={() => router.push("/(tabs)/budget")}
+              />
+            </>
+          )}
+          <RecentTransactions
+            transactions={
+              home.transactionsLoading ? [] : home.displayTransactions
+            }
+            currencyCode={home.activeCurrency}
+            loading={home.transactionsLoading}
+            error={home.transactionsError}
+            onRetry={home.retryTransactions}
+            onSeeAll={() => router.push("/(tabs)/transaction")}
+          />
+          <UpcomingBillsCard
+            bills={home.upcomingBills}
+            currencyCode={home.activeCurrency}
+            onDismiss={home.handleDismissBill}
+            loading={home.billsLoading}
+            error={home.billsError}
+            onRetry={home.retryBills}
+          />
+          <MonthlyInsightCard month={home.month} year={home.year} />
+        </View>
       </ScrollView>
-
-      {/* Help modal */}
-      <InformationModal helpOpen={helpOpen} setHelpOpen={setHelpOpen} />
+      <InformationModal
+        helpOpen={home.helpOpen}
+        setHelpOpen={home.setHelpOpen}
+      />
     </SafeAreaView>
   );
 }

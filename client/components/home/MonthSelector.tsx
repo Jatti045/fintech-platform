@@ -2,20 +2,14 @@ import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
+import { BRAND } from "@/constants/ThemePalettes";
 
 type Props = {
-  /** Pre-formatted label, e.g. "August 2026". */
   monthLabel: string;
-  /** Disables the forward arrow when already at the current month. */
   isCurrentMonth: boolean;
   onPrev: () => void;
   onNext: () => void;
 };
-
-/**
- * Centered month navigation row with understated controls.
- * Matches the reference design: [ < ]  Month Year  [ > ]
- */
 export default function MonthSelector({
   monthLabel,
   isCurrentMonth,
@@ -23,67 +17,72 @@ export default function MonthSelector({
   onNext,
 }: Props) {
   const { THEME } = useTheme();
-
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 16,
+        backgroundColor: THEME.surface,
+        borderWidth: 1,
+        borderColor: THEME.border,
+        borderRadius: BRAND.radius.input,
+        marginBottom: BRAND.spacing.md,
       }}
     >
       <TouchableOpacity
-        onPress={onPrev}
-        activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel="Previous month"
+        onPress={onPrev}
         style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          backgroundColor: THEME.surface,
-          borderWidth: 1,
-          borderColor: THEME.border,
+          width: BRAND.touchTarget,
+          minHeight: BRAND.touchTarget,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Feather name="chevron-left" size={18} color={THEME.textPrimary} />
+        <Feather name="chevron-left" size={20} color={THEME.textPrimary} />
       </TouchableOpacity>
-
-      <Text
+      <View
         style={{
-          color: THEME.textPrimary,
-          fontSize: 15.5,
-          fontWeight: "700",
-          marginHorizontal: 16,
-          letterSpacing: -0.2,
+          flex: 1,
+          alignItems: "center",
+          paddingVertical: BRAND.spacing.sm,
         }}
       >
-        {monthLabel}
-      </Text>
-
+        <Text
+          style={{
+            color: THEME.textPrimary,
+            textAlign: "center",
+            fontSize: 15,
+            fontWeight: "700",
+          }}
+        >
+          {monthLabel}
+        </Text>
+        <Text
+          style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 2 }}
+        >
+          {isCurrentMonth ? "This month" : "Reporting period"}
+        </Text>
+      </View>
       <TouchableOpacity
-        onPress={onNext}
-        activeOpacity={isCurrentMonth ? 1 : 0.7}
-        disabled={isCurrentMonth}
         accessibilityRole="button"
         accessibilityLabel="Next month"
         accessibilityState={{ disabled: isCurrentMonth }}
+        disabled={isCurrentMonth}
+        onPress={onNext}
         style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          backgroundColor: THEME.surface,
-          borderWidth: 1,
-          borderColor: THEME.border,
+          width: BRAND.touchTarget,
+          minHeight: BRAND.touchTarget,
           alignItems: "center",
           justifyContent: "center",
-          opacity: isCurrentMonth ? 0.35 : 1,
         }}
       >
-        <Feather name="chevron-right" size={18} color={THEME.textPrimary} />
+        <Feather
+          name="chevron-right"
+          size={20}
+          color={isCurrentMonth ? THEME.textDisabled : THEME.textPrimary}
+        />
       </TouchableOpacity>
     </View>
   );

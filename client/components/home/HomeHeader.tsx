@@ -1,116 +1,102 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { Image, View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme, useUser } from "@/hooks/useRedux";
 import { capitalizeFirst } from "@/utils/helper";
+import { BRAND } from "@/constants/ThemePalettes";
 
-type Props = {
-  onInfoPress: () => void;
-  onSettingsPress?: () => void;
-};
+type Props = { onInfoPress: () => void; onSettingsPress?: () => void };
 
-/**
- * Dashboard Header matching the reference design:
- * Left: "Fundleaf" title and secondary muted greeting with emoji.
- * Right: Two understated, circular utility buttons:
- *   [ Information ] [ Settings ]
- *   - Information: opens the Help & Usage modal
- *   - Settings: navigates to the Profile screen
- */
 export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
   const user = useUser();
   const { THEME } = useTheme();
-
-  const rawName = user?.username ? String(user.username) : "James";
-  const name = capitalizeFirst(rawName.trim());
-
+  const name = capitalizeFirst(String(user?.username || "").trim());
   const hour = new Date().getHours();
-  const greetingText =
+  const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const emoji = hour < 18 ? "☀️" : "🌙";
-
-  const handleSettings = () => {
-    if (onSettingsPress) {
-      onSettingsPress();
-    } else {
-      router.push("/(tabs)/profile");
-    }
-  };
-
   return (
     <View
       style={{
         flexDirection: "row",
-        justifyContent: "space-between",
         alignItems: "center",
-        paddingTop: 4,
-        marginBottom: 16,
+        gap: BRAND.spacing.sm,
+        marginBottom: BRAND.spacing.lg,
       }}
     >
-      <View>
-        <Text
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View
           style={{
-            color: THEME.textPrimary,
-            fontSize: 26,
-            fontWeight: "800",
-            letterSpacing: -0.5,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: BRAND.spacing.sm,
+            marginBottom: BRAND.spacing.sm,
           }}
         >
-          Fundleaf
+          <Image
+            source={require("@/assets/fundleaf-brand-assets/logo-mark.png")}
+            style={{ width: 26, height: 26 }}
+            resizeMode="contain"
+            accessible={false}
+          />
+          <Text
+            style={{ color: THEME.primary, fontSize: 15, fontWeight: "700" }}
+          >
+            Fundleaf
+          </Text>
+        </View>
+        <Text
+          accessibilityRole="header"
+          style={{
+            color: THEME.textPrimary,
+            fontSize: 25,
+            fontWeight: "700",
+            letterSpacing: -0.7,
+          }}
+        >
+          {greeting}
+          {name ? `, ${name}` : ""}
         </Text>
         <Text
           style={{
             color: THEME.textSecondary,
-            fontSize: 13.5,
-            fontWeight: "400",
-            marginTop: 2,
+            fontSize: 14,
+            marginTop: BRAND.spacing.xs,
           }}
         >
-          {greetingText}, {name} {emoji}
+          Your month at a glance.
         </Text>
       </View>
-
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        {/* Information button */}
-        <TouchableOpacity
-          onPress={onInfoPress}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Help and usage"
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 19,
-            backgroundColor: THEME.surface,
-            borderWidth: 1,
-            borderColor: THEME.border,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Feather name="info" size={17} color={THEME.textPrimary} />
-        </TouchableOpacity>
-
-        {/* Settings button -> Profile */}
-        <TouchableOpacity
-          onPress={handleSettings}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Profile settings"
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 19,
-            backgroundColor: THEME.surface,
-            borderWidth: 1,
-            borderColor: THEME.border,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Feather name="settings" size={17} color={THEME.textPrimary} />
-        </TouchableOpacity>
+      <View style={{ flexDirection: "row", gap: BRAND.spacing.xs }}>
+        {(
+          [
+            ["info", "Help and usage", onInfoPress],
+            [
+              "settings",
+              "Profile settings",
+              onSettingsPress || (() => router.push("/(tabs)/profile")),
+            ],
+          ] as const
+        ).map(([icon, label, onPress]) => (
+          <TouchableOpacity
+            key={label}
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            style={{
+              width: BRAND.touchTarget,
+              height: BRAND.touchTarget,
+              borderRadius: BRAND.radius.input,
+              backgroundColor: THEME.surface,
+              borderWidth: 1,
+              borderColor: THEME.border,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Feather name={icon} size={20} color={THEME.textSecondary} />
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );

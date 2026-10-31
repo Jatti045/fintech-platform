@@ -1,198 +1,192 @@
 import React, { useMemo } from "react";
 import { Text, View, TouchableOpacity } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useBudgets, useTheme } from "@/hooks/useRedux";
+import { BRAND } from "@/constants/ThemePalettes";
 import { capitalizeFirst, formatCurrency } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type { ITransaction } from "@/types/transaction/types";
 import DashboardCard from "./DashboardCard";
+import DashboardSection from "./DashboardSection";
+import DashboardState from "./DashboardState";
 
 export interface RecentTransactionsProps {
   transactions: ITransaction[];
   currencyCode: string;
   onSeeAll?: () => void;
+  loading?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
 }
-
-function formatTxDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function formatTxDate(value: string) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? "Date unavailable"
+    : d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      });
 }
-
-/**
- * Recent Transactions section:
- * Single unified subtle surface containing clean text-focused rows:
- *   Category           -$58.00
- *   Merchant            Aug 20
- * (Zero icons/logos/avatars)
- */
 export default function RecentTransactions({
   transactions,
   currencyCode,
   onSeeAll,
+  loading,
+  error,
+  onRetry,
 }: RecentTransactionsProps) {
   const { THEME } = useTheme();
   const budgets = useBudgets();
-
-  const budgetMap = useMemo(() => {
-    const map = new Map<string, { category: string }>();
-    for (const b of budgets) map.set(b.id, { category: b.category });
-    return map;
-  }, [budgets]);
-
-  const recent = useMemo(() => {
-    if (!transactions || transactions.length === 0) return [];
-    return [...transactions]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 4);
-  }, [transactions]);
-
-  if (recent.length === 0) {
-    return null;
-  }
-
+  const budgetMap = useMemo(
+    () => new Map(budgets.map((b) => [b.id, b.category])),
+    [budgets],
+  );
+  const recent = useMemo(
+    () =>
+      [...(transactions || [])]
+        .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+        .slice(0, 4),
+    [transactions],
+  );
   return (
-    <View style={{ marginBottom: 18 }}>
-      {/* Test-accessible hidden fallback */}
-      <View
-        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
-        pointerEvents="none"
-      >
-        <Text>Recent flow</Text>
-      </View>
-
-      {/* Section Header */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 10,
-        }}
-      >
-        <Text
-          style={{
-            color: THEME.textSecondary,
-            fontSize: 12,
-            fontWeight: "700",
-            letterSpacing: 0.8,
-            textTransform: "uppercase",
-          }}
-        >
-          Recent Transactions
-        </Text>
-
-        {onSeeAll ? (
-          <TouchableOpacity
-            onPress={onSeeAll}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="See all transactions"
-          >
-            <Text
-              style={{
-                color: THEME.textSecondary,
-                fontSize: 12,
-                fontWeight: "500",
-              }}
-            >
-              See all &gt;
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <Text
-            style={{
-              color: THEME.textSecondary,
-              fontSize: 12,
-              fontWeight: "500",
-            }}
-          >
-            See all &gt;
-          </Text>
+    <DashboardSection
+      title="Recent transactions"
+      action="See all transactions"
+      onPress={onSeeAll}
+    >
+      <DashboardCard paddingHorizontal={BRAND.spacing.md}>
+        {error && (
+          <DashboardState
+            error
+            message="Transactions could not be refreshed."
+            onRetry={onRetry}
+          />
         )}
-      </View>
-
-      {/* Unified Surface Container */}
-      <DashboardCard radius={22} paddingHorizontal={16} paddingVertical={4}>
+        {!recent.length && !error && (
+          <DashboardState
+            loading={loading}
+            message={
+              loading
+                ? "Loading transactions…"
+                : "No transactions this month. Your latest activity will appear here."
+            }
+          />
+        )}
         {recent.map((tx, i) => {
-          const meta = tx.budgetId ? budgetMap.get(tx.budgetId) : undefined;
-          const category = meta?.category ?? tx.category ?? "General";
+          const category =
+            (tx.budgetId && budgetMap.get(tx.budgetId)) ||
+            tx.category ||
+            "General";
           const amount = safeAmount(tx.displayAmount ?? tx.amount);
           const currency = (
             tx.displayCurrency ||
             tx.baseCurrency ||
             currencyCode
           ).toUpperCase();
-          const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE" && amount >= 0;
-          const isLast = i === recent.length - 1;
-
+          const expense =
+            (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE" && amount >= 0;
+          const transfer = !!tx.isTransfer;
+          const sign = expense ? "−" : "+";
+          const color = transfer
+            ? THEME.textSecondary
+            : expense
+              ? THEME.textPrimary
+              : THEME.success;
           return (
             <TouchableOpacity
-              key={tx.id ?? `${i}`}
+              key={tx.id ?? i}
               onPress={onSeeAll}
-              activeOpacity={0.7}
+              disabled={!onSeeAll}
+              accessibilityRole={onSeeAll ? "button" : undefined}
+              accessibilityLabel={`${tx.name || "Transaction"}, ${transfer ? "Transfer" : category}, ${sign}${formatCurrency(Math.abs(amount), currency)}, ${formatTxDate(tx.date)}`}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingVertical: 12,
-                borderBottomWidth: isLast ? 0 : 1,
+                paddingVertical: BRAND.spacing.md,
+                borderBottomWidth: i === recent.length - 1 ? 0 : 1,
                 borderBottomColor: THEME.border,
               }}
             >
-              {/* Left: Category & Merchant */}
-              <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-                <Text
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: BRAND.spacing.sm,
+                }}
+              >
+                <View
                   style={{
-                    color: THEME.textPrimary,
-                    fontSize: 14,
-                    fontWeight: "600",
-                    letterSpacing: -0.2,
+                    flexGrow: 1,
+                    flexBasis: 140,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: BRAND.spacing.sm,
                   }}
-                  numberOfLines={1}
                 >
-                  {capitalizeFirst(category)}
-                </Text>
+                  <View
+                    style={{
+                      backgroundColor: THEME.subtleSurface,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Feather
+                      name={
+                        transfer
+                          ? "repeat"
+                          : expense
+                            ? "arrow-up-right"
+                            : "arrow-down-left"
+                      }
+                      size={18}
+                      color={transfer ? THEME.textSecondary : THEME.primary}
+                    />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                      style={{
+                        color: THEME.textPrimary,
+                        fontSize: 15,
+                        fontWeight: "600",
+                      }}
+                      numberOfLines={2}
+                    >
+                      {tx.name || "Transaction"}
+                    </Text>
+                    <Text
+                      style={{
+                        color: THEME.textSecondary,
+                        fontSize: 12,
+                        marginTop: 4,
+                      }}
+                    >
+                      {transfer ? "Transfer" : capitalizeFirst(category)} ·{" "}
+                      {formatTxDate(tx.date)}
+                    </Text>
+                  </View>
+                </View>
                 <Text
                   style={{
-                    color: THEME.textSecondary,
-                    fontSize: 12,
-                    fontWeight: "400",
-                    marginTop: 2,
-                  }}
-                  numberOfLines={1}
-                >
-                  {tx.name || "Transaction"}
-                </Text>
-              </View>
-
-              {/* Right: Amount & Date */}
-              <View style={{ alignItems: "flex-end" }}>
-                <Text
-                  style={{
-                    color: THEME.textPrimary,
-                    fontSize: 14.5,
+                    color,
+                    fontSize: 17,
                     fontWeight: "700",
-                    letterSpacing: -0.2,
+                    fontVariant: ["tabular-nums"],
+                    textAlign: "right",
+                    flexShrink: 1,
+                    maxWidth: "100%",
                   }}
-                  numberOfLines={1}
                 >
-                  {isExpense ? "-" : "+"}
+                  {sign}
                   {formatCurrency(Math.abs(amount), currency)}
-                </Text>
-                <Text
-                  style={{
-                    color: THEME.textSecondary,
-                    fontSize: 12,
-                    fontWeight: "400",
-                    marginTop: 2,
-                  }}
-                >
-                  {formatTxDate(tx.date)}
                 </Text>
               </View>
             </TouchableOpacity>
           );
         })}
       </DashboardCard>
-    </View>
+    </DashboardSection>
   );
 }

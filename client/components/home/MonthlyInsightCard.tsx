@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useGetMonthlyInsightMutation, useGetAiPrivacyQuery, useUpdateAiPrivacyMutation } from "@/store/api/apiSlice";
+import {
+  useGetMonthlyInsightMutation,
+  useGetAiPrivacyQuery,
+  useUpdateAiPrivacyMutation,
+} from "@/store/api/apiSlice";
 import AiPrivacyDisclosure from "@/components/privacy/AiPrivacyDisclosure";
 import { useTheme } from "@/hooks/useRedux";
 import { hexToRgba } from "@/utils/helper";
@@ -27,20 +31,37 @@ const GENERATION_ERROR =
  * - Clean expand/collapse for AI summary & highlights
  */
 export default function MonthlyInsightCard({ month, year }: Props) {
-  const { THEME, selectedTheme } = useTheme();
-  const [fetchInsight, { data, isLoading, error, reset }] = useGetMonthlyInsightMutation();
-  const { data: privacy, isLoading: privacyLoading, error: privacyError, refetch } = useGetAiPrivacyQuery();
-  const [updatePrivacy, { isLoading: privacySaving }] = useUpdateAiPrivacyMutation();
+  const { THEME } = useTheme();
+  const [fetchInsight, { data, isLoading, error, reset }] =
+    useGetMonthlyInsightMutation();
+  const {
+    data: privacy,
+    isLoading: privacyLoading,
+    error: privacyError,
+    refetch,
+  } = useGetAiPrivacyQuery();
+  const [updatePrivacy, { isLoading: privacySaving }] =
+    useUpdateAiPrivacyMutation();
   const [disclosureOpen, setDisclosureOpen] = useState(false);
   const [consentError, setConsentError] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  useEffect(() => { reset(); }, [month, year, reset]);
-  useEffect(() => { if (!privacy?.enabled) reset(); }, [privacy?.enabled, reset]);
+  useEffect(() => {
+    reset();
+  }, [month, year, reset]);
+  useEffect(() => {
+    if (!privacy?.enabled) reset();
+  }, [privacy?.enabled, reset]);
 
   const handlePress = () => {
-    if (!privacy) { void refetch(); return; }
-    if (!privacy.enabled) { setDisclosureOpen(true); return; }
+    if (!privacy) {
+      void refetch();
+      return;
+    }
+    if (!privacy.enabled) {
+      setDisclosureOpen(true);
+      return;
+    }
     setCollapsed(false);
     fetchInsight({ currentMonth: month, currentYear: year });
   };
@@ -48,16 +69,22 @@ export default function MonthlyInsightCard({ month, year }: Props) {
   const enableAi = async () => {
     setConsentError(false);
     try {
-      await updatePrivacy({ enabled: true, disclosureVersion: privacy?.disclosureVersion }).unwrap();
+      await updatePrivacy({
+        enabled: true,
+        disclosureVersion: privacy?.disclosureVersion,
+      }).unwrap();
       setDisclosureOpen(false);
-    } catch { setConsentError(true); }
+    } catch {
+      setConsentError(true);
+    }
   };
 
   const showLoading = isLoading || privacyLoading;
-  const showResult = Boolean(data?.summary) && !collapsed && Boolean(privacy?.enabled);
+  const showResult =
+    Boolean(data?.summary) && !collapsed && Boolean(privacy?.enabled);
   const showError = Boolean(error) && !showResult;
 
-  const actionIconColor = selectedTheme === "Light" ? "#FFFFFF" : "#111113";
+  const actionIconColor = THEME.onPrimary;
 
   return (
     <DashboardCard
@@ -67,21 +94,6 @@ export default function MonthlyInsightCard({ month, year }: Props) {
         marginBottom: 16,
       }}
     >
-      {/* Subtle organic tint in the background corner */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          right: -20,
-          bottom: -20,
-          width: 140,
-          height: 100,
-          borderRadius: 50,
-          backgroundColor: hexToRgba(THEME.success, 0.1),
-          opacity: 0.45,
-        }}
-      />
-
       {!showResult ? (
         <TouchableOpacity
           onPress={handlePress}
@@ -89,6 +101,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Explain my month"
+          accessibilityState={{ disabled: showLoading, busy: showLoading }}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -108,7 +121,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
             {showLoading ? (
               <ActivityIndicator size="small" color={THEME.primary} />
             ) : (
-              <Text style={{ fontSize: 18 }}>✨</Text>
+              <Feather name="zap" size={20} color={THEME.primary} />
             )}
           </View>
 
@@ -123,7 +136,9 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               }}
             >
               {showLoading
-                ? privacyLoading ? "Loading AI preference…" : "Generating your explanation…"
+                ? privacyLoading
+                  ? "Loading AI preference…"
+                  : "Generating your explanation…"
                 : "Explain my month"}
             </Text>
             <Text
@@ -134,16 +149,18 @@ export default function MonthlyInsightCard({ month, year }: Props) {
                 marginTop: 2,
               }}
             >
-              {privacy?.enabled ? "Get a quick read on your spending, habits, and opportunities." : "AI is off. Review how your data is used to enable explanations."}
+              {privacy?.enabled
+                ? "Get a quick read on your spending, habits, and opportunities."
+                : "AI is off. Review how your data is used to enable explanations."}
             </Text>
           </View>
 
           {/* Right Circular Action Button */}
           <View
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
+              width: 48,
+              height: 48,
+              borderRadius: 14,
               backgroundColor: THEME.primary,
               alignItems: "center",
               justifyContent: "center",
@@ -180,7 +197,12 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               onPress={() => setCollapsed(true)}
               accessibilityRole="button"
               accessibilityLabel="Close explanation"
-              style={{ padding: 4 }}
+              style={{
+                minWidth: 48,
+                minHeight: 48,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
               <Feather
                 name="chevron-up"
@@ -237,9 +259,21 @@ export default function MonthlyInsightCard({ month, year }: Props) {
         </View>
       )}
 
-      {(privacyError || consentError) && <Text style={{ color: THEME.danger, marginTop: 10 }}>Could not save or load AI privacy. Try again.</Text>}
-      <AiPrivacyDisclosure visible={disclosureOpen} preference={privacy} saving={privacySaving} error={consentError}
-        onCancel={() => setDisclosureOpen(false)} onAccept={() => { void enableAi(); }} />
+      {(privacyError || consentError) && (
+        <Text style={{ color: THEME.danger, marginTop: 10 }}>
+          Could not save or load AI privacy. Try again.
+        </Text>
+      )}
+      <AiPrivacyDisclosure
+        visible={disclosureOpen}
+        preference={privacy}
+        saving={privacySaving}
+        error={consentError}
+        onCancel={() => setDisclosureOpen(false)}
+        onAccept={() => {
+          void enableAi();
+        }}
+      />
       {showError && (
         <View
           style={{

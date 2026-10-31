@@ -22,7 +22,7 @@ import transactionApi from "@/api/transaction";
 import financialSummaryApi from "@/api/financialSummary";
 import budgetApi from "@/api/budget";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
-import api from "@/store/api/apiSlice";
+import api, { defaultTransactionArgs } from "@/store/api/apiSlice";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
 import themeReducer from "@/store/slices/themeSlice";
@@ -40,10 +40,32 @@ jest.mock("@/api/transaction", () => ({
 
 jest.mock("@/api/financialSummary", () => {
   const fetchSummary = jest.fn();
-  return { __esModule: true, default: { fetchSummary, fetchReport: jest.fn(async (args) => {
-    const result = await fetchSummary(args);
-    return { success: true, data: { year: args.currentYear, month: args.currentMonth, currency: "USD", generatedAt: new Date().toISOString(), incomeBasis: "ACTUAL", expectedIncomeConfigured: true, transactionCount: 1, summary: result.data, daily: [], categories: [], budgets: [], previousPeriod: {} } };
-  }) } };
+  return {
+    __esModule: true,
+    default: {
+      fetchSummary,
+      fetchReport: jest.fn(async (args) => {
+        const result = await fetchSummary(args);
+        return {
+          success: true,
+          data: {
+            year: args.currentYear,
+            month: args.currentMonth,
+            currency: "USD",
+            generatedAt: new Date().toISOString(),
+            incomeBasis: "ACTUAL",
+            expectedIncomeConfigured: true,
+            transactionCount: 1,
+            summary: result.data,
+            daily: [],
+            categories: [],
+            budgets: [],
+            previousPeriod: {},
+          },
+        };
+      }),
+    },
+  };
 });
 
 jest.mock("@/api/budget", () => ({
@@ -121,6 +143,9 @@ function makeStore() {
     },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware().concat(api.middleware),
+    // Observe query transitions without waiting for RTK’s frame batching.
+    enhancers: (getDefaultEnhancers) =>
+      getDefaultEnhancers({ autoBatch: false }),
   });
 }
 
@@ -179,6 +204,39 @@ beforeEach(async () => {
 });
 
 describe("useHomeScreen", () => {
+  it("does not expose previous-month transactions while the next month is loading", async () => {
+    mockedTxFetch.mockResolvedValue({ data: { transaction: [makeTx()] } });
+    const { captured, store } = await setup((s) => {
+      s.dispatch(setMonthYear({ month: 1, year: 2026 }));
+    });
+    expect(captured.current!.transactions).toHaveLength(1);
+    let resolve!: (value: unknown) => void;
+    mockedTxFetch.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    await renderer.act(async () => {
+      store.dispatch(setMonthYear({ month: 2, year: 2026 }));
+      await flush();
+    });
+    expect(captured.current!.transactions).toHaveLength(0);
+    expect(captured.current!.transactionsLoading).toBe(true);
+    await renderer.act(async () => {
+      const pending = store.dispatch(
+        api.endpoints.getTransactions.initiate({
+          ...defaultTransactionArgs(2, 2026),
+          limit: PAGINATION_LIMIT,
+        }),
+      );
+      resolve({ data: { transaction: [makeTx({ month: 2, amount: 23 })] } });
+      await pending.unwrap();
+      await flush();
+      pending.unsubscribe();
+    });
+    expect(captured.current!.transactions[0].amount).toBe(23);
+  });
+
   it("fetches transactions, summary, and budgets on mount with cache-first params", async () => {
     await setup((store) => {
       store.dispatch(setMonthYear({ month: 1, year: 2026 }));
@@ -282,18 +340,37 @@ describe("useHomeScreen", () => {
   });
 
   it.each(["2026-10-01T00:30:00Z", "2027-01-01T00:30:00Z"])(
-    "uses the UTC reporting month at the Toronto boundary %s", async (instant) => {
-      jest.useFakeTimers({ doNotFake: ["setTimeout", "clearTimeout", "setImmediate", "clearImmediate", "nextTick", "queueMicrotask"] });
+    "uses the UTC reporting month at the Toronto boundary %s",
+    async (instant) => {
+      jest.useFakeTimers({
+        doNotFake: [
+          "setTimeout",
+          "clearTimeout",
+          "setImmediate",
+          "clearImmediate",
+          "nextTick",
+          "queueMicrotask",
+        ],
+      });
       jest.setSystemTime(new Date(instant));
       try {
         const now = new Date(instant);
         const { captured, store } = await setup((store) => {
-          store.dispatch(setMonthYear({ month: now.getUTCMonth(), year: now.getUTCFullYear() }));
+          store.dispatch(
+            setMonthYear({
+              month: now.getUTCMonth(),
+              year: now.getUTCFullYear(),
+            }),
+          );
         });
         expect(captured.current!.isCurrentMonth).toBe(true);
-        renderer.act(() => { store.dispatch(setMonthYear({ month: 8, year: 2026 })); });
+        renderer.act(() => {
+          store.dispatch(setMonthYear({ month: 8, year: 2026 }));
+        });
         expect(captured.current!.isCurrentMonth).toBe(false);
-      } finally { jest.useRealTimers(); }
+      } finally {
+        jest.useRealTimers();
+      }
     },
   );
 
@@ -326,7 +403,6 @@ describe("useHomeScreen", () => {
     });
     expect(captured.current!.helpOpen).toBe(false);
   });
-
 
   it("exposes display transactions with display amounts", async () => {
     mockedTxFetch.mockResolvedValue({
@@ -385,7 +461,11 @@ describe("useHomeScreen", () => {
     });
     // 100 CAD + (100 USD → 125 CAD) — computed server-side.
     mockedSummaryFetch.mockResolvedValue({
-      data: makeSummary({ totalAmount: 225, monthlyIncome: 1000, netRemaining: 775 }),
+      data: makeSummary({
+        totalAmount: 225,
+        monthlyIncome: 1000,
+        netRemaining: 775,
+      }),
     });
     const { captured } = await setup();
 
@@ -427,4 +507,3 @@ describe("useHomeScreen", () => {
     expect(mockedConvert).not.toHaveBeenCalled();
   });
 });
-

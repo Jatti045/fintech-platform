@@ -1,5 +1,6 @@
 import React from "react";
 import { View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { BRAND } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 
 export interface DashboardCardProps {
@@ -18,7 +19,7 @@ export interface DashboardCardProps {
 export default function DashboardCard({
   children,
   style,
-  radius = 20,
+  radius = BRAND.radius.card,
   padding,
   paddingHorizontal,
   paddingVertical,

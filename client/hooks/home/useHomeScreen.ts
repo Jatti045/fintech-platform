@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  useAppDispatch,
-  useCalendar,
-  useUser,
-} from "@/hooks/useRedux";
+import { useAppDispatch, useCalendar, useUser } from "@/hooks/useRedux";
 import { nextMonth, prevMonth } from "@/store/slices/calendarSlice";
 import {
   defaultTransactionArgs,
   useGetBudgetsQuery,
-
   useGetRecurringPaymentsQuery,
   useGetTransactionsQuery,
 } from "@/store/api/apiSlice";
@@ -67,10 +62,14 @@ export const useHomeScreen = () => {
     currentMonth: calendar.month,
     currentYear: calendar.year,
   });
-  const financialSummaryQuery = useFinancialReport(calendar.month, calendar.year);
+  const financialSummaryQuery = useFinancialReport(
+    calendar.month,
+    calendar.year,
+  );
 
-  const transactions = transactionsQuery.data?.transaction ?? NO_TRANSACTIONS;
-  const budgets = budgetsQuery.data ?? NO_BUDGETS;
+  const transactions =
+    transactionsQuery.currentData?.transaction ?? NO_TRANSACTIONS;
+  const budgets = budgetsQuery.currentData ?? NO_BUDGETS;
   const financialSummary = financialSummaryQuery.report?.summary ?? null;
 
   // ── Upcoming Bills ─────────────────────────────────────────────────────
@@ -106,9 +105,7 @@ export const useHomeScreen = () => {
 
   const upcomingBills: IRecurringPayment[] = useMemo(() => {
     const all = recurringQuery.data?.recurringPayments ?? [];
-    return all
-      .filter((b) => !dismissedKeys.includes(b.seriesKey))
-      .slice(0, 5);
+    return all.filter((b) => !dismissedKeys.includes(b.seriesKey)).slice(0, 5);
   }, [recurringQuery.data, dismissedKeys]);
 
   const { displayTransactions } = useTransactionDisplayAmounts(
@@ -130,13 +127,15 @@ export const useHomeScreen = () => {
       transactionsQuery.refetch(),
       budgetsQuery.refetch(),
       financialSummaryQuery.refetch(),
+      recurringQuery.refetch(),
     ]),
   );
 
   // ── Month metadata (trivial — computed directly, no memo) ─────────────
   const now = new Date();
   const isCurrentMonth =
-    calendar.month === now.getUTCMonth() && calendar.year === now.getUTCFullYear();
+    calendar.month === now.getUTCMonth() &&
+    calendar.year === now.getUTCFullYear();
   const monthLabel = `${new Date(calendar.year, calendar.month, 1).toLocaleString(undefined, { month: "long" })} ${calendar.year}`;
 
   // ── Calendar navigation ───────────────────────────────────────────────
@@ -154,6 +153,17 @@ export const useHomeScreen = () => {
 
   return {
     reporting: financialSummaryQuery,
+    transactionsLoading:
+      transactionsQuery.isFetching && !transactionsQuery.currentData,
+    transactionsError: Boolean(transactionsQuery.error),
+    retryTransactions: () => {
+      void transactionsQuery.refetch();
+    },
+    billsLoading: recurringQuery.isFetching && !recurringQuery.currentData,
+    billsError: Boolean(recurringQuery.error),
+    retryBills: () => {
+      void recurringQuery.refetch();
+    },
     transactions,
     displayTransactions,
     displayBudgets,

@@ -47,10 +47,32 @@ jest.mock("@/api/transaction", () => ({
 
 jest.mock("@/api/financialSummary", () => {
   const fetchSummary = jest.fn();
-  return { __esModule: true, default: { fetchSummary, fetchReport: jest.fn(async (args) => {
-    const result = await fetchSummary(args);
-    return { success: true, data: { year: args.currentYear, month: args.currentMonth, currency: "USD", generatedAt: new Date().toISOString(), incomeBasis: "ACTUAL", expectedIncomeConfigured: true, transactionCount: 1, summary: result.data, daily: [], categories: [], budgets: [], previousPeriod: {} } };
-  }) } };
+  return {
+    __esModule: true,
+    default: {
+      fetchSummary,
+      fetchReport: jest.fn(async (args) => {
+        const result = await fetchSummary(args);
+        return {
+          success: true,
+          data: {
+            year: args.currentYear,
+            month: args.currentMonth,
+            currency: "USD",
+            generatedAt: new Date().toISOString(),
+            incomeBasis: "ACTUAL",
+            expectedIncomeConfigured: true,
+            transactionCount: 1,
+            summary: result.data,
+            daily: [],
+            categories: [],
+            budgets: [],
+            previousPeriod: {},
+          },
+        };
+      }),
+    },
+  };
 });
 
 jest.mock("@/api/budget", () => ({
@@ -217,15 +239,65 @@ beforeEach(async () => {
 });
 
 describe("Index", () => {
+  it("keeps the dashboard usable when bills fail and retries them independently", async () => {
+    mockedRecurringFetch.mockRejectedValue(new Error("offline"));
+    await setup();
+    expect(renderedText("Monthly overview")).toBe(true);
+    expect(renderedText("Upcoming bills could not be refreshed.")).toBe(true);
+    mockedRecurringFetch.mockResolvedValue({
+      success: true,
+      data: { recurringPayments: [] },
+    });
+    await renderer.act(async () => {
+      lastProps(
+        touchableOpacityMock,
+        (p) =>
+          p.accessibilityLabel ===
+          "Retry: Upcoming bills could not be refreshed.",
+      )!.onPress();
+      await flush();
+    });
+    expect(mockedRecurringFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens Budgets and Transactions through dashboard actions", async () => {
+    const { router } = require("expo-router");
+    await setup();
+    for (const [label, route] of [
+      ["View budgets", "/(tabs)/budget"],
+      ["See all transactions", "/(tabs)/transaction"],
+    ]) {
+      renderer.act(() => {
+        lastProps(
+          touchableOpacityMock,
+          (p) => p.accessibilityLabel === label,
+        )!.onPress();
+      });
+      expect(router.push).toHaveBeenCalledWith(route);
+    }
+  });
+
   it("renders the homepage sections", async () => {
     await setup({ withBudgets: true });
 
-    expect(renderedText("Your pulse")).toBe(true);
-    expect(renderedText("Recent flow")).toBe(true);
+    expect(renderedText("Monthly overview")).toBe(true);
+    expect(renderedText("Recent transactions")).toBe(true);
+    expect(renderedText("Monthly budgets")).toBe(true);
+    expect(renderedText("Upcoming Bills")).toBe(true);
     expect(renderedText("Quick actions")).toBe(false);
     expect(renderedText("Quick Actions")).toBe(false);
-    expect(lastProps(touchableOpacityMock, props => props.accessibilityLabel === "New Transaction")).toBeUndefined();
-    expect(lastProps(touchableOpacityMock, props => props.accessibilityLabel === "New Budget")).toBeUndefined();
+    expect(
+      lastProps(
+        touchableOpacityMock,
+        (props) => props.accessibilityLabel === "New Transaction",
+      ),
+    ).toBeUndefined();
+    expect(
+      lastProps(
+        touchableOpacityMock,
+        (props) => props.accessibilityLabel === "New Budget",
+      ),
+    ).toBeUndefined();
   });
 
   it("wires the month selector to the calendar", async () => {
@@ -256,6 +328,7 @@ describe("Index", () => {
     });
 
     expect(mockedTxFetch).toHaveBeenCalledTimes(1);
+    expect(mockedRecurringFetch).toHaveBeenCalledTimes(2);
   });
 
   it("opens the info modal from the header", async () => {

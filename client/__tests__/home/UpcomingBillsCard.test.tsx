@@ -26,7 +26,9 @@ const store = configureStore({ reducer: { theme: themeReducer } });
 const inDays = (days: number) =>
   new Date(Date.now() + days * 86_400_000).toISOString();
 
-const makeBill = (overrides: Partial<IRecurringPayment> = {}): IRecurringPayment => ({
+const makeBill = (
+  overrides: Partial<IRecurringPayment> = {},
+): IRecurringPayment => ({
   seriesKey: "NETFLIX",
   name: "Netflix",
   expectedAmount: 15.49,
@@ -46,10 +48,7 @@ const makeBill = (overrides: Partial<IRecurringPayment> = {}): IRecurringPayment
   ...overrides,
 });
 
-function renderCard(
-  bills: IRecurringPayment[],
-  onDismiss = jest.fn(),
-) {
+function renderCard(bills: IRecurringPayment[], onDismiss = jest.fn()) {
   renderer.act(() => {
     renderer.create(
       <Provider store={store}>
@@ -79,10 +78,10 @@ beforeEach(() => {
 });
 
 describe("UpcomingBillsCard", () => {
-  it("renders nothing when there are no bills", () => {
+  it("explains when no upcoming bills are detected", () => {
     renderCard([]);
 
-    expect(renderedText("Upcoming Bills")).toBe(false);
+    expect(renderedText("No upcoming bills detected")).toBe(true);
   });
 
   it("shows predicted bills with estimate wording", () => {
@@ -116,6 +115,6 @@ describe("UpcomingBillsCard", () => {
     ]);
 
     expect(renderedText("~$17.99")).toBe(true);
-    expect(renderedText("was 15.49")).toBe(true);
+    expect(renderedText("was $15.49")).toBe(true);
   });
 });

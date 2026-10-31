@@ -1,22 +1,18 @@
 import React from "react";
 import { View, Text } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
-import { formatCurrency, hexToRgba } from "@/utils/helper";
+import { Feather } from "@expo/vector-icons";
+import { formatCurrency } from "@/utils/helper";
 import { useTheme } from "@/hooks/useRedux";
+import { BRAND } from "@/constants/ThemePalettes";
 import DashboardCard from "./DashboardCard";
+import type { IFinancialReport } from "@/types/financialSummary/types";
 
 export interface FinancialMetricsProps {
   monthlyIncome: number;
   totalSpent: number;
   currencyCode: string;
-  report?: import("@/types/financialSummary/types").IFinancialReport;
+  report?: IFinancialReport;
 }
-
-/**
- * Three compact metric cards below the main overview:
- * Income | Spent | Net
- * Visually quiet, subtle surfaces, restrained semantic colors.
- */
 export default function FinancialMetrics({
   monthlyIncome,
   totalSpent,
@@ -24,212 +20,109 @@ export default function FinancialMetrics({
   report,
 }: FinancialMetricsProps) {
   const { THEME } = useTheme();
-
   const income = Math.max(0, monthlyIncome || 0);
-  const spent = totalSpent;
-  const net = income - spent;
-
-  const formattedIncome = formatCurrency(income, currencyCode);
-  const formattedSpent = formatCurrency(spent, currencyCode);
-  const formattedNet = formatCurrency(net, currencyCode);
-
+  const net = report?.summary.netRemaining ?? income - totalSpent;
+  const comparison = (
+    value: number | null | undefined,
+    empty: string,
+    label: string,
+  ) =>
+    value == null
+      ? empty
+      : `${value > 0 ? "+" : ""}${value}% ${label} vs. last month`;
+  const rows = [
+    {
+      label: "Income",
+      amount: income,
+      icon: "arrow-down-left" as const,
+      color: THEME.success,
+      detail: comparison(
+        report?.previousPeriod.incomeChangePercentage,
+        "No prior income basis",
+        "recorded income",
+      ),
+    },
+    {
+      label: "Net spending",
+      amount: totalSpent,
+      icon: "arrow-up-right" as const,
+      color: THEME.textPrimary,
+      detail: comparison(
+        report?.previousPeriod.spendingChangePercentage,
+        "No prior spending basis",
+        "net spending",
+      ),
+    },
+    {
+      label: "Net",
+      amount: net,
+      icon: "minus" as const,
+      color: net < 0 ? THEME.danger : THEME.primary,
+      detail:
+        report?.incomeBasis === "EXPECTED"
+          ? "Using expected income"
+          : "Income less net spending",
+    },
+  ];
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        gap: 10,
-        marginBottom: 14,
-      }}
+    <DashboardCard
+      paddingHorizontal={BRAND.spacing.md}
+      style={{ marginBottom: BRAND.spacing.lg }}
     >
-      {/* 1. Income Card */}
-      <DashboardCard radius={18} padding={12} style={{ flex: 1, minWidth: 0 }}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+      {rows.map((row, i) => (
+        <View
+          key={row.label}
+          style={{
+            paddingVertical: BRAND.spacing.md,
+            borderTopWidth: i ? 1 : 0,
+            borderTopColor: THEME.border,
+          }}
+        >
           <View
             style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              backgroundColor: hexToRgba(THEME.success, 0.15),
+              flexDirection: "row",
+              flexWrap: "wrap",
               alignItems: "center",
-              justifyContent: "center",
-              marginRight: 6,
+              justifyContent: "space-between",
+              gap: BRAND.spacing.sm,
             }}
           >
-            <Feather name="arrow-up" size={13} color={THEME.success} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: BRAND.spacing.sm,
+              }}
+            >
+              <Feather name={row.icon} color={row.color} size={18} />
+              <Text style={{ color: THEME.textSecondary, fontSize: 14 }}>
+                {row.label}
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: row.color,
+                fontSize: 20,
+                fontWeight: "700",
+                fontVariant: ["tabular-nums"],
+                flexShrink: 1,
+              }}
+            >
+              {formatCurrency(row.amount, currencyCode)}
+            </Text>
           </View>
           <Text
             style={{
               color: THEME.textSecondary,
               fontSize: 12,
-              fontWeight: "500",
+              lineHeight: 18,
+              marginTop: BRAND.spacing.xs,
             }}
-            numberOfLines={1}
           >
-            Income
+            {row.detail}
           </Text>
         </View>
-
-        <Text
-          style={{
-            color: THEME.textPrimary,
-            fontSize: 15,
-            fontWeight: "700",
-            marginVertical: 6,
-            letterSpacing: -0.3,
-          }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {formattedIncome}
-        </Text>
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            flexWrap: "nowrap",
-          }}
-        >
-          <Text
-            style={{
-              color: THEME.success,
-              fontSize: 10.5,
-              fontWeight: "600",
-            }}
-          >
-            {report?.previousPeriod.incomeChangePercentage == null ? "No prior income basis" : `${report.previousPeriod.incomeChangePercentage > 0 ? "+" : ""}${report.previousPeriod.incomeChangePercentage}% recorded income vs. last month`}
-          </Text>
-
-        </View>
-      </DashboardCard>
-
-      {/* 2. Spent Card */}
-      <DashboardCard radius={18} padding={12} style={{ flex: 1, minWidth: 0 }}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <View
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              backgroundColor: hexToRgba(THEME.danger, 0.15),
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: 6,
-            }}
-          >
-            <Feather name="arrow-down" size={13} color={THEME.danger} />
-          </View>
-          <Text
-            style={{
-              color: THEME.textSecondary,
-              fontSize: 12,
-              fontWeight: "500",
-            }}
-            numberOfLines={1}
-          >
-            Spent
-          </Text>
-        </View>
-
-        <Text
-          style={{
-            color: THEME.textPrimary,
-            fontSize: 15,
-            fontWeight: "700",
-            marginVertical: 6,
-            letterSpacing: -0.3,
-          }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {formattedSpent}
-        </Text>
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            flexWrap: "nowrap",
-          }}
-        >
-          <Text
-            style={{
-              color: THEME.danger,
-              fontSize: 10.5,
-              fontWeight: "600",
-            }}
-          >
-            {report?.previousPeriod.spendingChangePercentage == null ? "No prior spending basis" : `${report.previousPeriod.spendingChangePercentage > 0 ? "+" : ""}${report.previousPeriod.spendingChangePercentage}% net spending vs. last month`}
-          </Text>
-
-        </View>
-      </DashboardCard>
-
-      {/* 3. Net Card */}
-      <DashboardCard radius={18} padding={12} style={{ flex: 1, minWidth: 0 }}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <View
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              backgroundColor: THEME.surfaceHover,
-              alignItems: "center",
-              justifyContent: "center",
-              marginRight: 6,
-            }}
-          >
-            <Ionicons
-              name="wallet-outline"
-              size={13}
-              color={THEME.textSecondary}
-            />
-          </View>
-          <Text
-            style={{
-              color: THEME.textSecondary,
-              fontSize: 12,
-              fontWeight: "500",
-            }}
-            numberOfLines={1}
-          >
-            Net
-          </Text>
-        </View>
-
-        <Text
-          style={{
-            color: THEME.textPrimary,
-            fontSize: 15,
-            fontWeight: "700",
-            marginVertical: 6,
-            letterSpacing: -0.3,
-          }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {formattedNet}
-        </Text>
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            flexWrap: "nowrap",
-          }}
-        >
-          <Text
-            style={{
-              color: net >= 0 ? THEME.success : THEME.danger,
-              fontSize: 10.5,
-              fontWeight: "600",
-            }}
-          >
-            {report?.incomeBasis === "EXPECTED" ? "Using expected income" : "Income less net spending"}
-          </Text>
-
-        </View>
-      </DashboardCard>
-    </View>
+      ))}
+    </DashboardCard>
   );
 }
