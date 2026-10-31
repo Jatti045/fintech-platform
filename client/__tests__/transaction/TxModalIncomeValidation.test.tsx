@@ -9,6 +9,7 @@
 /// <reference types="jest" />
 
 import React from "react";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
@@ -32,12 +33,22 @@ const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
 
 jest.mock("@/api/transaction", () => ({
   __esModule: true,
-  default: { fetchAll: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  default: {
+    fetchAll: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 
 jest.mock("@/api/budget", () => ({
   __esModule: true,
-  default: { fetchAll: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  default: {
+    fetchAll: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 
 jest.mock("@/api/financialSummary", () => ({
@@ -50,7 +61,12 @@ const mockedTxUpdate = transactionApi.update as jest.Mock;
 const mockedBudgetFetch = budgetApi.fetchAll as jest.Mock;
 
 const mockBudgets = [
-  { id: "b-groceries", category: "Groceries", allocatedAmount: 500, spentAmount: 100 },
+  {
+    id: "b-groceries",
+    category: "Groceries",
+    allocatedAmount: 500,
+    spentAmount: 100,
+  },
 ];
 
 function makeStore() {
@@ -92,7 +108,9 @@ function lastProps(
 function renderedText(matches: string) {
   return textMock.mock.calls.some((call) => {
     const children = call[0]?.children;
-    const text = Array.isArray(children) ? children.join("") : String(children ?? "");
+    const text = Array.isArray(children)
+      ? children.join("")
+      : String(children ?? "");
     return text.includes(matches);
   });
 }
@@ -114,9 +132,15 @@ async function until(pred: () => boolean, tries = 300) {
 const nameInput = () =>
   lastProps(textInputMock, (p) => p.accessibilityLabel === "Transaction name");
 const amountInput = () =>
-  lastProps(textInputMock, (p) => p.accessibilityLabel === "Transaction amount");
+  lastProps(
+    textInputMock,
+    (p) => p.accessibilityLabel === "Transaction amount",
+  );
 const incomeToggle = () =>
-  lastProps(touchableOpacityMock, (p) => p.accessibilityLabel === "Income transaction");
+  lastProps(
+    touchableOpacityMock,
+    (p) => p.accessibilityLabel === "Income transaction",
+  );
 const submitButton = () => lastTouchableContaining("Save Transaction");
 
 beforeEach(async () => {
@@ -131,7 +155,12 @@ beforeEach(async () => {
   mockedBudgetFetch.mockResolvedValue({ success: true, data: mockBudgets });
   (financialSummaryApi.fetchSummary as jest.Mock).mockResolvedValue({
     success: true,
-    data: { totalAmount: 0, monthlyIncome: 3000, actualIncome: 3000, expectedIncome: 3000 },
+    data: {
+      totalAmount: 0,
+      monthlyIncome: 3000,
+      actualIncome: 3000,
+      expectedIncome: 3000,
+    },
   });
 });
 
@@ -145,12 +174,16 @@ function renderModal(props: Record<string, unknown> = {}) {
     tree = renderer.create(
       <Provider store={store}>
         <AlertProvider>
-          <TransactionModal openSheet={true} setOpenSheet={setOpenSheet} {...(props as any)} />
+          <TransactionModal
+            openSheet={true}
+            setOpenSheet={setOpenSheet}
+            {...(props as any)}
+          />
         </AlertProvider>
       </Provider>,
     );
   });
-  return { setOpenSheet };
+  return { setOpenSheet, tree, store };
 }
 
 function lastTouchableContaining(text: string) {
@@ -163,6 +196,87 @@ function lastTouchableContaining(text: string) {
 }
 
 describe("TxModal - income transaction creation", () => {
+  it("reopens a new transaction with a date inside the selected reporting month", async () => {
+    const { tree, store, setOpenSheet } = renderModal();
+    const render = (open: boolean) => (
+      <Provider store={store}>
+        <AlertProvider>
+          <TransactionModal openSheet={open} setOpenSheet={setOpenSheet} />
+        </AlertProvider>
+      </Provider>
+    );
+    await renderer.act(async () => {
+      tree.update(render(false));
+      await flush();
+    });
+    await renderer.act(async () => {
+      tree.update(render(true));
+      await flush();
+    });
+    renderer.act(() => {
+      lastProps(
+        touchableOpacityMock,
+        (p) => p.accessibilityLabel === "Open date picker",
+      )!.onPress();
+    });
+    const picker = tree.root.findByType(DateTimePicker);
+    expect(picker.props.value.getUTCMonth()).toBe(1);
+    expect(picker.props.value.getUTCFullYear()).toBe(2026);
+    expect(picker.props.value >= picker.props.minimumDate).toBe(true);
+    expect(picker.props.value <= picker.props.maximumDate).toBe(true);
+    renderer.act(() => {
+      tree.unmount();
+    });
+  });
+
+  it("disables repeat saves and cancel while a save is pending", async () => {
+    let resolve!: (value: unknown) => void;
+    mockedTxCreate.mockReturnValue(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    const { setOpenSheet, tree } = renderModal();
+    await until(() => submitButton() != null);
+    renderer.act(() => {
+      nameInput()!.onChangeText("Paycheck");
+      amountInput()!.onChangeText("3200");
+      incomeToggle()!.onPress();
+    });
+    await renderer.act(async () => {
+      await submitButton()!.onPress();
+      await flush();
+    });
+    await until(() => submitButton()!.disabled === true);
+    expect(submitButton()!.accessibilityState.busy).toBe(true);
+    expect(lastTouchableContaining("Cancel")!.disabled).toBe(true);
+    await renderer.act(async () => {
+      await submitButton()!.onPress();
+    });
+    expect(mockedTxCreate).toHaveBeenCalledTimes(1);
+    await renderer.act(async () => {
+      resolve({ success: true, data: {} });
+      await flush();
+    });
+    await until(() => submitButton()!.accessibilityState.busy === false);
+    expect(setOpenSheet).toHaveBeenCalledWith(false);
+    renderer.act(() => {
+      tree.unmount();
+    });
+  });
+  it("cancels without creating a transaction", async () => {
+    const { setOpenSheet, tree } = renderModal();
+    await until(() => submitButton() != null);
+    renderer.act(() => {
+      lastTouchableContaining("Cancel")!.onPress();
+    });
+    expect(setOpenSheet).toHaveBeenCalledWith(false);
+    expect(mockedTxCreate).not.toHaveBeenCalled();
+    renderer.act(() => {
+      tree.unmount();
+    });
+  });
+
   it("saves a valid income with only name + amount (no category/budget)", async () => {
     mockedTxCreate.mockResolvedValue({
       success: true,
@@ -232,8 +346,18 @@ describe("TxModal - income transaction creation", () => {
   });
 
   it.each([
-    ["name", () => { amountInput()!.onChangeText("100"); }],
-    ["amount", () => { nameInput()!.onChangeText("Salary"); }],
+    [
+      "name",
+      () => {
+        amountInput()!.onChangeText("100");
+      },
+    ],
+    [
+      "amount",
+      () => {
+        nameInput()!.onChangeText("Salary");
+      },
+    ],
   ])("income missing %s is rejected", async (_field, fill) => {
     const { setOpenSheet } = renderModal();
     await until(() => submitButton() != null);

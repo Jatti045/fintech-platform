@@ -51,6 +51,7 @@ export const SectionList = jest.fn(
   (props: Record<string, any>): React.ReactElement => {
     const sections = props.sections ?? [];
     const children: React.ReactNode[] = [];
+    if (props.ListHeaderComponent) children.push(props.ListHeaderComponent);
     for (const section of sections) {
       const header = props.renderSectionHeader?.({ section });
       if (header) children.push(header);
@@ -65,7 +66,10 @@ export const SectionList = jest.fn(
         if (item) children.push(item);
       }
     }
-    if (children.length === 0 && props.ListEmptyComponent) {
+    if (
+      !sections.some((section: any) => section.data?.length > 0) &&
+      props.ListEmptyComponent
+    ) {
       children.push(props.ListEmptyComponent);
     }
     if (props.ListFooterComponent) {
@@ -117,7 +121,7 @@ export const Animated = {
     start: (cb?: (result: { finished: boolean }) => void) =>
       cb?.({ finished: true }),
   }),
-  createAnimatedComponent: <T,>(Component: T) => Component,
+  createAnimatedComponent: <T>(Component: T) => Component,
 };
 
 const WINDOW = { width: 400, height: 800, scale: 2, fontScale: 1 };

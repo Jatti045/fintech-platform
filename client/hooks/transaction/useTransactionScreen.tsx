@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
 import {
-  useAppSelector,
   useAuth,
   useCalendar,
-  useFinancialSummary,
   useTheme,
+  useFinancialSummary,
   useTransactionMutationStatus,
 } from "@/hooks/useRedux";
 import { useGetBudgetsQuery } from "@/store/api/apiSlice";
@@ -16,6 +14,7 @@ import { useTransactionSearch } from "./useTransactionSearch";
 import { useTransactionOperations } from "./useTransactionOperation";
 import SectionHeader from "@/components/transaction/SectionHeader";
 import TransactionRow from "@/components/transaction/TxRow";
+import TransactionFeedback from "@/components/transaction/TransactionFeedback";
 import ListFooter from "@/components/transaction/TxFooter";
 import type {
   GroupedSection,
@@ -32,8 +31,8 @@ export const useTransactionScreen = () => {
   // ── Redux selectors ─────────────────────────────────────────────────────
   const { user } = useAuth();
   const activeCurrency = user?.currency || "USD";
-  const { THEME } = useTheme();
   const calendar = useCalendar();
+  const { THEME } = useTheme();
   const financialSummary = useFinancialSummary();
 
   const budgetsQuery = useGetBudgetsQuery({
@@ -72,6 +71,7 @@ export const useTransactionScreen = () => {
     isLoading,
     isLoadingMore,
     hasNextPage,
+    error: feedError,
   } = useTransactionSearch({
     currentMonth: calendar.month,
     currentYear: calendar.year,
@@ -229,14 +229,23 @@ export const useTransactionScreen = () => {
     [],
   );
 
-  const listFooter = (
-    <ListFooter
-      hasNextPage={hasNextPage}
-      isLoadingMore={isSearching ? false : isLoadingMore}
-      hasTransactions={transactions.length > 0}
-      onLoadMore={handleLoadMore}
-    />
-  );
+  const listFooter =
+    feedError && transactions.length > 0 ? (
+      <TransactionFeedback
+        theme={THEME}
+        error
+        onRetry={() => {
+          void refreshTransactions();
+        }}
+      />
+    ) : (
+      <ListFooter
+        hasNextPage={hasNextPage}
+        isLoadingMore={isLoadingMore}
+        hasTransactions={transactions.length > 0}
+        onLoadMore={handleLoadMore}
+      />
+    );
 
   /** True only for the genuine first load (no data yet, not searching). */
   const isInitialLoading =
@@ -246,15 +255,22 @@ export const useTransactionScreen = () => {
     !suppressInitialSkeleton;
 
   const listEmpty = (
-    <View className="py-12 items-center">
-      {isInitialLoading ? (
-        <ActivityIndicator size="large" color={THEME.primary} />
-      ) : (
-        <Text style={{ color: THEME.textSecondary }}>
-          No transactions match filters.
-        </Text>
-      )}
-    </View>
+    <TransactionFeedback
+      theme={THEME}
+      error={Boolean(feedError)}
+      loading={!feedError && isInitialLoading}
+      updating={!feedError && isLoading && !isInitialLoading}
+      filtered={
+        isSearching || filterCategoryId !== "all" || !!minAmount || !!maxAmount
+      }
+      onRetry={() => {
+        void refreshTransactions();
+      }}
+      onClear={() => {
+        clearFilters();
+        handleSearchQueryChange("");
+      }}
+    />
   );
 
   return {

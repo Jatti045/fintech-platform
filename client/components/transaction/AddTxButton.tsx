@@ -2,56 +2,41 @@ import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
+import { BRAND } from "@/constants/ThemePalettes";
 
 export default function AddNewTransactionButton({
   setOpenSheet,
 }: {
   setOpenSheet: (val: boolean) => void;
 }) {
-  const { THEME, selectedTheme } = useTheme();
-  const ctaColor = selectedTheme === "Light" ? "#FFFFFF" : "#111113";
-
+  const { THEME } = useTheme();
   return (
     <View
       style={{
         position: "absolute",
-        bottom: 20,
-        right: 16,
+        bottom: BRAND.spacing.lg,
+        right: BRAND.spacing.md,
         zIndex: 50,
       }}
     >
       <TouchableOpacity
-        onPress={() => setOpenSheet(true)}
-        activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel="New Transaction"
+        onPress={() => setOpenSheet(true)}
+        activeOpacity={0.85}
         style={{
           flexDirection: "row",
           alignItems: "center",
+          gap: BRAND.spacing.sm,
           backgroundColor: THEME.primary,
-          paddingVertical: 12,
-          paddingHorizontal: 18,
-          borderRadius: 24,
-          shadowColor: "#000000",
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.25,
-          shadowRadius: 10,
-          elevation: 6,
+          padding: BRAND.spacing.md,
+          minHeight: 52,
+          borderRadius: BRAND.radius.button,
         }}
       >
-        <Feather
-          name="plus"
-          size={18}
-          color={ctaColor}
-          style={{ marginRight: 6 }}
-        />
+        <Feather name="plus" size={20} color={THEME.onPrimary} />
         <Text
-          style={{
-            color: ctaColor,
-            fontSize: 14.5,
-            fontWeight: "700",
-            letterSpacing: -0.2,
-          }}
+          style={{ color: THEME.onPrimary, fontSize: 15, fontWeight: "700" }}
         >
           New Transaction
         </Text>

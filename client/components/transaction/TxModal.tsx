@@ -1,9 +1,16 @@
 import RulesManager from "@/components/rules/RulesManager";
 import { api } from "@/store/api/apiSlice";
-import { useAppDispatch, useBudgets, useTheme, useFinancialSummary } from "@/hooks/useRedux";
+import {
+  useAppDispatch,
+  useBudgets,
+  useTheme,
+  useFinancialSummary,
+  useTransactionMutationStatus,
+} from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { BRAND } from "@/constants/ThemePalettes";
+import BrandInput from "@/components/brand/BrandInput";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,7 +19,6 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -20,7 +26,6 @@ import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useState, useEffect, useRef } from "react";
-import ModalCloseButton from "../global/modalCloseButton";
 import { capitalizeFirst } from "@/utils/helper";
 import { useTransactionOperations } from "@/hooks/transaction/useTransactionOperation";
 import {
@@ -48,6 +53,8 @@ function TransactionModal({
   const budgets = useBudgets();
   const financialSummary = useFinancialSummary();
   const { THEME } = useTheme();
+  const { isAdding, isEditing } = useTransactionMutationStatus();
+  const saving = isAdding || isEditing;
   const { showAlert } = useThemedAlert();
   const [showPicker, setShowPicker] = useState(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
@@ -76,6 +83,22 @@ function TransactionModal({
     handleCreateTransaction,
     handleUpdateTransaction,
   } = useTransactionOperations();
+
+  // Reopening a new form after month navigation must respect the same bounds
+  // already enforced by its date picker. Existing transaction dates are preserved.
+  const earliestDate = monthStartDate.getTime();
+  const latestDate = monthEndDate.getTime();
+  useEffect(() => {
+    if (openSheet && !editingTransaction) {
+      setTxDate((current) =>
+        current.getTime() < earliestDate
+          ? new Date(earliestDate)
+          : current.getTime() > latestDate
+            ? new Date(latestDate)
+            : current,
+      );
+    }
+  }, [openSheet, editingTransaction, earliestDate, latestDate, setTxDate]);
 
   // Track openSheet transitions so we can clear form on close
   const prevOpenRef = useRef(openSheet);
@@ -112,7 +135,11 @@ function TransactionModal({
           userCurrency;
 
         setTxName(editingTransaction.name || "");
-        setTxAmount(existingOriginalAmount == null ? "" : String(Math.abs(existingOriginalAmount)));
+        setTxAmount(
+          existingOriginalAmount == null
+            ? ""
+            : String(Math.abs(existingOriginalAmount)),
+        );
         setTxCurrency(existingOriginalCurrency);
         setTxDate(
           editingTransaction.date
@@ -201,12 +228,19 @@ function TransactionModal({
   const modalHeight = getModalHeight();
 
   return (
-    <Modal visible={openSheet} animationType="slide" transparent={true}>
+    <Modal
+      visible={openSheet}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => {
+        if (!saving) setOpenSheet(false);
+      }}
+    >
       <View
         style={{
           flex: 1,
           justifyContent: "flex-end",
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          backgroundColor: BRAND.overlay,
         }}
       >
         <SafeAreaView
@@ -223,8 +257,23 @@ function TransactionModal({
           }}
         >
           {/* Close button */}
-          <View className="relative">
-            <ModalCloseButton setOpenSheet={setOpenSheet} />
+          <View style={{ alignItems: "flex-end" }}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              disabled={saving}
+              onPress={() => setOpenSheet(false)}
+              style={{
+                width: BRAND.touchTarget,
+                height: BRAND.touchTarget,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: BRAND.radius.input,
+                backgroundColor: THEME.surface,
+              }}
+            >
+              <Ionicons name="close" size={22} color={THEME.textPrimary} />
+            </TouchableOpacity>
           </View>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -232,10 +281,13 @@ function TransactionModal({
           >
             <ScrollView
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               contentContainerStyle={{ paddingBottom: 40 }}
             >
               <Text
-                className="text-center text-xl font-bold py-8"
+                className="text-left text-2xl font-bold pb-6"
+                accessibilityRole="header"
                 style={{ color: THEME.textPrimary }}
               >
                 {editingTransaction
@@ -248,7 +300,7 @@ function TransactionModal({
                 style={{
                   flexDirection: "row",
                   backgroundColor: THEME.inputBackground,
-                  borderRadius: 12,
+                  borderRadius: BRAND.radius.input,
                   padding: 4,
                   marginBottom: 6,
                 }}
@@ -258,10 +310,7 @@ function TransactionModal({
                   { key: TransactionType.INCOME, label: "Income" },
                 ].map((opt) => {
                   const active = type === opt.key;
-                  const activeColor =
-                    opt.key === TransactionType.INCOME
-                      ? THEME.success
-                      : THEME.primary;
+                  const activeColor = THEME.primary;
                   return (
                     <TouchableOpacity
                       key={opt.key}
@@ -269,8 +318,15 @@ function TransactionModal({
                       activeOpacity={0.8}
                       accessibilityRole="button"
                       accessibilityLabel={`${opt.label} transaction`}
+                      accessibilityState={{
+                        selected: active,
+                        disabled: saving,
+                      }}
+                      disabled={saving}
                       style={{
                         flex: 1,
+                        minHeight: BRAND.touchTarget,
+                        justifyContent: "center",
                         paddingVertical: 10,
                         borderRadius: 9,
                         alignItems: "center",
@@ -279,7 +335,7 @@ function TransactionModal({
                     >
                       <Text
                         style={{
-                          color: active ? "#FFFFFF" : THEME.textSecondary,
+                          color: active ? THEME.onPrimary : THEME.textSecondary,
                           fontWeight: "800",
                           fontSize: 14,
                         }}
@@ -294,24 +350,14 @@ function TransactionModal({
               <View className="flex-1 gap-6">
                 {/* Name Input (simplified + example) */}
                 <View>
-                  <Text style={{ color: THEME.textPrimary }} className="mb-2">
-                    Name
-                  </Text>
-                  <TextInput
+                  <BrandInput
+                    label="Name"
                     placeholder="e.g., Coffee at Joe's, Grocery shopping"
                     value={txName}
                     onChangeText={setTxName}
-                    placeholderTextColor={THEME.placeholderText}
                     accessibilityLabel="Transaction name"
-                    className="py-3"
-                    style={{
-                      backgroundColor: THEME.inputBackground,
-                      borderColor: THEME.border,
-                      color: THEME.textPrimary,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      padding: 12,
-                    }}
+                    editable={!saving}
+                    autoCapitalize="sentences"
                   />
                   <Text
                     style={{ color: THEME.textSecondary, marginTop: 6 }}
@@ -322,25 +368,14 @@ function TransactionModal({
                 </View>
                 {/* Amount Input (simplified + example) */}
                 <View>
-                  <Text style={{ color: THEME.textPrimary }} className="mb-2">
-                    Amount
-                  </Text>
-                  <TextInput
+                  <BrandInput
+                    label="Amount"
                     placeholder="e.g., 4.50 or 120.00"
                     value={txAmount}
                     onChangeText={setTxAmount}
-                    keyboardType="numeric"
-                    placeholderTextColor={THEME.placeholderText}
                     accessibilityLabel="Transaction amount"
-                    className="py-3"
-                    style={{
-                      backgroundColor: THEME.inputBackground,
-                      borderColor: THEME.border,
-                      color: THEME.textPrimary,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      padding: 12,
-                    }}
+                    editable={!saving}
+                    keyboardType="decimal-pad"
                   />
                   <Text
                     style={{ color: THEME.textSecondary, marginTop: 6 }}
@@ -357,7 +392,7 @@ function TransactionModal({
                         backgroundColor: THEME.surface,
                         borderColor: THEME.border,
                         borderWidth: 1,
-                        borderRadius: 10,
+                        borderRadius: BRAND.radius.input,
                         padding: 10,
                       }}
                     >
@@ -411,11 +446,14 @@ function TransactionModal({
                   </Text>
                   <TouchableOpacity
                     activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Transaction currency"
+                    disabled={saving}
                     onPress={() => setShowCurrencyPicker(true)}
                     style={{
                       backgroundColor: THEME.inputBackground,
                       borderColor: THEME.border,
-                      borderRadius: 8,
+                      borderRadius: BRAND.radius.input,
                       borderWidth: 1,
                       padding: 12,
                       flexDirection: "row",
@@ -428,6 +466,8 @@ function TransactionModal({
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 8,
+                        flex: 1,
+                        flexWrap: "wrap",
                       }}
                     >
                       <Text style={{ fontSize: 18 }}>
@@ -455,7 +495,7 @@ function TransactionModal({
                       style={{
                         marginTop: 8,
                         backgroundColor: THEME.surface,
-                        borderRadius: 8,
+                        borderRadius: BRAND.radius.input,
                         padding: 10,
                         flexDirection: "row",
                         alignItems: "center",
@@ -480,7 +520,7 @@ function TransactionModal({
                       style={{
                         marginTop: 8,
                         backgroundColor: THEME.surface,
-                        borderRadius: 8,
+                        borderRadius: BRAND.radius.input,
                         padding: 10,
                         flexDirection: "row",
                         alignItems: "center",
@@ -520,31 +560,71 @@ function TransactionModal({
                     <Text style={{ color: THEME.textPrimary }} className="mb-4">
                       Category
                     </Text>
-                    {budgets.map((budget) => (
-                      <TouchableOpacity
-                        key={budget.id}
-                        activeOpacity={1}
+                    {budgets.length === 0 && (
+                      <Text
                         style={{
-                          backgroundColor: THEME.inputBackground,
-                          borderColor: THEME.border,
+                          color: THEME.textSecondary,
+                          fontSize: 14,
+                          lineHeight: 21,
                         }}
-                        onPress={() =>
-                          setTxSelectedCategoryAndId({
-                            id: budget.id,
-                            name: budget.category,
-                          })
-                        }
-                        className={`py-3 px-4 mb-2 flex-row items-center gap-4 rounded-lg border ${
-                          txSelectedCategoryAndId.id === budget.id
-                            ? "border-4 py-4"
-                            : "border-1"
-                        }`}
                       >
-                        <Text style={{ color: THEME.textPrimary }}>
-                          {capitalizeFirst(budget.category)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                        No categories available for this month. Set up a budget
+                        category in Budgets to add an expense.
+                      </Text>
+                    )}
+                    {budgets.map((budget) => {
+                      const selected = txSelectedCategoryAndId.id === budget.id;
+                      return (
+                        <TouchableOpacity
+                          key={budget.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Category ${budget.category}`}
+                          accessibilityState={{ selected, disabled: saving }}
+                          disabled={saving}
+                          onPress={() =>
+                            setTxSelectedCategoryAndId({
+                              id: budget.id,
+                              name: budget.category,
+                            })
+                          }
+                          style={{
+                            minHeight: BRAND.touchTarget,
+                            padding: BRAND.spacing.md,
+                            marginBottom: BRAND.spacing.sm,
+                            flexDirection: "row",
+                            gap: BRAND.spacing.sm,
+                            alignItems: "center",
+                            backgroundColor: selected
+                              ? THEME.subtleSurface
+                              : THEME.surface,
+                            borderWidth: 1,
+                            borderColor: selected
+                              ? THEME.primary
+                              : THEME.border,
+                            borderRadius: BRAND.radius.input,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: selected
+                                ? THEME.primary
+                                : THEME.textPrimary,
+                              flex: 1,
+                              fontWeight: selected ? "600" : "400",
+                            }}
+                          >
+                            {capitalizeFirst(budget.category)}
+                          </Text>
+                          {selected && (
+                            <Ionicons
+                              name="checkmark"
+                              size={20}
+                              color={THEME.primary}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
                 {/* Date Picker (compact) */}
@@ -565,7 +645,7 @@ function TransactionModal({
                       style={{
                         backgroundColor: THEME.inputBackground,
                         borderColor: THEME.border,
-                        borderRadius: 8,
+                        borderRadius: BRAND.radius.input,
                         borderWidth: 1,
                         padding: 8,
                         minWidth: 220,
@@ -575,13 +655,19 @@ function TransactionModal({
                       <View className="flex-row items-center gap-2">
                         <TouchableOpacity
                           activeOpacity={0.7}
+                          accessibilityRole="button"
                           accessibilityLabel="Previous day"
                           onPress={() => {
                             const prev = new Date(txDate);
                             prev.setUTCDate(prev.getUTCDate() - 1);
                             setTxDate(clampDate(prev));
                           }}
-                          style={{ padding: 6 }}
+                          style={{
+                            minHeight: BRAND.touchTarget,
+                            minWidth: BRAND.touchTarget,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
                         >
                           <Ionicons
                             name="chevron-back"
@@ -603,6 +689,7 @@ function TransactionModal({
                         </TouchableOpacity>
 
                         <TouchableOpacity
+                          accessibilityRole="button"
                           accessibilityLabel="Next day"
                           activeOpacity={0.7}
                           onPress={() => {
@@ -610,7 +697,12 @@ function TransactionModal({
                             next.setUTCDate(next.getUTCDate() + 1);
                             setTxDate(clampDate(next));
                           }}
-                          style={{ padding: 6 }}
+                          style={{
+                            minHeight: BRAND.touchTarget,
+                            minWidth: BRAND.touchTarget,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
                         >
                           <Ionicons
                             name="chevron-forward"
@@ -668,27 +760,90 @@ function TransactionModal({
                   </Text>
                 </View>
 
-                {editingTransaction && <View style={{ paddingVertical: 12 }}>
-                  <Text style={{ color: THEME.textSecondary }}>Classification: {({ USER: "Your choice", RULE: "Matching rule", PROVIDER: "Bank category", LEGACY_UNKNOWN: "Preserved historical category", FALLBACK: "Uncategorized" } as Record<string, string>)[editingTransaction.classification?.categorySource] || "Existing classification"}{editingTransaction.classification?.ruleTitle ? ` · ${editingTransaction.classification.ruleTitle}` : ""}</Text>
-                  <Text style={{ color: THEME.textSecondary }}>Update Transaction applies only to this transaction. Create a rule separately to automate future matches.</Text>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Create rule for future matching transactions" onPress={() => setRulesOpen(true)} style={{ paddingVertical: 12 }}>
-                    <Text style={{ color: THEME.primary }}>Create rule for future matching transactions</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Reset classification to bank data" disabled={resettingClassification} style={{ paddingVertical: 12 }} onPress={async () => {
-                    setResettingClassification(true);
-                    try {
-                      await dispatch(api.endpoints.resetTransactionClassification.initiate(editingTransaction.id)).unwrap();
-                      setOpenSheet(false);
-                    } catch (error) { showAlert({ title: "Could not reset classification", message: error instanceof Error ? error.message : "Please try again." }); }
-                    finally { setResettingClassification(false); }
-                  }}>
-                    <Text style={{ color: THEME.primary }}>{resettingClassification ? "Resetting…" : "Reset classification to bank data"}</Text>
-                  </TouchableOpacity>
-                  <Text style={{ color: THEME.textSecondary }}>Reset removes name, category and budget overrides and bypasses rules for this transaction. If bank metadata is unavailable, the category becomes Uncategorized.</Text>
-                </View>}
+                {editingTransaction && (
+                  <View style={{ paddingVertical: 12 }}>
+                    <Text style={{ color: THEME.textSecondary }}>
+                      Classification:{" "}
+                      {(
+                        {
+                          USER: "Your choice",
+                          RULE: "Matching rule",
+                          PROVIDER: "Bank category",
+                          LEGACY_UNKNOWN: "Preserved historical category",
+                          FALLBACK: "Uncategorized",
+                        } as Record<string, string>
+                      )[editingTransaction.classification?.categorySource] ||
+                        "Existing classification"}
+                      {editingTransaction.classification?.ruleTitle
+                        ? ` · ${editingTransaction.classification.ruleTitle}`
+                        : ""}
+                    </Text>
+                    <Text style={{ color: THEME.textSecondary }}>
+                      Update Transaction applies only to this transaction.
+                      Create a rule separately to automate future matches.
+                    </Text>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Create rule for future matching transactions"
+                      onPress={() => setRulesOpen(true)}
+                      style={{ paddingVertical: 12 }}
+                    >
+                      <Text style={{ color: THEME.primary }}>
+                        Create rule for future matching transactions
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Reset classification to bank data"
+                      disabled={resettingClassification}
+                      style={{ paddingVertical: 12 }}
+                      onPress={async () => {
+                        setResettingClassification(true);
+                        try {
+                          await dispatch(
+                            api.endpoints.resetTransactionClassification.initiate(
+                              editingTransaction.id,
+                            ),
+                          ).unwrap();
+                          setOpenSheet(false);
+                        } catch (error) {
+                          showAlert({
+                            title: "Could not reset classification",
+                            message:
+                              error instanceof Error
+                                ? error.message
+                                : "Please try again.",
+                          });
+                        } finally {
+                          setResettingClassification(false);
+                        }
+                      }}
+                    >
+                      <Text style={{ color: THEME.primary }}>
+                        {resettingClassification
+                          ? "Resetting…"
+                          : "Reset classification to bank data"}
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={{ color: THEME.textSecondary }}>
+                      Reset removes name, category and budget overrides and
+                      bypasses rules for this transaction. If bank metadata is
+                      unavailable, the category becomes Uncategorized.
+                    </Text>
+                  </View>
+                )}
                 <View className="mb-12">
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      editingTransaction
+                        ? "Update Transaction"
+                        : "Save Transaction"
+                    }
+                    accessibilityState={{ disabled: saving, busy: saving }}
+                    disabled={saving}
                     onPress={async () => {
+                      if (saving) return;
                       // Basic front-end validation. Income requires only
                       // name + amount (currency and date always have
                       // defaults); expenses additionally require a
@@ -718,19 +873,47 @@ function TransactionModal({
                       }
                     }}
                   >
-                    <LinearGradient
-                      colors={[THEME.primary, THEME.secondary]}
-                      style={{ borderRadius: 8 }}
+                    <View
+                      style={{
+                        minHeight: 54,
+                        backgroundColor: saving
+                          ? THEME.disabledBackground
+                          : THEME.primary,
+                        borderRadius: BRAND.radius.button,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                     >
+                      {saving && (
+                        <ActivityIndicator color={THEME.textDisabled} />
+                      )}
                       <Text
-                        style={{ color: THEME.textPrimary }}
+                        style={{
+                          color: saving ? THEME.textDisabled : THEME.onPrimary,
+                        }}
                         className="font-bold text-center py-4"
                       >
                         {editingTransaction
                           ? "Update Transaction"
                           : "Save Transaction"}
                       </Text>
-                    </LinearGradient>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel transaction"
+                    disabled={saving}
+                    onPress={() => setOpenSheet(false)}
+                    style={{
+                      minHeight: BRAND.touchTarget,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginTop: BRAND.spacing.sm,
+                    }}
+                  >
+                    <Text style={{ color: THEME.primary, fontWeight: "600" }}>
+                      Cancel
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -743,11 +926,12 @@ function TransactionModal({
               visible={showCurrencyPicker}
               animationType="slide"
               transparent={true}
+              onRequestClose={() => setShowCurrencyPicker(false)}
             >
               <View
                 style={{
                   flex: 1,
-                  backgroundColor: "rgba(0,0,0,0.5)",
+                  backgroundColor: BRAND.overlay,
                   justifyContent: "flex-end",
                 }}
               >
@@ -780,6 +964,14 @@ function TransactionModal({
                       Select Currency
                     </Text>
                     <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Close currency picker"
+                      style={{
+                        minWidth: BRAND.touchTarget,
+                        minHeight: BRAND.touchTarget,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                       onPress={() => setShowCurrencyPicker(false)}
                     >
                       <Ionicons
@@ -794,6 +986,11 @@ function TransactionModal({
                     keyExtractor={(item) => item.code}
                     renderItem={({ item }) => (
                       <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel={`Currency ${item.code}`}
+                        accessibilityState={{
+                          selected: item.code === txCurrency,
+                        }}
                         onPress={() => {
                           setTxCurrency(item.code);
                           setShowCurrencyPicker(false);
@@ -805,7 +1002,7 @@ function TransactionModal({
                           paddingHorizontal: 20,
                           backgroundColor:
                             item.code === txCurrency
-                              ? THEME.primary + "20"
+                              ? THEME.subtleSurface
                               : "transparent",
                           borderBottomWidth: 0.5,
                           borderBottomColor: THEME.border,
@@ -858,11 +1055,24 @@ function TransactionModal({
               </View>
             </Modal>
           )}
-          {rulesOpen && <RulesManager visible onClose={() => setRulesOpen(false)} seed={{
-            title: `Classify ${txName}`.slice(0, 80), matchText: editingTransaction?.classification?.providerName || editingTransaction?.name || txName,
-            category: txSelectedCategoryAndId?.name || null, budgetCategory: budgets.find(b => b.id === txSelectedCategoryAndId?.id)?.category || null,
-            direction: type,
-          }} />}
+          {rulesOpen && (
+            <RulesManager
+              visible
+              onClose={() => setRulesOpen(false)}
+              seed={{
+                title: `Classify ${txName}`.slice(0, 80),
+                matchText:
+                  editingTransaction?.classification?.providerName ||
+                  editingTransaction?.name ||
+                  txName,
+                category: txSelectedCategoryAndId?.name || null,
+                budgetCategory:
+                  budgets.find((b) => b.id === txSelectedCategoryAndId?.id)
+                    ?.category || null,
+                direction: type,
+              }}
+            />
+          )}
         </SafeAreaView>
       </View>
     </Modal>

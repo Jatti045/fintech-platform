@@ -25,6 +25,7 @@ import TransactionScreen from "@/app/(tabs)/transaction";
 import TransactionHeader from "@/components/transaction/TransactionHeader";
 import userReducer from "@/store/slices/userSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
+import plaidReducer from "@/store/slices/plaidSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import api from "@/store/api/apiSlice";
 import {
@@ -103,6 +104,7 @@ function makeStore() {
       user: userReducer,
       calendar: calendarReducer,
       theme: themeReducer,
+      plaid: plaidReducer,
       [api.reducerPath]: api.reducer,
     },
     middleware: (gDM) => gDM().concat(api.middleware),
@@ -240,7 +242,12 @@ beforeEach(async () => {
   mockedBudgetFetch.mockResolvedValue({ success: true, data: [] });
   (financialSummaryApi.fetchSummary as jest.Mock).mockResolvedValue({
     success: true,
-    data: { totalAmount: 0, monthlyIncome: 0, actualIncome: 0, expectedIncome: 0 },
+    data: {
+      totalAmount: 0,
+      monthlyIncome: 0,
+      actualIncome: 0,
+      expectedIncome: 0,
+    },
   });
   textMock.mockClear();
   textInputMock.mockClear();
@@ -249,13 +256,35 @@ beforeEach(async () => {
 });
 
 describe("TransactionScreen", () => {
+  it("keeps cached rows after refresh failure and retries the existing feed", async () => {
+    await setup({ transactions: [makeTx({ name: "Coffee" })] });
+    mockedTxFetch.mockRejectedValue(new Error("offline"));
+    await renderer.act(async () => {
+      await refreshControlProps()!.onRefresh();
+      await flush();
+    });
+    await until(() => renderedText("Could not load transactions."));
+    expect(renderedText("Coffee")).toBe(true);
+    mockedTxFetch.mockResolvedValue(
+      txEnvelope([makeTx({ name: "Restored transaction" })]),
+    );
+    await renderer.act(async () => {
+      lastProps(
+        touchableOpacityMock,
+        (props) => props.accessibilityLabel === "Retry transactions",
+      )!.onPress();
+      await flush();
+    });
+    await until(() => renderedText("Restored transaction"));
+  });
+
   it("renders the title, ledger, and transaction rows", async () => {
     await setup({
       transactions: [makeTx({ id: "a", category: "Food", amount: 10 })],
     });
 
     expect(renderedText("Transactions")).toBe(true);
-    expect(renderedText("Spent this month")).toBe(true); // FlowHeader
+    expect(renderedText("Your money, in detail")).toBe(true);
     expect(renderedText("Coffee")).toBe(true); // row name
   });
 

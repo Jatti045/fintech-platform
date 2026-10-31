@@ -8,6 +8,7 @@
 // Shared brand and geometry tokens. Semantic foreground pairs avoid assuming
 // white text is readable on every primary color (especially in dark mode).
 export const BRAND = {
+  overlay: "rgba(7, 29, 23, 0.6)",
   lime: "#A6E664",
   radius: { input: 14, button: 14, card: 24 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },

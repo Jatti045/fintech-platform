@@ -9,13 +9,15 @@ import {
   View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { capitalizeFirst, hexToRgba } from "@/utils/helper";
 import { useTheme } from "@/hooks/useRedux";
+import { BRAND } from "@/constants/ThemePalettes";
+import { capitalizeFirst } from "@/utils/helper";
+import type { IBudget } from "@/types/budget/types";
 
-interface FilterTransactionProps {
-  budgets: any[];
-  filterCategoryId: string | "all";
-  setFilterCategoryId: (id: string | "all") => void;
+interface Props {
+  budgets: IBudget[];
+  filterCategoryId: string;
+  setFilterCategoryId: (id: string) => void;
   minAmount: string;
   setMinAmount: (amount: string) => void;
   maxAmount: string;
@@ -23,7 +25,6 @@ interface FilterTransactionProps {
   clearFilters: () => void;
   onCalendarPress?: () => void;
 }
-
 export default function FilterTransaction({
   budgets,
   filterCategoryId,
@@ -33,224 +34,209 @@ export default function FilterTransaction({
   maxAmount,
   setMaxAmount,
   clearFilters,
-  onCalendarPress,
-}: FilterTransactionProps) {
+}: Props) {
   const { THEME } = useTheme();
   const [showMoreModal, setShowMoreModal] = useState(false);
-
-  const selectedBudget = budgets.find((b) => b.id === filterCategoryId);
-  const isBudgetSelected = Boolean(selectedBudget);
-
-  const chipStyle = (active: boolean) => ({
-    backgroundColor: active ? hexToRgba(THEME.primary, 0.12) : THEME.surface,
-    borderColor: active ? THEME.primary : THEME.border,
+  const [amountsOpen, setAmountsOpen] = useState(false);
+  const amountActive = !!(minAmount || maxAmount);
+  const active = filterCategoryId !== "all" || amountActive;
+  const categorySelected = ![
+    "all",
+    "income",
+    "transfer_out",
+    "transfer_in",
+  ].includes(filterCategoryId);
+  const options = [
+    { id: "all", label: "All", accessibility: "All categories" },
+    { id: "income", label: "Income", accessibility: "Filter by Income" },
+    {
+      id: "transfer_out",
+      label: "Transfer out",
+      accessibility: "Filter by Transfer out",
+    },
+    {
+      id: "transfer_in",
+      label: "Transfer in",
+      accessibility: "Filter by Transfer in",
+    },
+    ...budgets.map((b) => ({
+      id: b.id,
+      label: capitalizeFirst(b.category),
+      accessibility: `Filter by ${b.category}`,
+    })),
+  ];
+  const chip = (selected: boolean) => ({
+    minHeight: BRAND.touchTarget,
+    paddingHorizontal: BRAND.spacing.md,
+    borderRadius: BRAND.radius.input,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    marginRight: 8,
+    borderColor: selected ? THEME.primary : THEME.border,
+    backgroundColor: selected ? THEME.subtleSurface : THEME.surface,
+    justifyContent: "center" as const,
     flexDirection: "row" as const,
     alignItems: "center" as const,
-    justifyContent: "center" as const,
+    gap: BRAND.spacing.xs,
   });
-
-  const chipTextStyle = (active: boolean) => ({
-    color: active ? THEME.textPrimary : THEME.textSecondary,
-    fontSize: 13,
-    fontWeight: (active ? "600" : "500") as "600" | "500",
-  });
-
+  const renderOption = (option: (typeof options)[number]) => (
+    <TouchableOpacity
+      key={option.id}
+      accessibilityRole="button"
+      accessibilityLabel={option.accessibility}
+      accessibilityState={{ selected: filterCategoryId === option.id }}
+      onPress={() =>
+        option.id === "all" ? clearFilters() : setFilterCategoryId(option.id)
+      }
+      style={chip(filterCategoryId === option.id)}
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          color:
+            filterCategoryId === option.id
+              ? THEME.textPrimary
+              : THEME.textSecondary,
+          fontWeight: "600",
+          fontSize: 13,
+        }}
+      >
+        {option.label}
+      </Text>
+    </TouchableOpacity>
+  );
   return (
-    <View style={{ marginBottom: 12 }}>
-      {/* ── Filter chips row ──────────────────────────────────────────────── */}
+    <View style={{ marginBottom: BRAND.spacing.sm }}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingRight: 8 }}
-        style={{ marginBottom: 12 }}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          gap: BRAND.spacing.sm,
+          paddingBottom: BRAND.spacing.sm,
+        }}
       >
-        {/* 1. All */}
+        {options.slice(0, 4).map(renderOption)}
         <TouchableOpacity
-          onPress={clearFilters}
-          style={chipStyle(filterCategoryId === "all")}
-          accessibilityRole="button"
-          accessibilityLabel="All categories"
-          activeOpacity={0.7}
-        >
-          <Text style={chipTextStyle(filterCategoryId === "all")}>All</Text>
-        </TouchableOpacity>
-
-        {/* 2. Income */}
-        <TouchableOpacity
-          onPress={() => setFilterCategoryId("income")}
-          style={chipStyle(filterCategoryId === "income")}
-          accessibilityRole="button"
-          accessibilityLabel="Filter by Income"
-          activeOpacity={0.7}
-        >
-          <Text style={chipTextStyle(filterCategoryId === "income")}>
-            Income
-          </Text>
-        </TouchableOpacity>
-
-        {/* 3. Transfer out */}
-        <TouchableOpacity
-          onPress={() => setFilterCategoryId("transfer_out")}
-          style={chipStyle(filterCategoryId === "transfer_out")}
-          accessibilityRole="button"
-          accessibilityLabel="Filter by Transfer out"
-          activeOpacity={0.7}
-        >
-          <Text style={chipTextStyle(filterCategoryId === "transfer_out")}>
-            Transfer out
-          </Text>
-        </TouchableOpacity>
-
-        {/* 4. Transfer in */}
-        <TouchableOpacity
-          onPress={() => setFilterCategoryId("transfer_in")}
-          style={chipStyle(filterCategoryId === "transfer_in")}
-          accessibilityRole="button"
-          accessibilityLabel="Filter by Transfer in"
-          activeOpacity={0.7}
-        >
-          <Text style={chipTextStyle(filterCategoryId === "transfer_in")}>
-            Transfer in
-          </Text>
-        </TouchableOpacity>
-
-        {/* 5. More ⌵ (opens category picker) */}
-        <TouchableOpacity
-          onPress={() => setShowMoreModal(true)}
-          style={chipStyle(isBudgetSelected)}
           accessibilityRole="button"
           accessibilityLabel="More category filters"
-          activeOpacity={0.7}
+          accessibilityState={{
+            selected: categorySelected,
+            expanded: showMoreModal,
+          }}
+          onPress={() => setShowMoreModal(true)}
+          style={chip(categorySelected)}
         >
-          <Text style={chipTextStyle(isBudgetSelected)}>
-            {selectedBudget ? capitalizeFirst(selectedBudget.category) : "More"}
+          <Text
+            style={{
+              color: categorySelected ? THEME.textPrimary : THEME.primary,
+              fontSize: 13,
+              fontWeight: "600",
+            }}
+          >
+            Categories
           </Text>
-          <Feather
-            name="chevron-down"
-            size={13}
-            color={isBudgetSelected ? THEME.primary : THEME.textSecondary}
-            style={{ marginLeft: 4 }}
-          />
+          <Feather name="chevron-down" size={16} color={THEME.primary} />
         </TouchableOpacity>
-
-        {/* Render direct budget chips in scroll for quick access and full backward compatibility */}
-        {budgets.map((b) => {
-          const active = filterCategoryId === b.id;
-          return (
-            <TouchableOpacity
-              key={b.id}
-              onPress={() => setFilterCategoryId(b.id)}
-              style={chipStyle(active)}
-              accessibilityRole="button"
-              accessibilityLabel={`Filter by ${b.category}`}
-              activeOpacity={0.7}
-            >
-              <Text style={chipTextStyle(active)}>
-                {capitalizeFirst(b.category)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        {options.slice(4).map(renderOption)}
       </ScrollView>
-
-      {/* ── Amount range row ────────────────────────────────────────────── */}
       <View
         style={{
           flexDirection: "row",
+          flexWrap: "wrap",
           alignItems: "center",
-          justifyContent: "space-between",
+          gap: BRAND.spacing.sm,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text
-            style={{
-              color: THEME.textSecondary,
-              fontSize: 13,
-              fontWeight: "500",
-              marginRight: 10,
-            }}
-          >
-            Amount
-          </Text>
-
-          <TextInput
-            placeholder="Min"
-            keyboardType="numeric"
-            value={minAmount}
-            onChangeText={setMinAmount}
-            style={{
-              width: 80,
-              height: 36,
-              backgroundColor: THEME.inputBackground,
-              borderColor: THEME.border,
-              borderWidth: 1,
-              borderRadius: 8,
-              color: THEME.textPrimary,
-              fontSize: 13,
-              paddingHorizontal: 10,
-              paddingVertical: 0,
-            }}
-            placeholderTextColor={THEME.placeholderText}
-          />
-
-          <Text
-            style={{
-              color: THEME.placeholderText,
-              marginHorizontal: 8,
-              fontSize: 14,
-            }}
-          >
-            –
-          </Text>
-
-          <TextInput
-            placeholder="Max"
-            keyboardType="numeric"
-            value={maxAmount}
-            onChangeText={setMaxAmount}
-            style={{
-              width: 80,
-              height: 36,
-              backgroundColor: THEME.inputBackground,
-              borderColor: THEME.border,
-              borderWidth: 1,
-              borderRadius: 8,
-              color: THEME.textPrimary,
-              fontSize: 13,
-              paddingHorizontal: 10,
-              paddingVertical: 0,
-            }}
-            placeholderTextColor={THEME.placeholderText}
-          />
-        </View>
-
-        {/* Calendar control */}
         <TouchableOpacity
-          onPress={onCalendarPress}
-          activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Calendar filter"
+          accessibilityLabel="Amount filters"
+          accessibilityState={{ expanded: amountsOpen, selected: amountActive }}
+          onPress={() => setAmountsOpen((v) => !v)}
+          style={chip(amountActive)}
+        >
+          <Feather name="sliders" size={16} color={THEME.primary} />
+          <Text
+            style={{
+              color: amountActive ? THEME.textPrimary : THEME.primary,
+              fontSize: 13,
+            }}
+          >
+            Amount{amountActive ? " · Active" : ""}
+          </Text>
+        </TouchableOpacity>
+        {active && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Clear filters"
+            onPress={clearFilters}
+            style={{
+              minHeight: BRAND.touchTarget,
+              justifyContent: "center",
+              paddingHorizontal: BRAND.spacing.sm,
+            }}
+          >
+            <Text
+              style={{ color: THEME.primary, fontWeight: "600", fontSize: 13 }}
+            >
+              Reset filters
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      {(amountsOpen || amountActive) && (
+        <View
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            backgroundColor: THEME.surface,
-            borderWidth: 1,
-            borderColor: THEME.border,
-            alignItems: "center",
-            justifyContent: "center",
+            flexDirection: "row",
+            gap: BRAND.spacing.sm,
+            marginTop: BRAND.spacing.sm,
           }}
         >
-          <Feather name="calendar" size={16} color={THEME.textPrimary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* ── More Categories Modal ────────────────────────────────────────── */}
+          {[
+            {
+              label: "Minimum amount",
+              placeholder: "Min",
+              value: minAmount,
+              onChangeText: setMinAmount,
+            },
+            {
+              label: "Maximum amount",
+              placeholder: "Max",
+              value: maxAmount,
+              onChangeText: setMaxAmount,
+            },
+          ].map((input) => (
+            <View key={input.label} style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: THEME.textSecondary,
+                  fontSize: 12,
+                  marginBottom: BRAND.spacing.xs,
+                }}
+              >
+                {input.label}
+              </Text>
+              <TextInput
+                accessibilityLabel={input.label}
+                placeholder={input.placeholder}
+                keyboardType="decimal-pad"
+                value={input.value}
+                onChangeText={input.onChangeText}
+                placeholderTextColor={THEME.placeholderText}
+                selectionColor={THEME.primary}
+                style={{
+                  minHeight: 48,
+                  backgroundColor: THEME.surface,
+                  borderColor: THEME.border,
+                  borderWidth: 1,
+                  borderRadius: BRAND.radius.input,
+                  color: THEME.textPrimary,
+                  padding: BRAND.spacing.md,
+                  fontSize: 15,
+                }}
+              />
+            </View>
+          ))}
+        </View>
+      )}
       <Modal
         visible={showMoreModal}
         transparent
@@ -261,22 +247,24 @@ export default function FilterTransaction({
           <View
             style={{
               flex: 1,
-              backgroundColor: "rgba(0,0,0,0.6)",
+              backgroundColor: BRAND.overlay,
+              padding: BRAND.spacing.lg,
               justifyContent: "center",
               alignItems: "center",
-              padding: 24,
             }}
           >
             <TouchableWithoutFeedback>
               <View
+                accessibilityViewIsModal
                 style={{
                   width: "100%",
-                  maxHeight: 380,
+                  maxWidth: BRAND.contentWidth,
+                  maxHeight: "75%",
                   backgroundColor: THEME.surface,
-                  borderRadius: 18,
+                  borderRadius: BRAND.radius.card,
                   borderWidth: 1,
                   borderColor: THEME.border,
-                  padding: 18,
+                  padding: BRAND.spacing.md,
                 }}
               >
                 <View
@@ -284,95 +272,80 @@ export default function FilterTransaction({
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    marginBottom: 14,
                   }}
                 >
                   <Text
+                    accessibilityRole="header"
                     style={{
                       color: THEME.textPrimary,
-                      fontSize: 16,
+                      fontSize: 20,
                       fontWeight: "700",
+                      flex: 1,
                     }}
                   >
-                    Select Category
+                    Select category
                   </Text>
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Close category filters"
                     onPress={() => setShowMoreModal(false)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{
+                      width: BRAND.touchTarget,
+                      height: BRAND.touchTarget,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
                   >
-                    <Feather name="x" size={18} color={THEME.textSecondary} />
+                    <Feather name="x" size={20} color={THEME.textSecondary} />
                   </TouchableOpacity>
                 </View>
-
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      clearFilters();
-                      setShowMoreModal(false);
-                    }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      paddingVertical: 12,
-                      borderBottomWidth: 1,
-                      borderBottomColor: THEME.border,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color:
-                          filterCategoryId === "all"
-                            ? THEME.primary
-                            : THEME.textPrimary,
-                        fontSize: 14.5,
-                        fontWeight: filterCategoryId === "all" ? "600" : "400",
-                      }}
-                    >
-                      All Categories
-                    </Text>
-                    {filterCategoryId === "all" && (
-                      <Feather name="check" size={16} color={THEME.primary} />
-                    )}
-                  </TouchableOpacity>
-
-                  {budgets.map((b) => {
-                    const active = filterCategoryId === b.id;
-                    return (
+                <ScrollView keyboardShouldPersistTaps="handled">
+                  {[{ id: "all", category: "All Categories" }, ...budgets].map(
+                    (option) => (
                       <TouchableOpacity
-                        key={b.id}
+                        key={option.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select ${option.category}`}
+                        accessibilityState={{
+                          selected: filterCategoryId === option.id,
+                        }}
                         onPress={() => {
-                          setFilterCategoryId(b.id);
+                          if (option.id === "all") clearFilters();
+                          else setFilterCategoryId(option.id);
                           setShowMoreModal(false);
                         }}
                         style={{
+                          minHeight: BRAND.touchTarget,
                           flexDirection: "row",
                           alignItems: "center",
-                          justifyContent: "space-between",
-                          paddingVertical: 12,
+                          gap: BRAND.spacing.sm,
+                          paddingVertical: BRAND.spacing.sm,
                           borderBottomWidth: 1,
                           borderBottomColor: THEME.border,
                         }}
                       >
                         <Text
                           style={{
-                            color: active ? THEME.primary : THEME.textPrimary,
-                            fontSize: 14.5,
-                            fontWeight: active ? "600" : "400",
+                            color:
+                              filterCategoryId === option.id
+                                ? THEME.primary
+                                : THEME.textPrimary,
+                            flex: 1,
+                            fontSize: 15,
                           }}
                         >
-                          {capitalizeFirst(b.category)}
+                          {capitalizeFirst(option.category)}
                         </Text>
-                        {active && (
+                        {filterCategoryId === option.id && (
                           <Feather
                             name="check"
-                            size={16}
+                            size={18}
                             color={THEME.primary}
                           />
                         )}
                       </TouchableOpacity>
-                    );
-                  })}
+                    ),
+                  )}
                 </ScrollView>
               </View>
             </TouchableWithoutFeedback>

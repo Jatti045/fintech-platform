@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { BRAND } from "@/constants/ThemePalettes";
 import { Feather } from "@expo/vector-icons";
 import { useBudgets, useTheme } from "@/hooks/useRedux";
 import { capitalizeFirst, formatCurrency } from "@/utils/helper";
@@ -111,112 +112,143 @@ const TransactionRow = React.memo(function TransactionRow({
     return tx.category;
   }, [tx.budgetId, tx.budget, tx.category, budgets]);
 
-  const isExpense = (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE" && Number(tx.amount) >= 0;
+  const isExpense =
+    (tx.type ?? "EXPENSE").toUpperCase() === "EXPENSE" &&
+    Number(tx.amount) >= 0;
   const rowDate = useMemo(() => formatRowDate(tx.date), [tx.date]);
+
+  const direction = isExpense ? "−" : "+";
+  const amountLabel = `${direction}${formatCurrency(Math.abs(amountToDisplay), currencyToDisplay)}`;
+  const tone = tx.isTransfer
+    ? THEME.textSecondary
+    : isExpense
+      ? THEME.danger
+      : THEME.success;
 
   return (
     <SwipeableRow onDelete={() => onDelete(tx.id)} dangerColor={THEME.danger}>
       <TouchableOpacity
-        activeOpacity={0.7}
+        activeOpacity={0.75}
         onPress={() => onEdit(tx)}
         onLongPress={() => {
           hapticHeavy();
           onDelete(tx.id);
         }}
         accessibilityRole="button"
-        accessibilityLabel={`${capitalizeFirst(displayCategory)}, ${formatCurrency(Math.abs(amountToDisplay), currencyToDisplay)}`}
+        accessibilityLabel={`${tx.name}, ${capitalizeFirst(displayCategory)}${tx.isTransfer ? ", Transfer" : ""}, ${amountLabel}, ${rowDate}${originalReference ? `, ${originalReference}` : ""}`}
+        accessibilityHint="Tap to edit. Long press or swipe to delete."
+        accessibilityActions={[
+          { name: "activate", label: "Edit transaction" },
+          { name: "delete", label: "Delete transaction" },
+        ]}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === "delete") onDelete(tx.id);
+          else if (event.nativeEvent.actionName === "activate") onEdit(tx);
+        }}
         style={{
-          flexDirection: "row",
-          alignItems: "center",
           backgroundColor: THEME.surface,
           borderLeftWidth: 1,
           borderRightWidth: 1,
           borderColor: THEME.border,
           borderBottomWidth: isLast ? 1 : StyleSheet.hairlineWidth,
-          borderBottomColor: THEME.border,
-          borderBottomLeftRadius: isLast ? 20 : 0,
-          borderBottomRightRadius: isLast ? 20 : 0,
-          paddingHorizontal: 16,
-          paddingVertical: 14,
+          borderBottomLeftRadius: isLast ? BRAND.radius.card : 0,
+          borderBottomRightRadius: isLast ? BRAND.radius.card : 0,
+          padding: BRAND.spacing.md,
         }}
       >
-        {/* Category & Merchant Info (Reflowed to left edge) */}
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: BRAND.spacing.sm,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: BRAND.spacing.sm,
+              flexGrow: 1,
+              flexBasis: 150,
+            }}
+          >
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                backgroundColor: THEME.subtleSurface,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Feather
+                name={
+                  tx.isTransfer
+                    ? "repeat"
+                    : isExpense
+                      ? "arrow-up-right"
+                      : "arrow-down-left"
+                }
+                size={18}
+                color={tx.isTransfer ? THEME.textSecondary : THEME.primary}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                style={{
+                  color: THEME.textPrimary,
+                  fontWeight: "600",
+                  fontSize: 15,
+                }}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {tx.name || "Transaction"}
+              </Text>
+              <Text
+                style={{
+                  color: THEME.textSecondary,
+                  fontSize: 12,
+                  lineHeight: 18,
+                  marginTop: BRAND.spacing.xs,
+                }}
+                numberOfLines={2}
+              >
+                {capitalizeFirst(displayCategory)}
+                {tx.isTransfer ? "  ·  Transfer" : ""} · {rowDate}
+              </Text>
+            </View>
+          </View>
           <Text
             style={{
-              color: THEME.textPrimary,
-              fontWeight: "600",
-              fontSize: 14.5,
-              letterSpacing: -0.1,
+              color: tone,
+              fontWeight: "700",
+              fontSize: 17,
+              fontVariant: ["tabular-nums"],
+              textAlign: "right",
+              flexShrink: 1,
+              maxWidth: "100%",
+              marginLeft: "auto",
             }}
-            numberOfLines={1}
-            ellipsizeMode="tail"
           >
-            {capitalizeFirst(displayCategory)}
-            {tx.isTransfer ? "  ·  Transfer" : ""}
+            {amountLabel}
           </Text>
+        </View>
+        {originalReference ? (
           <Text
             style={{
               color: THEME.textSecondary,
-              fontSize: 13,
-              marginTop: 2,
+              fontSize: 12,
+              lineHeight: 18,
+              marginTop: BRAND.spacing.sm,
+              textAlign: "right",
             }}
-            numberOfLines={1}
-            ellipsizeMode="tail"
           >
-            {tx.name}
+            {originalReference}
           </Text>
-          {originalReference ? (
-            <Text
-              style={{
-                color: THEME.placeholderText,
-                fontSize: 11,
-                marginTop: 1,
-              }}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {originalReference}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Date, Amount & Chevron */}
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {rowDate ? (
-            <Text
-              style={{
-                color: THEME.textSecondary,
-                fontSize: 13,
-                marginRight: 14,
-                fontWeight: "400",
-              }}
-            >
-              {rowDate}
-            </Text>
-          ) : null}
-
-          <Text
-            style={{
-              color: isExpense ? THEME.danger : THEME.success,
-              fontWeight: "700",
-              fontSize: 14.5,
-              letterSpacing: -0.2,
-            }}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {isExpense ? "−" : "+"}
-            {formatCurrency(Math.abs(amountToDisplay), currencyToDisplay)}
-          </Text>
-
-          <Feather
-            name="chevron-right"
-            size={14}
-            color={THEME.textSecondary}
-            style={{ marginLeft: 8 }}
-          />
-        </View>
+        ) : null}
       </TouchableOpacity>
     </SwipeableRow>
   );

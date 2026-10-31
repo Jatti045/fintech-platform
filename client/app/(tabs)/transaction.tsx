@@ -1,6 +1,7 @@
 import React from "react";
-import { RefreshControl, SectionList } from "react-native";
+import { RefreshControl, SectionList, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BRAND } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 import { useTransactionScreen } from "@/hooks/transaction/useTransactionScreen";
 import TransactionHeader from "@/components/transaction/TransactionHeader";
@@ -65,34 +66,23 @@ export default function TransactionScreen() {
     <SafeAreaView
       edges={["top", "left", "right"]}
       style={{ backgroundColor: THEME.background, flex: 1 }}
-      className="px-4"
     >
-      <TransactionHeader
-        displayTransactions={displayTransactions}
-        month={month}
-        year={year}
-        monthlyIncome={monthlyIncome}
-        actualIncome={actualIncome}
-        expectedIncome={expectedIncome}
-        currencyCode={activeCurrency}
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchQueryChange}
-        budgets={budgets}
-        filterCategoryId={filterCategoryId}
-        onFilterCategoryChange={setFilterCategoryId}
-        minAmount={minAmount}
-        onMinAmountChange={setMinAmount}
-        maxAmount={maxAmount}
-        onMaxAmountChange={setMaxAmount}
-        onClearFilters={clearFilters}
-      />
-
       <SectionList<TransactionItem, GroupedSection>
         sections={sectionsWithTotals}
         keyExtractor={keyExtractor}
         renderSectionHeader={renderSectionHeader}
         renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
+        contentContainerStyle={{
+          paddingBottom: 120,
+          paddingTop: BRAND.spacing.sm,
+          paddingHorizontal: BRAND.spacing.md,
+          width: "100%",
+          maxWidth: 760,
+          alignSelf: "center",
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        stickySectionHeadersEnabled={false}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={listEmpty}
         ListFooterComponent={listFooter}
@@ -102,9 +92,34 @@ export default function TransactionScreen() {
             onRefresh={onRefresh}
             progressBackgroundColor={THEME.background}
             colors={[THEME.primary]}
+            tintColor={THEME.primary}
           />
         }
-        ListHeaderComponent={<LastSynced />}
+        ListHeaderComponent={
+          <View>
+            {" "}
+            <TransactionHeader
+              displayTransactions={displayTransactions}
+              month={month}
+              year={year}
+              monthlyIncome={monthlyIncome}
+              actualIncome={actualIncome}
+              expectedIncome={expectedIncome}
+              currencyCode={activeCurrency}
+              searchQuery={searchQuery}
+              onSearchChange={handleSearchQueryChange}
+              budgets={budgets}
+              filterCategoryId={filterCategoryId}
+              onFilterCategoryChange={setFilterCategoryId}
+              minAmount={minAmount}
+              onMinAmountChange={setMinAmount}
+              maxAmount={maxAmount}
+              onMaxAmountChange={setMaxAmount}
+              onClearFilters={clearFilters}
+            />
+            <LastSynced />
+          </View>
+        }
       />
 
       {/* Create / Edit modal — self-contained via useTransactionOperations */}

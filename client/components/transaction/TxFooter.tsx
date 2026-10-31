@@ -1,11 +1,8 @@
 import React from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
+import { BRAND } from "@/constants/ThemePalettes";
 
-/**
- * Infinite-scroll footer: loading spinner, "Load More" button, or end-of-list.
- */
 const ListFooter = React.memo(function ListFooter({
   hasNextPage,
   isLoadingMore,
@@ -18,40 +15,46 @@ const ListFooter = React.memo(function ListFooter({
   onLoadMore: () => void;
 }) {
   const { THEME } = useTheme();
-
-  if (hasNextPage) {
-    return (
-      <View className="py-4 items-center">
-        {isLoadingMore ? (
-          <>
-            <ActivityIndicator size="small" color={THEME.secondary} />
-            <Text style={{ color: THEME.textSecondary, marginTop: 8 }}>
-              Loading more...
-            </Text>
-          </>
-        ) : (
-          <TouchableOpacity onPress={onLoadMore} activeOpacity={0.8}>
-            <Text style={{ color: THEME.textSecondary, fontSize: 12 }}>
-              Load More Transactions
-            </Text>
-            <Ionicons name="chevron-down" size={18} color={THEME.background} />
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  }
-
-  if (hasTransactions) {
-    return (
-      <View className="py-4 items-center">
-        <Text style={{ color: THEME.textSecondary, fontSize: 12 }}>
+  if (!hasNextPage && !hasTransactions) return null;
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={{ alignItems: "center", paddingVertical: BRAND.spacing.lg }}
+    >
+      {isLoadingMore ? (
+        <>
+          <ActivityIndicator color={THEME.primary} />
+          <Text
+            style={{ color: THEME.textSecondary, marginTop: BRAND.spacing.sm }}
+          >
+            Loading more...
+          </Text>
+        </>
+      ) : hasNextPage ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Load more transactions"
+          onPress={onLoadMore}
+          style={{
+            minHeight: BRAND.touchTarget,
+            backgroundColor: THEME.subtleSurface,
+            borderColor: THEME.border,
+            borderWidth: 1,
+            borderRadius: BRAND.radius.input,
+            justifyContent: "center",
+            paddingHorizontal: BRAND.spacing.lg,
+          }}
+        >
+          <Text style={{ color: THEME.textPrimary, fontWeight: "600" }}>
+            Load More Transactions
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={{ color: THEME.textSecondary, fontSize: 13 }}>
           No more transactions
         </Text>
-      </View>
-    );
-  }
-
-  return null;
+      )}
+    </View>
+  );
 });
-
 export default ListFooter;

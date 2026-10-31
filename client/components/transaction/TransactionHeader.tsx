@@ -1,7 +1,10 @@
 import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useTheme } from "@/hooks/useRedux";
+import { useAppDispatch, useTheme } from "@/hooks/useRedux";
+import { prevMonth, nextMonth } from "@/store/slices/calendarSlice";
+import { BRAND } from "@/constants/ThemePalettes";
+import MonthSelector from "@/components/home/MonthSelector";
 import FilterTransaction from "./TxFilterOpt";
 import type { ITransaction } from "@/types/transaction/types";
 import type { IBudget } from "@/types/budget/types";
@@ -29,16 +32,10 @@ export interface TransactionHeaderProps {
   onCalendarPress?: () => void;
 }
 
-/**
- * Redesigned Transactions Header matching the reference design:
- * - Prominent "Transactions" title with "Manage and track your spending" subtitle
- * - Circular, restrained utility controls for Search & Filters on the top right
- * - Clean search bar: "Search transactions, merchants, or categories..."
- * - Refined filter chips row (All, Income, Transfer out, Transfer in, More ⌵)
- * - Compact Amount range row: Amount [ Min ] – [ Max ] [ 📅 ]
- * - Hidden fallbacks for test suite compatibility
- */
 export default function TransactionHeader({
+  month,
+  year,
+  currencyCode,
   searchQuery,
   onSearchChange,
   budgets,
@@ -49,145 +46,94 @@ export default function TransactionHeader({
   maxAmount,
   onMaxAmountChange,
   onClearFilters,
-  onSearchPress,
-  onFilterPress,
-  onCalendarPress,
 }: TransactionHeaderProps) {
   const { THEME } = useTheme();
-
+  const dispatch = useAppDispatch();
+  const now = new Date();
+  const monthLabel = new Date(Date.UTC(year, month, 1)).toLocaleDateString(
+    undefined,
+    { month: "long", year: "numeric", timeZone: "UTC" },
+  );
   return (
-    <View style={{ paddingTop: 8 }}>
-      {/* ── Top Header Row ──────────────────────────────────────────────── */}
+    <View style={{ paddingTop: BRAND.spacing.sm, gap: BRAND.spacing.md }}>
+      <View>
+        <Text
+          accessibilityRole="header"
+          style={{
+            color: THEME.textPrimary,
+            fontSize: 28,
+            fontWeight: "700",
+            letterSpacing: -0.8,
+          }}
+        >
+          Transactions
+        </Text>
+        <Text
+          style={{
+            color: THEME.textSecondary,
+            fontSize: 14,
+            marginTop: BRAND.spacing.xs,
+          }}
+        >
+          Your money, in detail · {currencyCode}
+        </Text>
+      </View>
+      <MonthSelector
+        monthLabel={monthLabel}
+        isCurrentMonth={
+          year === now.getUTCFullYear() && month === now.getUTCMonth()
+        }
+        onPrev={() => dispatch(prevMonth())}
+        onNext={() => dispatch(nextMonth())}
+      />
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 16,
-        }}
-      >
-        <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text
-            style={{
-              color: THEME.textPrimary,
-              fontSize: 28,
-              fontWeight: "800",
-              letterSpacing: -0.5,
-            }}
-          >
-            Transactions
-          </Text>
-          <Text
-            style={{
-              color: THEME.textSecondary,
-              fontSize: 13.5,
-              fontWeight: "400",
-              marginTop: 2,
-            }}
-          >
-            Manage and track your spending
-          </Text>
-        </View>
-
-        {/* Circular utility controls */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <TouchableOpacity
-            onPress={onSearchPress}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: THEME.surface,
-              borderWidth: 1,
-              borderColor: THEME.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Feather name="search" size={17} color={THEME.textPrimary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={onFilterPress}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Filter"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: THEME.surface,
-              borderWidth: 1,
-              borderColor: THEME.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Feather name="sliders" size={17} color={THEME.textPrimary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ── Prominent Search Field ────────────────────────────────────────── */}
-      <View
-        style={{
-          height: 48,
-          backgroundColor: THEME.inputBackground,
-          borderRadius: 14,
+          backgroundColor: THEME.surface,
           borderWidth: 1,
           borderColor: THEME.border,
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: 14,
-          marginBottom: 14,
+          borderRadius: BRAND.radius.input,
+          paddingLeft: BRAND.spacing.md,
         }}
       >
-        <Feather
-          name="search"
-          size={18}
-          color={THEME.placeholderText}
-          style={{ marginRight: 10 }}
-        />
+        <Feather name="search" size={20} color={THEME.textSecondary} />
         <TextInput
+          accessibilityLabel="Search transactions"
+          placeholder="Search transactions..."
+          placeholderTextColor={THEME.placeholderText}
           value={searchQuery}
           onChangeText={onSearchChange}
-          placeholder="Search transactions, merchants, or categories..."
-          placeholderTextColor={THEME.placeholderText}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+          selectionColor={THEME.primary}
           style={{
             flex: 1,
+            minWidth: 0,
+            minHeight: 52,
             color: THEME.textPrimary,
-            fontSize: 14,
-            paddingVertical: 0,
+            fontSize: 15,
+            paddingHorizontal: BRAND.spacing.sm,
+            paddingVertical: BRAND.spacing.md,
           }}
         />
-        {searchQuery.length > 0 && (
+        {!!searchQuery && (
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
             onPress={() => onSearchChange("")}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={{ marginLeft: 6 }}
+            style={{
+              width: BRAND.touchTarget,
+              minHeight: BRAND.touchTarget,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <Feather name="x-circle" size={16} color={THEME.textSecondary} />
+            <Feather name="x" size={20} color={THEME.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
-
-      {/* ── Test Suite Invariant Fallbacks (Invisible) ────────────────────── */}
-      <View
-        style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
-        pointerEvents="none"
-      >
-        <TextInput
-          placeholder="Search transactions..."
-          value={searchQuery}
-          onChangeText={onSearchChange}
-        />
-        <Text>Spent this month</Text>
-      </View>
-
-      {/* ── Filter Chips & Amount Filter Row ─────────────────────────────── */}
       <FilterTransaction
         budgets={budgets}
         filterCategoryId={filterCategoryId}
@@ -197,7 +143,6 @@ export default function TransactionHeader({
         maxAmount={maxAmount}
         setMaxAmount={onMaxAmountChange}
         clearFilters={onClearFilters}
-        onCalendarPress={onCalendarPress}
       />
     </View>
   );
