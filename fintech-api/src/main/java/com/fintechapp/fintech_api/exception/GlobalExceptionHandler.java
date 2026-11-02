@@ -41,12 +41,14 @@ public class GlobalExceptionHandler {
             fieldErrors.putIfAbsent(fieldError.getField(), defaultMessage);
         });
 
-        return errorResponse(HttpStatus.BAD_REQUEST, "Request validation failed.", fieldErrors, exception);
+        // Validation exceptions contain rejected values, including passwords, Google ID tokens and OTPs.
+        return errorResponse(HttpStatus.BAD_REQUEST, "Request validation failed.", fieldErrors, null);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException exception) {
-        return errorResponse(HttpStatus.BAD_REQUEST, "Invalid request payload.", exception);
+        // Decoder exceptions may include fragments of a credential-bearing request body.
+        return errorResponse(HttpStatus.BAD_REQUEST, "Invalid request payload.", null);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

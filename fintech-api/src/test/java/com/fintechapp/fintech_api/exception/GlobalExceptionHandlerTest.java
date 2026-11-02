@@ -23,6 +23,31 @@ class GlobalExceptionHandlerTest {
 
     private MockMvc mockMvc;
 
+    @Test
+    void validationDoesNotLogGoogleTokensOrVerificationCodes() throws Exception {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        var captured = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        captured.start(); logger.addAppender(captured);
+        String sensitiveToken = "sensitive-google-token".repeat(1000);
+        try {
+            mockMvc.perform(post("/test-errors/google").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"idToken\":\"" + sensitiveToken + "\",\"verificationCode\":\"sensitive-code\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors.idToken").exists())
+                    .andExpect(jsonPath("$.fieldErrors.verificationCode").exists());
+            mockMvc.perform(post("/test-errors/google").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"idToken\":{\"secret\":\"sensitive-code\"}}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Invalid request payload."));
+            org.junit.jupiter.api.Assertions.assertFalse(captured.list.isEmpty());
+            for (var event : captured.list) {
+                org.junit.jupiter.api.Assertions.assertFalse(event.getFormattedMessage().contains(sensitiveToken));
+                org.junit.jupiter.api.Assertions.assertFalse(event.getFormattedMessage().contains("sensitive-code"));
+                org.junit.jupiter.api.Assertions.assertNull(event.getThrowableProxy());
+            }
+        } finally { logger.detachAppender(captured); captured.stop(); }
+    }
+
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders
@@ -75,6 +100,11 @@ class GlobalExceptionHandlerTest {
     @RestController
     @RequestMapping("/test-errors")
     static class TestController {
+
+        @PostMapping("/google")
+        String google(@jakarta.validation.Valid @RequestBody com.fintechapp.fintech_api.dto.auth.GoogleAuthRequest request) {
+            return "valid";
+        }
 
         @GetMapping("/conflict")
         String conflict() {

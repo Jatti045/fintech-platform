@@ -26,6 +26,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
+import com.fintechapp.fintech_api.config.CacheConfig;
 import com.fintechapp.fintech_api.model.Budget;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
@@ -64,7 +65,7 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
         void requireRedisAndCleanCache() {
                 utcToday = LocalDate.now(ZoneOffset.UTC);
                 Assumptions.assumeTrue(redisAvailable(), "Redis not reachable — cache tests skipped");
-                redisTemplate.delete(redisTemplate.keys("financialSummary::*"));
+                redisTemplate.delete(redisTemplate.keys(CacheConfig.FINANCIAL_SUMMARY_CACHE + "::*"));
                 redisTemplate.delete(redisTemplate.keys("recurringPayments::*"));
         }
 
@@ -181,7 +182,7 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
                                 .andExpect(jsonPath("$.data.totalAmount").value(120.0));
 
                 // Two distinct user-scoped month keys exist in Redis.
-                Set<String> keys = redisTemplate.keys("financialSummary::" + user.getId() + ":*");
+                Set<String> keys = redisTemplate.keys(CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + user.getId() + ":*");
                 Assertions.assertEquals(2, keys == null ? 0 : keys.size());
         }
 
@@ -222,8 +223,8 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.data.totalAmount").value(100.0));
 
-                Set<String> keysA = redisTemplate.keys("financialSummary::" + userA.getId() + ":*");
-                Set<String> keysB = redisTemplate.keys("financialSummary::" + userB.getId() + ":*");
+                Set<String> keysA = redisTemplate.keys(CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + userA.getId() + ":*");
+                Set<String> keysB = redisTemplate.keys(CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + userB.getId() + ":*");
                 Assertions.assertEquals(1, keysA == null ? 0 : keysA.size());
                 Assertions.assertEquals(1, keysB == null ? 0 : keysB.size());
         }
@@ -311,8 +312,7 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
         @Test
         void currencyUpdate_invalidatesCachedSummaryRegionAndRecurringPayments() throws Exception {
                 User user = createUser("cache-currency-evict@example.com", "Password123!", "cache-currency-evict");
-                Instant monthStart = monthStart(utcToday);
-                createMonthlyIncome(user, monthStart, 3500.0);
+                // Currency changes are allowed only before any financial data exists.
 
                 // Populate financialSummary cache
                 mockMvc.perform(get("/api/financial-summary")
@@ -320,14 +320,14 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
                                 .param("month", String.valueOf(currentMonthIndex()))
                                 .param("year", String.valueOf(currentYear())))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.data.expectedIncome").value(3500.0));
+                                .andExpect(jsonPath("$.data.expectedIncome").value(0.0));
 
                 // Populate recurringPayments cache
                 mockMvc.perform(get("/api/recurring-payments")
                                 .header(authHeaderName(), authHeader(user)))
                                 .andExpect(status().isOk());
 
-                Set<String> summaryKeys = redisTemplate.keys("financialSummary::" + user.getId() + ":*");
+                Set<String> summaryKeys = redisTemplate.keys(CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + user.getId() + ":*");
                 Set<String> recurringKeys = redisTemplate.keys("recurringPayments::" + user.getId());
                 Assertions.assertEquals(1, summaryKeys == null ? 0 : summaryKeys.size());
                 Assertions.assertEquals(1, recurringKeys == null ? 0 : recurringKeys.size());
@@ -341,10 +341,35 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
                                 .andExpect(jsonPath("$.data.currency").value("EUR"));
 
                 // Verify Redis caches are evicted
-                Set<String> summaryKeysAfter = redisTemplate.keys("financialSummary::" + user.getId() + ":*");
+                Set<String> summaryKeysAfter = redisTemplate.keys(CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + user.getId() + ":*");
                 Set<String> recurringKeysAfter = redisTemplate.keys("recurringPayments::" + user.getId());
                 Assertions.assertEquals(0, summaryKeysAfter == null ? 0 : summaryKeysAfter.size());
                 Assertions.assertEquals(0, recurringKeysAfter == null ? 0 : recurringKeysAfter.size());
+        }
+
+        @Test
+        void currencyUpdate_withMonthlyIncomeIsRejectedAndKeepsCachedFinancialState() throws Exception {
+                User user = createUser("cache-currency-protected@example.com", "Password123!", "cache-currency-protected");
+                createMonthlyIncome(user, monthStart(utcToday), 3500.0);
+                mockMvc.perform(get("/api/financial-summary")
+                                .header(authHeaderName(), authHeader(user))
+                                .param("month", String.valueOf(currentMonthIndex()))
+                                .param("year", String.valueOf(currentYear())))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.data.expectedIncome").value(3500.0));
+                mockMvc.perform(patch("/api/users/me/currency")
+                                .header(authHeaderName(), authHeader(user))
+                                .contentType(json()).content(asJson(Map.of("currency", "eur"))))
+                                .andExpect(status().isBadRequest());
+                Assertions.assertEquals("USD", userRepository.findById(user.getId()).orElseThrow().getCurrency());
+                Set<String> keys = redisTemplate.keys(CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + user.getId() + ":*");
+                Assertions.assertEquals(1, keys == null ? 0 : keys.size());
+                mockMvc.perform(get("/api/financial-summary")
+                                .header(authHeaderName(), authHeader(user))
+                                .param("month", String.valueOf(currentMonthIndex()))
+                                .param("year", String.valueOf(currentYear())))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.data.expectedIncome").value(3500.0));
         }
 
         // ── Test-only payload shapes (match the API records) ────────────────────

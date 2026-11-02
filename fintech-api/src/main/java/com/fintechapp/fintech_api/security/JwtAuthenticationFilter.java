@@ -37,6 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			"/api/auth/forgot-password",
 			"/api/auth/reset-password",
 			"/api/auth/google",
+			"/api/auth/google/verification-code",
 			"/api/plaid/webhook"
 	);
 

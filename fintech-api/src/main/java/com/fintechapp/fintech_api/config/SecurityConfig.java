@@ -79,6 +79,7 @@ public class SecurityConfig {
 								"/api/auth/register",
 								"/api/auth/signup",
 								"/api/auth/google",
+								"/api/auth/google/verification-code",
 								"/api/auth/forgot-password",
 								"/api/auth/reset-password",
 								"/api/plaid/webhook",
