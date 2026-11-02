@@ -32,13 +32,8 @@ public class AuthController {
 	}
 
 	@PostMapping("/google")
-	public GoogleAuthResponse googleAuth(@Valid @RequestBody GoogleAuthRequest request, HttpServletRequest httpRequest) {
-		return authService.googleAuth(request, clientSource.resolve(httpRequest));
-	}
-
-	@PostMapping("/google/verification-code")
-	public ApiMessageResponse requestGoogleCode(@Valid @RequestBody GoogleAuthRequest request, HttpServletRequest httpRequest) {
-		return authService.requestGoogleCode(request, clientSource.resolve(httpRequest));
+	public GoogleAuthResponse googleAuth(@RequestBody GoogleAuthRequest request) throws Exception {
+		return authService.googleAuth(request);
 	}
 
 	@PostMapping({ "/register", "/signup" })

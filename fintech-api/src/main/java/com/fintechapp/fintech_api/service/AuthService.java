@@ -2,10 +2,17 @@ package com.fintechapp.fintech_api.service;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Optional;
 
 import com.fintechapp.fintech_api.dto.auth.*;
 import com.fintechapp.fintech_api.model.AuthProvider;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,13 +31,15 @@ import com.fintechapp.fintech_api.security.JwtService;
 @Service
 public class AuthService {
 
+    @Value("${GOOGLE_ANDROID_CLIENT_ID}")
+    private String googleClientId;
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final IncomeCalculationService incomeCalculationService;
     private final PasswordRecoveryService passwordRecovery;
     private final PasswordRecoveryRateLimiter recoveryLimits;
-    private final GoogleIdentityService googleIdentity;
 
     public AuthService(
             UserRepository userRepository,
@@ -38,23 +47,54 @@ public class AuthService {
             JwtService jwtService,
             IncomeCalculationService incomeCalculationService,
             PasswordRecoveryService passwordRecovery,
-            PasswordRecoveryRateLimiter recoveryLimits,
-            GoogleIdentityService googleIdentity) {
+            PasswordRecoveryRateLimiter recoveryLimits) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.incomeCalculationService = incomeCalculationService;
         this.passwordRecovery = passwordRecovery;
         this.recoveryLimits = recoveryLimits;
-        this.googleIdentity = googleIdentity;
     }
 
-    public GoogleAuthResponse googleAuth(GoogleAuthRequest request, String clientSource) {
-        return googleIdentity.signIn(request, clientSource);
-    }
+    @Transactional
+    public GoogleAuthResponse googleAuth(GoogleAuthRequest request) throws Exception {
 
-    public ApiMessageResponse requestGoogleCode(GoogleAuthRequest request, String clientSource) {
-        return googleIdentity.requestCode(request, clientSource);
+        String idToken = request.idToken();
+
+        if (!StringUtils.hasText(idToken)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+
+        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                new NetHttpTransport(), new GsonFactory()).setAudience(Collections.singletonList(googleClientId))
+                .build();
+
+        GoogleIdToken googleToken = verifier.verify(request.idToken());
+
+        if (googleToken == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid ID token.");
+        }
+
+        GoogleIdToken.Payload googlePayload = googleToken.getPayload();
+        String email = googlePayload.getEmail();
+
+        Optional<User> existingUser = userRepository.findByEmailForUpdate(email);
+
+        if (existingUser.isEmpty()) {
+            User newUser = new User();
+            newUser.setEmail(email);
+            newUser.setUsername(googlePayload.get("name").toString());
+            newUser.setPassword(null);
+            newUser.setAuthProvider(AuthProvider.GOOGLE);
+            userRepository.save(newUser);
+        }
+
+        User user = userRepository.findByEmailForUpdate(email).orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "User creation failed."));
+
+        String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getSessionVersion());
+        LoginData data = new LoginData(toUserSummary(user), token);
+        return new GoogleAuthResponse(true, "Login successful.", data);
     }
 
     @Transactional

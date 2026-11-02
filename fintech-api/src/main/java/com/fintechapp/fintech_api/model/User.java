@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "users", indexes = @Index(name = "uq_users_google_subject", columnList = "google_subject", unique = true))
+@Table(name = "users")
 @org.hibernate.annotations.DynamicUpdate
 @Getter
 @Setter
@@ -48,10 +48,6 @@ public class User {
     @Column(name = "auth_provider", nullable = false)
     @Enumerated(EnumType.STRING)
     private AuthProvider authProvider;
-
-    // Bound only through the locked, atomic identity update in UserRepository.
-    @Column(name = "google_subject", length = 255, updatable = false)
-    private String googleSubject;
 
     @Column(nullable = false)
     private String username;

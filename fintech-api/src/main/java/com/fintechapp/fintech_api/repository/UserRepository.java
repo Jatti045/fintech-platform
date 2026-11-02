@@ -25,21 +25,6 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     Optional<User> findByEmail(String email);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT u FROM User u WHERE LOWER(u.email) = :email")
-    java.util.List<User> findAllByEmailForGoogleUpdate(@Param("email") String normalizedEmail);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT u FROM User u WHERE u.googleSubject = :subject")
-    Optional<User> findByGoogleSubjectForUpdate(@Param("subject") String subject);
-
-    /** Never replace an established identity or let an ordinary entity merge bind one. */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(value = "UPDATE users SET google_subject = :subject, session_version = session_version + 1, "
-            + "update_version = update_version + 1, updated_at = clock_timestamp() "
-            + "WHERE id = :userId AND google_subject IS NULL", nativeQuery = true)
-    int bindGoogleSubject(@Param("userId") String userId, @Param("subject") String subject);
-
     // Scalar lookup intentionally bypasses managed User snapshots and any financial cache.
     @Query("SELECT u.sessionVersion FROM User u WHERE u.id = :userId")
     Optional<Long> findSessionVersionById(@Param("userId") String userId);

@@ -31,18 +31,6 @@ public class PasswordRecoveryRateLimiter {
                 || !consume("verify-account", email, 20, 900, 0)) throw limited();
     }
 
-    @Transactional(noRollbackFor = ResponseStatusException.class)
-    public boolean allowGoogleRequest(String email, String source) {
-        if (!consume("google-request-source", source, 20, 3600, 0)) throw limited();
-        return consume("google-request-account", email, 5, 3600, 60);
-    }
-
-    @Transactional(noRollbackFor = ResponseStatusException.class)
-    public void checkGoogleVerification(String email, String source) {
-        if (!consume("google-verify-source", source, 100, 900, 0)
-                || !consume("google-verify-account", email, 20, 900, 0)) throw limited();
-    }
-
     private boolean consume(String scope, String identity, int limit, int seconds, int cooldown) {
         if (identity == null || identity.isBlank()) throw new IllegalArgumentException("Recovery source is required");
         String key = bucketKey(scope, identity);
