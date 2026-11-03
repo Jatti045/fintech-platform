@@ -79,6 +79,34 @@ export const SectionList = jest.fn(
   },
 );
 
+// Keep a small window mounted, with the same event and imperative-scroll surface
+// used by the production virtualized month picker.
+export const virtualizedListScrollToOffset = jest.fn();
+export const VirtualizedList = React.forwardRef<any, any>(
+  function MockVirtualizedList(props, ref) {
+    React.useImperativeHandle(ref, () => ({
+      scrollToOffset: virtualizedListScrollToOffset,
+    }));
+    const selected = props.initialScrollIndex ?? 0;
+    const children: React.ReactNode[] = [];
+    for (
+      let index = Math.max(0, selected - 3);
+      index < Math.min(props.getItemCount(props.data), selected + 4);
+      index++
+    ) {
+      const item = props.getItem(props.data, index);
+      children.push(
+        React.createElement(
+          React.Fragment,
+          { key: props.keyExtractor(item, index) },
+          props.renderItem({ item, index }),
+        ),
+      );
+    }
+    return React.createElement("VirtualizedList", props, children);
+  },
+);
+
 // Modal mirrors the native behaviour of only mounting its children while
 // visible, so component tests can assert on modal content per visibility.
 export const Modal = jest.fn((props: Record<string, unknown>) => {
@@ -107,6 +135,20 @@ export const Animated = {
     setValue(value: unknown) {
       this._value = value;
     }
+    interpolate(config: { inputRange: number[]; outputRange: number[] }) {
+      const value = Number(this._value);
+      const last = config.inputRange.length - 1;
+      if (value <= config.inputRange[0]) return config.outputRange[0];
+      if (value >= config.inputRange[last]) return config.outputRange[last];
+      const upper = config.inputRange.findIndex((point) => point >= value);
+      const ratio =
+        (value - config.inputRange[upper - 1]) /
+        (config.inputRange[upper] - config.inputRange[upper - 1]);
+      return (
+        config.outputRange[upper - 1] +
+        ratio * (config.outputRange[upper] - config.outputRange[upper - 1])
+      );
+    }
     getValue() {
       return this._value;
     }
@@ -123,6 +165,12 @@ export const Animated = {
     start: (cb?: (result: { finished: boolean }) => void) =>
       cb?.({ finished: true }),
   }),
+  event: (mapping: any[], options: any) => (event: any) => {
+    mapping[0]?.nativeEvent?.contentOffset?.x?.setValue(
+      event.nativeEvent.contentOffset.x,
+    );
+    options?.listener?.(event);
+  },
   createAnimatedComponent: <T>(Component: T) => Component,
 };
 
@@ -149,4 +197,6 @@ export const StyleSheet = {
   setStyleAttributePreprocessor: jest.fn(),
 };
 
-export const BackHandler = { addEventListener: jest.fn(() => ({ remove: jest.fn() })) };
+export const BackHandler = {
+  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+};

@@ -45,10 +45,9 @@ export default function Index() {
         <View style={{ width: "100%", maxWidth: 680, alignSelf: "center" }}>
           <HomeHeader
             onSettingsPress={() => router.push("/(tabs)/profile")}
-            monthLabel={home.monthLabel}
-            isCurrentMonth={home.isCurrentMonth}
-            onPrev={home.handlePrevMonth}
-            onNext={home.handleNextMonth}
+            month={home.month}
+            year={home.year}
+            onMonthChange={home.handleMonthChange}
           />
           {(reporting.isLoading || reporting.error || reporting.stale) && (
             <DashboardCard padding={16} style={{ marginBottom: 14 }}>

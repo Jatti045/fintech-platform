@@ -2,9 +2,9 @@ import React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useAppDispatch, useTheme } from "@/hooks/useRedux";
-import { prevMonth, nextMonth } from "@/store/slices/calendarSlice";
+import { setMonthYear } from "@/store/slices/calendarSlice";
 import { BRAND } from "@/constants/ThemePalettes";
-import MonthSelector from "@/components/home/MonthSelector";
+import MonthPicker from "@/components/calendar/MonthPicker";
 import FilterTransaction from "./TxFilterOpt";
 import type { ITransaction } from "@/types/transaction/types";
 import type { IBudget } from "@/types/budget/types";
@@ -49,11 +49,6 @@ export default function TransactionHeader({
 }: TransactionHeaderProps) {
   const { THEME } = useTheme();
   const dispatch = useAppDispatch();
-  const now = new Date();
-  const monthLabel = new Date(Date.UTC(year, month, 1)).toLocaleDateString(
-    undefined,
-    { month: "long", year: "numeric", timeZone: "UTC" },
-  );
   return (
     <View style={{ paddingTop: BRAND.spacing.sm, gap: BRAND.spacing.md }}>
       <View>
@@ -78,13 +73,9 @@ export default function TransactionHeader({
           Your money, in detail · {currencyCode}
         </Text>
       </View>
-      <MonthSelector
-        monthLabel={monthLabel}
-        isCurrentMonth={
-          year === now.getUTCFullYear() && month === now.getUTCMonth()
-        }
-        onPrev={() => dispatch(prevMonth())}
-        onNext={() => dispatch(nextMonth())}
+      <MonthPicker
+        value={{ month, year }}
+        onChange={(value) => dispatch(setMonthYear(value))}
       />
       <View
         style={{

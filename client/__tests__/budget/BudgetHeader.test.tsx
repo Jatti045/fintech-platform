@@ -24,21 +24,29 @@ type Props = React.ComponentProps<typeof BudgetHeader>;
 
 function renderHeader(overrides: Partial<Props> = {}) {
   const props: Props = {
-    monthLabel: "February",
+    month: 1,
+    year: 2026,
     showSearch: true,
     searchQuery: "",
     onSearchChange: jest.fn(),
     ...overrides,
   };
 
+  let tree!: renderer.ReactTestRenderer;
   renderer.act(() => {
-    renderer.create(
+    tree = renderer.create(
       <Provider store={store}>
         <BudgetHeader {...props} />
       </Provider>,
     );
   });
 
+  renderer.act(() => {
+    tree.root
+      .findAllByType("View" as any)
+      .find((n) => n.props.accessibilityRole === "adjustable")!
+      .props.onLayout({ nativeEvent: { layout: { width: 220 } } });
+  });
   return { props };
 }
 
@@ -71,7 +79,7 @@ beforeEach(() => {
 
 describe("BudgetHeader", () => {
   it("renders the title, subtitle, and month label", () => {
-    renderHeader({ monthLabel: "March" });
+    renderHeader({ month: 2 });
 
     expect(renderedText("Budgets")).toBe(true);
     expect(

@@ -380,12 +380,12 @@ describe("useHomeScreen", () => {
     });
 
     renderer.act(() => {
-      captured.current!.handlePrevMonth();
+      captured.current!.handleMonthChange({ month: 4, year: 2026 });
     });
     expect(store.getState().calendar.month).toBe(4);
 
     renderer.act(() => {
-      captured.current!.handleNextMonth();
+      captured.current!.handleMonthChange({ month: 5, year: 2026 });
     });
     expect(store.getState().calendar.month).toBe(5);
   });

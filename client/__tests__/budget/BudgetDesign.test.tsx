@@ -1,4 +1,5 @@
 import React from "react";
+import MonthPicker from "@/components/calendar/MonthPicker";
 import renderer, { act } from "react-test-renderer";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
@@ -199,7 +200,7 @@ it("navigates months and exposes setup without a hidden search field", () => {
   const setup = jest.fn();
   const { tree, store } = mount(
     <BudgetHeader
-      monthLabel="February"
+      month={1}
       year={2026}
       showSearch
       searchQuery=""
@@ -209,7 +210,7 @@ it("navigates months and exposes setup without a hidden search field", () => {
   );
   expect(tree.root.findAllByType(TextInput)).toHaveLength(1);
   act(() => {
-    button(tree, "Previous month").props.onPress();
+    tree.root.findByType(MonthPicker).props.onChange({ month: 0, year: 2026 });
     button(tree, "Smart Month Setup").props.onPress();
   });
   expect(store.getState().calendar.month).toBe(0);

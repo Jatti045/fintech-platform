@@ -81,7 +81,7 @@ export default function BudgetScreen() {
       >
         <View style={{ width: "100%", maxWidth: 760, alignSelf: "center" }}>
           <BudgetHeader
-            monthLabel={monthLabel}
+            month={month}
             year={year}
             showSearch={hasBudgets}
             searchQuery={searchQuery}

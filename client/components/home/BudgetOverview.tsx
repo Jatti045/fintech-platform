@@ -57,7 +57,7 @@ export default function BudgetOverview({
               justifyContent: "center",
             }}
           >
-            <Feather name="target" size={23} color={THEME.primary} />
+            <Feather name="star" size={23} color={THEME.primary} />
           </View>
           <Feather
             name={expanded ? "chevron-up" : "chevron-down"}

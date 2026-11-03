@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useCalendar, useUser } from "@/hooks/useRedux";
-import { nextMonth, prevMonth } from "@/store/slices/calendarSlice";
+import { setMonthYear } from "@/store/slices/calendarSlice";
 import {
   defaultTransactionArgs,
   useGetBudgetsQuery,
@@ -12,6 +12,7 @@ import { useRefresh } from "@/hooks/useRefresh";
 import { useTransactionDisplayAmounts } from "@/hooks/transaction/useTransactionDisplayAmounts";
 import { useBudgetDisplayAmounts } from "@/hooks/budget/useBudgetDisplayAmounts";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
+import type { CalendarState } from "@/types/calendar/types";
 import type { IBudget } from "@/types/budget/types";
 import type { ITransaction } from "@/types/transaction/types";
 import type { IRecurringPayment } from "@/types/recurring/types";
@@ -135,13 +136,12 @@ export const useHomeScreen = () => {
   const monthLabel = `${new Date(calendar.year, calendar.month, 1).toLocaleString(undefined, { month: "long" })} ${calendar.year}`;
 
   // ── Calendar navigation ───────────────────────────────────────────────
-  const handlePrevMonth = useCallback(() => {
-    dispatch(prevMonth());
-  }, [dispatch]);
-
-  const handleNextMonth = useCallback(() => {
-    dispatch(nextMonth());
-  }, [dispatch]);
+  const handleMonthChange = useCallback(
+    (value: CalendarState) => {
+      dispatch(setMonthYear(value));
+    },
+    [dispatch],
+  );
 
   return {
     reporting: financialSummaryQuery,
@@ -172,7 +172,6 @@ export const useHomeScreen = () => {
     handleDismissBill,
     refreshing,
     onRefresh,
-    handlePrevMonth,
-    handleNextMonth,
+    handleMonthChange,
   };
 };

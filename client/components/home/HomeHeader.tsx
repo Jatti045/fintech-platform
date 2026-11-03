@@ -4,16 +4,21 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme, useUser } from "@/hooks/useRedux";
 import { capitalizeFirst } from "@/utils/helper";
 import MonthSelector from "./MonthSelector";
+import type { CalendarState } from "@/types/calendar/types";
 
 type Props = {
   onSettingsPress: () => void;
-  monthLabel: string;
-  isCurrentMonth: boolean;
-  onPrev: () => void;
-  onNext: () => void;
+  month: number;
+  year: number;
+  onMonthChange: (value: CalendarState) => void;
 };
 
-export default function HomeHeader({ onSettingsPress, ...calendar }: Props) {
+export default function HomeHeader({
+  onSettingsPress,
+  month,
+  year,
+  onMonthChange,
+}: Props) {
   const { THEME } = useTheme();
   const user = useUser();
   const name = capitalizeFirst(String(user?.username || "").trim());
@@ -52,7 +57,7 @@ export default function HomeHeader({ onSettingsPress, ...calendar }: Props) {
             Here’s your money at a glance.
           </Text>
         </View>
-        <MonthSelector {...calendar} compact />
+        <MonthSelector value={{ month, year }} onChange={onMonthChange} />
       </View>
     </View>
   );

@@ -8,6 +8,7 @@
 /// <reference types="jest" />
 
 import React from "react";
+import MonthPicker from "@/components/calendar/MonthPicker";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
@@ -300,52 +301,50 @@ describe("Index", () => {
     ).toBeUndefined();
   });
 
-  it("wires the month selector to the calendar", async () => {
-    const { store } = await setup();
-
+  it("wires the shared month picker to the calendar", async () => {
+    const { tree, store } = await setup();
     renderer.act(() => {
       lastProps(touchableOpacityMock, (props) =>
         String(props.accessibilityLabel).startsWith("Select month,"),
       )!.onPress();
     });
-    const prev = lastProps(
-      touchableOpacityMock,
-      (props) => props.accessibilityLabel === "Previous month",
+    renderer.act(() =>
+      tree.root
+        .findByType(MonthPicker)
+        .props.onChange({ month: 0, year: 2026 }),
     );
-    renderer.act(() => {
-      prev!.onPress();
-    });
-
-    expect(store.getState().calendar.month).toBe(0);
-    expect(store.getState().calendar.year).toBe(2026);
+    expect(store.getState().calendar).toMatchObject({ month: 0, year: 2026 });
   });
 
-  it("reopens month selection and prevents navigation past the current month", async () => {
+  it("reopens the shared picker synchronized with programmatic changes", async () => {
     const { tree, store } = await setup();
-    const now = new Date();
-    renderer.act(() => {
-      store.dispatch(
-        setMonthYear({ month: now.getUTCMonth(), year: now.getUTCFullYear() }),
-      );
-    });
-    const findButton = (label: string) =>
-      tree.root
-        .findAllByType(TouchableOpacity)
-        .find((node) => node.props.accessibilityLabel === label);
     const open = () =>
       tree.root
         .findAllByType(TouchableOpacity)
         .find((node) =>
           String(node.props.accessibilityLabel).startsWith("Select month,"),
         )!;
+    const done = () =>
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .find(
+          (node) => node.props.accessibilityLabel === "Done selecting month",
+        )!;
     renderer.act(() => open().props.onPress());
-    expect(findButton("Next month")!.props.disabled).toBe(true);
-    renderer.act(() => findButton("Previous month")!.props.onPress());
-    expect(findButton("Next month")!.props.disabled).toBe(false);
-    renderer.act(() => findButton("Done selecting month")!.props.onPress());
-    expect(findButton("Previous month")).toBeUndefined();
+    expect(tree.root.findByType(MonthPicker).props.value).toEqual({
+      month: 1,
+      year: 2026,
+    });
+    renderer.act(() => done().props.onPress());
+    expect(tree.root.findAllByType(MonthPicker)).toHaveLength(0);
+    renderer.act(() => {
+      store.dispatch(setMonthYear({ month: 11, year: 2025 }));
+    });
     renderer.act(() => open().props.onPress());
-    expect(findButton("Previous month")).toBeDefined();
+    expect(tree.root.findByType(MonthPicker).props.value).toEqual({
+      month: 11,
+      year: 2025,
+    });
   });
 
   it("refreshes the homepage data on pull-to-refresh", async () => {

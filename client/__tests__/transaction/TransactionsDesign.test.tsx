@@ -1,3 +1,4 @@
+import MonthPicker from "@/components/calendar/MonthPicker";
 import React, { useState } from "react";
 import renderer, { act } from "react-test-renderer";
 import { Provider } from "react-redux";
@@ -82,7 +83,7 @@ it("renders a single visible search field, clears it, and navigates reporting mo
   });
   expect(change).toHaveBeenCalledWith("");
   act(() => {
-    button(tree, "Previous month").props.onPress();
+    tree.root.findByType(MonthPicker).props.onChange({ month: 0, year: 2026 });
   });
   expect(store.getState().calendar.month).toBe(0);
   act(() => {

@@ -376,3 +376,58 @@ describe("BudgetScreen", () => {
     expect(mockedFetchAll).toHaveBeenCalledTimes(1);
   });
 });
+
+it("fetches only the final reporting month after a rapid multi-month swipe", async () => {
+  const { tree, store } = await setup([makeBudget()]);
+  const initial = store.getState().calendar;
+  const monthIndex = initial.year * 12 + initial.month;
+  renderer.act(() => {
+    tree.root
+      .findAllByType("View" as any)
+      .find((n) => n.props.accessibilityRole === "adjustable")!
+      .props.onLayout({ nativeEvent: { layout: { width: 300 } } });
+  });
+  const picker = () => tree.root.findByType("VirtualizedList" as any).props;
+  const scrollEvent = (monthsAgo: number) => ({
+    nativeEvent: { contentOffset: { x: monthsAgo * picker().snapToInterval } },
+  });
+  const reportFetch = require("@/api/financialSummary").default
+    .fetchReport as jest.Mock;
+  reportFetch.mockClear();
+  mockedFetchAll.mockClear();
+  (transactionApi.fetchAll as jest.Mock).mockClear();
+  renderer.act(() => {
+    picker().onScrollBeginDrag();
+    picker().onScroll(scrollEvent(1));
+    picker().onScroll(scrollEvent(3));
+    picker().onScrollEndDrag(scrollEvent(3));
+    picker().onMomentumScrollBegin();
+    picker().onScroll(scrollEvent(5));
+  });
+  expect(mockedFetchAll).not.toHaveBeenCalled();
+  expect(transactionApi.fetchAll).not.toHaveBeenCalled();
+  expect(reportFetch).not.toHaveBeenCalled();
+  expect(store.getState().calendar).toEqual(initial);
+  await renderer.act(async () => {
+    picker().onMomentumScrollEnd(scrollEvent(5));
+    await flush();
+  });
+  const year = Math.floor((monthIndex - 5) / 12);
+  const month = monthIndex - 5 - year * 12;
+  expect(store.getState().calendar).toEqual({ month, year });
+  expect(mockedFetchAll).toHaveBeenCalledTimes(1);
+  expect(mockedFetchAll).toHaveBeenLastCalledWith({
+    currentMonth: month,
+    currentYear: year,
+  });
+  expect(transactionApi.fetchAll).toHaveBeenCalledTimes(1);
+  expect(transactionApi.fetchAll).toHaveBeenLastCalledWith(
+    expect.objectContaining({ currentMonth: month, currentYear: year }),
+  );
+  expect(reportFetch).toHaveBeenCalledTimes(1);
+  expect(reportFetch).toHaveBeenLastCalledWith({
+    currentMonth: month,
+    currentYear: year,
+  });
+  renderer.act(() => tree.unmount());
+});

@@ -9,27 +9,25 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useAppDispatch, useAppSelector, useTheme } from "@/hooks/useRedux";
-import { prevMonth, nextMonth } from "@/store/slices/calendarSlice";
+import { setMonthYear } from "@/store/slices/calendarSlice";
 import NewBudgetButton from "./NewBudgetButton";
-import BudgetMonthSelector from "./BudgetMonthSelector";
+import MonthPicker from "@/components/calendar/MonthPicker";
 
 export interface BudgetHeaderProps {
-  monthLabel: string;
+  month: number;
   year?: number;
   showSearch: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onMonthPress?: () => void;
   onSetup?: () => void;
   onAddBudget?: () => void;
 }
 export default function BudgetHeader({
-  monthLabel,
+  month,
   year,
   showSearch,
   searchQuery,
   onSearchChange,
-  onMonthPress,
   onSetup,
   onAddBudget,
 }: BudgetHeaderProps) {
@@ -38,9 +36,6 @@ export default function BudgetHeader({
   const calendar = useAppSelector((state) => state?.calendar);
   const now = new Date();
   const displayYear = year ?? calendar?.year ?? now.getUTCFullYear();
-  const formattedMonth = monthLabel.includes(String(displayYear))
-    ? monthLabel
-    : `${monthLabel} ${displayYear}`;
   return (
     <View style={styles.header}>
       <View style={styles.brandRow}>
@@ -64,16 +59,12 @@ export default function BudgetHeader({
         >
           Budgets
         </Text>
-        <BudgetMonthSelector
-          monthLabel={formattedMonth}
-          isCurrentMonth={
-            displayYear === now.getUTCFullYear() &&
-            (calendar?.month ?? now.getUTCMonth()) === now.getUTCMonth()
-          }
-          onPrev={() => dispatch(prevMonth())}
-          onNext={() => dispatch(nextMonth())}
-          onMonthPress={onMonthPress}
-        />
+        <View style={{ flex: 1, minWidth: 190, maxWidth: 400 }}>
+          <MonthPicker
+            value={{ month, year: displayYear }}
+            onChange={(value) => dispatch(setMonthYear(value))}
+          />
+        </View>
       </View>
       <Text style={[styles.subtitle, { color: THEME.textSecondary }]}>
         Plan, track and stay in control of your spending.
