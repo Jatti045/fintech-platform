@@ -1,11 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
 import { BRAND } from "@/constants/ThemePalettes";
 import { formatCurrency } from "@/utils/helper";
 import type { IFinancialReport } from "@/types/financialSummary/types";
 import DashboardCard from "./DashboardCard";
-import DashboardSection from "./DashboardSection";
+import BudgetCategoryDetails from "./BudgetCategoryDetails";
+import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 /** Displays authoritative category limits, spending and remaining amounts without recomputing totals. */
 export default function BudgetOverview({
@@ -16,157 +18,169 @@ export default function BudgetOverview({
   onOpenBudgets: () => void;
 }) {
   const { THEME } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  // Sum server-normalized category amounts; do not substitute all spending
+  // (which can include categories without a budget) for budget utilization.
+  const totals = report.budgets.reduce(
+    (sum, budget) => ({
+      spent: sum.spent + budget.spent,
+      limit: sum.limit + budget.limit,
+    }),
+    { spent: 0, limit: 0 },
+  );
+  const percent =
+    totals.limit > 0 ? Math.round((totals.spent / totals.limit) * 100) : null;
+  const color = totals.spent > totals.limit ? THEME.danger : THEME.primary;
   return (
-    <DashboardSection
-      title="Monthly budgets"
-      action="View budgets"
-      onPress={onOpenBudgets}
-    >
-      <DashboardCard padding={BRAND.spacing.md}>
-        {report.budgets.length === 0 ? (
-          <>
+    <DashboardCard padding={14} style={{ marginBottom: 14 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Budget category details"
+          accessibilityHint="Show spending and remaining amounts for each budget category"
+          accessibilityState={{ expanded }}
+          onPress={() => setExpanded(!expanded)}
+          style={{
+            width: 48,
+            minHeight: 48,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <View
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: THEME.subtleSurface,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Feather name="target" size={23} color={THEME.primary} />
+          </View>
+          <Feather
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={10}
+            color={THEME.primary}
+            style={{ position: "absolute", right: 0, bottom: 3 }}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="View budgets"
+          onPress={onOpenBudgets}
+          style={{
+            flex: 1,
+            minHeight: 48,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <View style={{ flex: 1 }}>
             <Text
+              accessibilityRole="header"
               style={{
                 color: THEME.textPrimary,
-                fontSize: 15,
-                fontWeight: "600",
+                fontSize: 16,
+                fontWeight: "700",
+                letterSpacing: -0.3,
               }}
             >
-              Give your month a plan
+              Monthly Budget
             </Text>
             <Text
               style={{
                 color: THEME.textSecondary,
-                fontSize: 14,
-                lineHeight: 21,
-                marginTop: BRAND.spacing.sm,
+                fontSize: 12,
+                lineHeight: 18,
+                marginTop: 3,
               }}
             >
-              No budgets for this period. Open Budgets to use Smart Month Setup
-              or set your own limits.
+              {report.budgets.length
+                ? `${formatCurrency(totals.spent, report.currency)} of ${formatCurrency(totals.limit, report.currency)} spent`
+                : "Give your month a plan"}
             </Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Set up your month"
-              onPress={onOpenBudgets}
-              style={{
-                minHeight: BRAND.touchTarget,
-                justifyContent: "center",
-                alignSelf: "flex-start",
-              }}
-            >
-              <Text style={{ color: THEME.primary, fontWeight: "700" }}>
-                Set up your month
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          report.budgets.slice(0, 3).map((budget, index) => {
-            const percent = budget.utilizationPercentage;
-            const color =
-              budget.remaining < 0
-                ? THEME.danger
-                : percent != null && percent >= 80
-                  ? THEME.warning
-                  : THEME.primary;
-            return (
-              <TouchableOpacity
-                key={budget.id}
-                onPress={onOpenBudgets}
-                accessibilityRole="button"
-                accessibilityLabel={`${budget.category}, ${formatCurrency(budget.spent, report.currency)} spent of ${formatCurrency(budget.limit, report.currency)} budgeted, ${formatCurrency(budget.remaining, report.currency)} remaining`}
-                style={{
-                  paddingTop: index ? BRAND.spacing.md : 0,
-                  paddingBottom:
-                    index < Math.min(report.budgets.length, 3) - 1
-                      ? BRAND.spacing.md
-                      : 0,
-                  borderTopWidth: index ? 1 : 0,
-                  borderTopColor: THEME.border,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: BRAND.spacing.sm,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: THEME.textPrimary,
-                      fontSize: 15,
-                      fontWeight: "600",
-                      flexShrink: 1,
-                    }}
-                  >
-                    {budget.category}
-                  </Text>
-                  <Text style={{ color, fontSize: 12, fontWeight: "600" }}>
-                    {budget.limit <= 0
-                      ? "No limit set"
-                      : budget.remaining < 0
-                        ? "Over budget"
-                        : `${Math.round(percent ?? 0)}% used`}
-                  </Text>
-                </View>
-                <View
-                  accessibilityRole="progressbar"
-                  accessibilityValue={{
-                    min: 0,
-                    max: 100,
-                    now: Math.max(0, Math.min(100, percent ?? 0)),
-                    text: percent == null ? "No limit set" : `${percent}% used`,
-                  }}
-                  style={{
-                    height: 6,
-                    backgroundColor: THEME.surfaceHover,
-                    borderRadius: 3,
-                    overflow: "hidden",
-                    marginVertical: BRAND.spacing.sm,
-                  }}
-                >
-                  <View
-                    style={{
-                      height: 6,
-                      width: `${Math.max(0, Math.min(100, percent ?? 0))}%`,
-                      backgroundColor: color,
-                      borderRadius: 3,
-                    }}
-                  />
-                </View>
-                <Text
-                  style={{
-                    color: THEME.textSecondary,
-                    fontSize: 12,
-                    lineHeight: 19,
-                  }}
-                >
-                  {formatCurrency(budget.spent, report.currency)} spent ·{" "}
-                  {formatCurrency(budget.limit, report.currency)} budgeted
-                </Text>
-                <Text style={{ color, fontSize: 12, lineHeight: 19 }}>
-                  {formatCurrency(budget.remaining, report.currency)} remaining
-                </Text>
-              </TouchableOpacity>
-            );
-          })
-        )}
-        {report.budgets.length > 3 && (
+          </View>
+          {percent != null && (
+            <Text style={{ color, fontSize: 20, fontWeight: "700" }}>
+              {percent}%
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+      {report.budgets.length > 0 && (
+        <View
+          accessibilityRole="progressbar"
+          accessibilityValue={{
+            min: 0,
+            max: 100,
+            now: Math.max(0, Math.min(100, percent ?? 0)),
+            text:
+              percent == null
+                ? "No limit set"
+                : `${percent}% of monthly budget spent`,
+          }}
+          style={{
+            height: 11,
+            borderRadius: 6,
+            backgroundColor: THEME.border,
+            overflow: "hidden",
+            marginTop: 9,
+          }}
+        >
+          <LinearGradient
+            colors={[
+              color,
+              totals.spent > totals.limit ? THEME.danger : THEME.primaryHover,
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{
+              height: 11,
+              borderRadius: 6,
+              width: `${Math.max(0, Math.min(100, percent ?? 0))}%`,
+            }}
+          />
+        </View>
+      )}
+      {report.budgets.length === 0 ? (
+        <>
           <Text
             style={{
               color: THEME.textSecondary,
-              fontSize: 12,
-              marginTop: BRAND.spacing.md,
+              fontSize: 14,
+              lineHeight: 21,
+              marginTop: BRAND.spacing.sm,
             }}
           >
-            Showing 3 of {report.budgets.length} categories. View budgets for
-            the full month.
+            No budgets for this period. Open Budgets to use Smart Month Setup or
+            set your own limits.
           </Text>
-        )}
-      </DashboardCard>
-    </DashboardSection>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Set up your month"
+            onPress={onOpenBudgets}
+            style={{
+              minHeight: BRAND.touchTarget,
+              justifyContent: "center",
+              alignSelf: "flex-start",
+            }}
+          >
+            <Text style={{ color: THEME.primary, fontWeight: "700" }}>
+              Set up your month
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        expanded && (
+          <BudgetCategoryDetails
+            report={report}
+            onOpenBudgets={onOpenBudgets}
+          />
+        )
+      )}
+    </DashboardCard>
   );
 }

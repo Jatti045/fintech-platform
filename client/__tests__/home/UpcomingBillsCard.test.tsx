@@ -90,7 +90,11 @@ describe("UpcomingBillsCard", () => {
     expect(renderedText("Upcoming Bills")).toBe(true);
     expect(renderedText("Netflix")).toBe(true);
     expect(renderedText("~$15.49")).toBe(true);
-    // Monthly bills get a "usually around the Nth" hint.
+    // Prediction evidence remains available in the expanded row.
+    const row = touchableOpacityMock.mock.calls.find((call) =>
+      String(call[0]?.accessibilityLabel).startsWith("Bill Netflix,"),
+    )![0];
+    renderer.act(() => row.onPress());
     expect(renderedText("Usually around the 27th")).toBe(true);
   });
 

@@ -50,6 +50,12 @@ it.each(["Light", "Dark"])(
       <BudgetOverview report={homeReport} onOpenBudgets={open} />,
       theme,
     );
+    expect(texts(tree)).toContain(
+      `${formatCurrency(617.75, "CAD")} of ${formatCurrency(850, "CAD")} spent`,
+    );
+    act(() => {
+      button(tree, "Budget category details").props.onPress();
+    });
     expect(texts(tree)).toContain(formatCurrency(-20, "CAD"));
     expect(texts(tree)).toContain("Over budget");
     const over = tree.root
@@ -198,4 +204,41 @@ it("expands bill evidence, formats its own currency, and dismisses the selected 
   act(() => {
     tree.unmount();
   });
+});
+
+it("keeps all upcoming bills reachable from the compact preview", () => {
+  const bills = ["Internet", "Electricity", "Membership"].map(
+    (name, index) => ({
+      seriesKey: name,
+      name,
+      expectedAmount: 20 + index,
+      currency: "CAD",
+      cadence: "MONTHLY",
+      intervalDays: 30,
+      nextExpectedDate: "2026-03-12T12:00:00Z",
+      lastOccurredDate: "2026-02-12T12:00:00Z",
+      occurrences: 4,
+      confidence: "HIGH",
+      usualDayOfMonth: 12,
+      amountChange: null,
+      matchedTransactions: [],
+    }),
+  ) as IRecurringPayment[];
+  const tree = mount(
+    <UpcomingBillsCard
+      bills={bills}
+      currencyCode="CAD"
+      onDismiss={jest.fn()}
+    />,
+  );
+  expect(texts(tree)).not.toContain("Membership");
+  act(() => {
+    button(tree, "See all upcoming bills").props.onPress();
+  });
+  expect(texts(tree)).toContain("Membership");
+  act(() => {
+    button(tree, "Show fewer upcoming bills").props.onPress();
+  });
+  expect(texts(tree)).not.toContain("Membership");
+  act(() => tree.unmount());
 });

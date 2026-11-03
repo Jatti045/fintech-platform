@@ -1,12 +1,10 @@
 import React, { useMemo } from "react";
 import { Text, View, TouchableOpacity } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { useBudgets, useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
-import { capitalizeFirst, formatCurrency } from "@/utils/helper";
+import { formatCurrency } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type { ITransaction } from "@/types/transaction/types";
-import DashboardCard from "./DashboardCard";
+import ActivityIcon from "./ActivityIcon";
 import DashboardSection from "./DashboardSection";
 import DashboardState from "./DashboardState";
 
@@ -51,11 +49,11 @@ export default function RecentTransactions({
   );
   return (
     <DashboardSection
-      title="Recent transactions"
+      title="Recent Transactions"
       action="See all transactions"
       onPress={onSeeAll}
     >
-      <DashboardCard paddingHorizontal={BRAND.spacing.md}>
+      <View>
         {error && (
           <DashboardState
             error
@@ -101,50 +99,32 @@ export default function RecentTransactions({
               accessibilityRole={onSeeAll ? "button" : undefined}
               accessibilityLabel={`${tx.name || "Transaction"}, ${transfer ? "Transfer" : category}, ${sign}${formatCurrency(Math.abs(amount), currency)}, ${formatTxDate(tx.date)}`}
               style={{
-                paddingVertical: BRAND.spacing.md,
-                borderBottomWidth: i === recent.length - 1 ? 0 : 1,
-                borderBottomColor: THEME.border,
+                paddingVertical: 8,
+                paddingBottom: i === recent.length - 1 ? 6 : 0,
+                minHeight: 48,
               }}
             >
               <View
                 style={{
                   flexDirection: "row",
-                  flexWrap: "wrap",
                   alignItems: "center",
-                  gap: BRAND.spacing.sm,
+                  gap: 12,
                 }}
               >
                 <View
                   style={{
-                    flexGrow: 1,
-                    flexBasis: 140,
+                    flex: 1,
+                    minWidth: 0,
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: BRAND.spacing.sm,
+                    gap: 12,
                   }}
                 >
-                  <View
-                    style={{
-                      backgroundColor: THEME.subtleSurface,
-                      width: 36,
-                      height: 36,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Feather
-                      name={
-                        transfer
-                          ? "repeat"
-                          : expense
-                            ? "arrow-up-right"
-                            : "arrow-down-left"
-                      }
-                      size={18}
-                      color={transfer ? THEME.textSecondary : THEME.primary}
-                    />
-                  </View>
+                  <ActivityIcon
+                    category={category}
+                    income={!expense}
+                    transfer={transfer}
+                  />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
                       style={{
@@ -160,10 +140,10 @@ export default function RecentTransactions({
                       style={{
                         color: THEME.textSecondary,
                         fontSize: 12,
-                        marginTop: 4,
+                        marginTop: 2,
                       }}
                     >
-                      {transfer ? "Transfer" : capitalizeFirst(category)} ·{" "}
+                      {transfer ? "Transfer · " : ""}
                       {formatTxDate(tx.date)}
                     </Text>
                   </View>
@@ -171,7 +151,7 @@ export default function RecentTransactions({
                 <Text
                   style={{
                     color,
-                    fontSize: 17,
+                    fontSize: 15,
                     fontWeight: "700",
                     fontVariant: ["tabular-nums"],
                     textAlign: "right",
@@ -183,10 +163,21 @@ export default function RecentTransactions({
                   {formatCurrency(Math.abs(amount), currency)}
                 </Text>
               </View>
+              {i < recent.length - 1 && (
+                <View
+                  style={{
+                    height: 1,
+                    backgroundColor: THEME.border,
+                    opacity: 0.5,
+                    marginLeft: 48,
+                    marginTop: 8,
+                  }}
+                />
+              )}
             </TouchableOpacity>
           );
         })}
-      </DashboardCard>
+      </View>
     </DashboardSection>
   );
 }

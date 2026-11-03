@@ -390,20 +390,6 @@ describe("useHomeScreen", () => {
     expect(store.getState().calendar.month).toBe(5);
   });
 
-  it("manages the info modal state", async () => {
-    const { captured } = await setup();
-
-    renderer.act(() => {
-      captured.current!.handleInfoPress();
-    });
-    expect(captured.current!.helpOpen).toBe(true);
-
-    renderer.act(() => {
-      captured.current!.setHelpOpen(false);
-    });
-    expect(captured.current!.helpOpen).toBe(false);
-  });
-
   it("exposes display transactions with display amounts", async () => {
     mockedTxFetch.mockResolvedValue({
       data: { transaction: [makeTx({ baseCurrency: "USD" })] },

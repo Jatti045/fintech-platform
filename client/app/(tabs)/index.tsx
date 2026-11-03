@@ -6,14 +6,13 @@ import { BRAND } from "@/constants/ThemePalettes";
 import { useHomeScreen } from "@/hooks/home/useHomeScreen";
 import { useTheme } from "@/hooks/useRedux";
 import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
-import InformationModal from "@/components/home/informationModal";
 import HomeHeader from "@/components/home/HomeHeader";
-import MonthSelector from "@/components/home/MonthSelector";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
-import FinancialMetrics from "@/components/home/FinancialMetrics";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentTransactions from "@/components/home/RecentTransactions";
 import BudgetOverview from "@/components/home/BudgetOverview";
+import DashboardCard from "@/components/home/DashboardCard";
+import DashboardState from "@/components/home/DashboardState";
 
 /** Home uses server-owned reporting values; interactions stay in the existing hooks and routes. */
 export default function Index() {
@@ -28,8 +27,8 @@ export default function Index() {
     >
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: BRAND.spacing.md,
-          paddingTop: BRAND.spacing.md,
+          paddingHorizontal: 20,
+          paddingTop: 12,
           paddingBottom: BRAND.spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
@@ -45,15 +44,28 @@ export default function Index() {
       >
         <View style={{ width: "100%", maxWidth: 680, alignSelf: "center" }}>
           <HomeHeader
-            onInfoPress={home.handleInfoPress}
             onSettingsPress={() => router.push("/(tabs)/profile")}
-          />
-          <MonthSelector
             monthLabel={home.monthLabel}
             isCurrentMonth={home.isCurrentMonth}
             onPrev={home.handlePrevMonth}
             onNext={home.handleNextMonth}
           />
+          {(reporting.isLoading || reporting.error || reporting.stale) && (
+            <DashboardCard padding={16} style={{ marginBottom: 14 }}>
+              <DashboardState
+                loading={!report && reporting.isLoading}
+                error={Boolean(reporting.error)}
+                message={
+                  reporting.error
+                    ? "Monthly report could not be refreshed."
+                    : report
+                      ? "Updating your monthly report…"
+                      : "Loading your monthly report…"
+                }
+                onRetry={reporting.refetch}
+              />
+            </DashboardCard>
+          )}
           {report && (
             <>
               <MonthlyOverview
@@ -65,12 +77,6 @@ export default function Index() {
                 daily={report.daily}
                 month={home.month}
                 year={home.year}
-                report={report}
-              />
-              <FinancialMetrics
-                monthlyIncome={home.monthlyIncome}
-                totalSpent={home.expenseTotal}
-                currencyCode={report.currency}
                 report={report}
               />
               <BudgetOverview
@@ -100,10 +106,6 @@ export default function Index() {
           <MonthlyInsightCard month={home.month} year={home.year} />
         </View>
       </ScrollView>
-      <InformationModal
-        helpOpen={home.helpOpen}
-        setHelpOpen={home.setHelpOpen}
-      />
     </SafeAreaView>
   );
 }

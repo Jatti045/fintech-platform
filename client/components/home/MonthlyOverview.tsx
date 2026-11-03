@@ -1,8 +1,16 @@
-import React, { useMemo } from "react";
-import { View, Text } from "react-native";
-import { formatCurrency } from "@/utils/helper";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+} from "react-native";
+import { Feather } from "@expo/vector-icons";
+import Svg, { Path } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
+import MonthlyDetails from "./MonthlyDetails";
+import { formatCurrency, hexToRgba } from "@/utils/helper";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
 import type { IFinancialReport } from "@/types/financialSummary/types";
 import DashboardCard from "./DashboardCard";
 
@@ -22,217 +30,200 @@ export default function MonthlyOverview({
   monthlyIncome,
   totalSpent,
   currencyCode,
-  daily = [],
+  monthLabel,
+  isCurrentMonth,
+  daily,
   month,
   year,
   report,
 }: MonthlyOverviewProps) {
+  const [expanded, setExpanded] = useState(false);
+  const { width, fontScale } = useWindowDimensions();
+  const stackMetrics = width < 400 || fontScale > 1.15;
   const income = Math.max(0, monthlyIncome || 0);
   const net = report?.summary.netRemaining ?? income - totalSpent;
-  const spentPercent = Math.round(
-    report?.summary.spentPercentageOfIncome ??
-      (income > 0 ? totalSpent / income : 0) * 100,
-  );
-  // Render the authoritative daily series for the last eight reporting days.
-  const trendBars = useMemo(() => {
-    const now = new Date();
-    const targetMonth = month ?? now.getUTCMonth();
-    const targetYear = year ?? now.getUTCFullYear();
-    const daysInMonth = new Date(
-      Date.UTC(targetYear, targetMonth + 1, 0),
-    ).getUTCDate();
-    const todayDate = now.getUTCDate();
-
-    const endDay =
-      targetMonth === now.getUTCMonth() && targetYear === now.getUTCFullYear()
-        ? Math.min(todayDate, daysInMonth)
-        : daysInMonth;
-    const startDay = Math.max(1, endDay - 7);
-
-    const dailyTotals: number[] = [];
-    for (let d = startDay; d <= endDay; d++) {
-      const sum = daily.find((point) => point.day === d)?.netSpent ?? 0;
-      dailyTotals.push(sum);
-    }
-
-    while (dailyTotals.length < 8) {
-      dailyTotals.unshift(0);
-    }
-
-    const maxVal = Math.max(1, ...dailyTotals.map(Math.abs));
-    const highlightIdx = dailyTotals.length - 1;
-
-    return dailyTotals.map((val, idx) => {
-      const h =
-        val !== 0 ? Math.max(2, Math.round((Math.abs(val) / maxVal) * 44)) : 0;
-      return {
-        height: h,
-        value: val,
-        day: startDay + idx - (8 - (endDay - startDay + 1)),
-        isHighlight: idx === highlightIdx,
-      };
-    });
-  }, [daily, month, year]);
-
   const { THEME } = useTheme();
   return (
-    <DashboardCard
-      padding={BRAND.spacing.lg}
-      style={{
-        marginBottom: BRAND.spacing.md,
-        backgroundColor: THEME.subtleSurface,
-      }}
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: BRAND.spacing.sm,
-          marginBottom: BRAND.spacing.md,
-        }}
-      >
-        <Text
-          accessibilityRole="header"
-          style={{ color: THEME.textPrimary, fontSize: 15, fontWeight: "700" }}
-        >
-          Monthly overview
-        </Text>
-        <Text style={{ color: THEME.textSecondary, fontSize: 12 }}>
-          {currencyCode} ·{" "}
-          {report?.incomeBasis === "EXPECTED"
-            ? "Expected income basis"
-            : report?.incomeBasis === "UNCONFIGURED"
-              ? "Income not configured"
-              : "Recorded income basis"}
-        </Text>
-      </View>
-      <Text
-        accessibilityLabel={`${formatCurrency(net, currencyCode)} ${net < 0 ? "over income" : "income remaining"}`}
-        style={{
-          color: net < 0 ? THEME.danger : THEME.textPrimary,
-          fontSize: 38,
-          fontWeight: "800",
-          letterSpacing: -1.3,
-          fontVariant: ["tabular-nums"],
-        }}
-      >
-        {formatCurrency(net, currencyCode)}
-      </Text>
-      <Text
-        style={{
-          color: THEME.textSecondary,
-          fontSize: 14,
-          marginTop: BRAND.spacing.xs,
-          marginBottom: BRAND.spacing.lg,
-        }}
-      >
-        {net < 0 ? "over income" : "income remaining"}
-      </Text>
-      <View
-        accessibilityRole="progressbar"
-        accessibilityValue={{
-          min: 0,
-          max: 100,
-          now: Math.max(0, Math.min(100, spentPercent)),
-          text:
-            income > 0
-              ? `${spentPercent}% of income spent`
-              : "No income available for percentage",
-        }}
-        style={{
-          height: 7,
-          borderRadius: 4,
-          backgroundColor: THEME.border,
-          overflow: "hidden",
-        }}
-      >
-        <View
-          style={{
-            width: `${Math.max(0, Math.min(100, spentPercent))}%`,
-            height: 7,
-            backgroundColor: net < 0 ? THEME.danger : THEME.primary,
-            borderRadius: 4,
+    <DashboardCard style={{ marginBottom: 14 }}>
+      <View style={{ borderRadius: 18, overflow: "hidden" }}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Monthly details"
+          accessibilityHint="Show income basis, spending trend and monthly comparisons"
+          accessibilityValue={{
+            text: `${formatCurrency(net, currencyCode)} income remaining, ${formatCurrency(income, currencyCode)} income, ${formatCurrency(totalSpent, currencyCode)} expenses`,
           }}
-        />
-      </View>
-      <Text
-        style={{
-          color: THEME.textSecondary,
-          fontSize: 12,
-          lineHeight: 19,
-          marginTop: BRAND.spacing.sm,
-        }}
-      >
-        {income > 0
-          ? `${spentPercent}% of income spent`
-          : "No income available for percentage"}
-      </Text>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: BRAND.spacing.md,
-          flexWrap: "wrap",
-          marginTop: BRAND.spacing.lg,
-          borderTopWidth: 1,
-          borderTopColor: THEME.border,
-          paddingTop: BRAND.spacing.md,
-        }}
-      >
-        <View style={{ flexShrink: 1 }}>
-          <Text
-            style={{
-              color: THEME.textPrimary,
-              fontSize: 13,
-              fontWeight: "600",
-            }}
-          >
-            Spending trend
-          </Text>
-          <Text
-            style={{
-              color: THEME.textSecondary,
-              fontSize: 12,
-              marginTop: BRAND.spacing.xs,
-            }}
-          >
-            Last 8 reporting days
-          </Text>
-        </View>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-end",
-            height: 58,
-            gap: 8,
-          }}
+          accessibilityState={{ expanded }}
+          onPress={() => setExpanded(!expanded)}
+          activeOpacity={0.85}
         >
-          {trendBars.map((bar, i) => (
+          <LinearGradient
+            colors={[THEME.surface, THEME.subtleSurface]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ padding: 18, paddingBottom: 22, overflow: "hidden" }}
+          >
             <View
-              key={i}
-              accessible={bar.day > 0}
-              accessibilityLabel={`Day ${bar.day}: ${formatCurrency(bar.value, currencyCode)} net spending`}
-              style={{ height: 58, justifyContent: "flex-end" }}
+              pointerEvents="none"
+              accessible={false}
+              style={{
+                position: "absolute",
+                right: -12,
+                bottom: -32,
+                width: 185,
+                height: 155,
+              }}
             >
-              <View
+              <Svg width="100%" height="100%" viewBox="0 0 185 155">
+                <Path
+                  d="M78 155C60 55 111 4 185 0C193 83 153 139 78 155Z"
+                  fill={THEME.primary}
+                  opacity={0.19}
+                />
+                <Path
+                  d="M58 155C64 99 117 60 185 53C178 109 131 150 58 155Z"
+                  fill={THEME.primary}
+                  opacity={0.15}
+                />
+                <Path
+                  d="M0 155C-9 99 12 58 47 50C90 40 117 86 105 155Z"
+                  fill={THEME.primary}
+                  opacity={0.06}
+                />
+              </Svg>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text
+                accessibilityRole="header"
                 style={{
-                  width: 5,
-                  height: bar.height,
-                  borderRadius: 3,
-                  backgroundColor:
-                    bar.value < 0
-                      ? THEME.warning
-                      : bar.isHighlight
-                        ? THEME.success
-                        : THEME.primary,
-                  opacity: bar.isHighlight || bar.value < 0 ? 1 : 0.4,
+                  color: THEME.textSecondary,
+                  fontSize: 14,
+                  fontWeight: "600",
                 }}
+              >
+                {net < 0 ? "Spending over income" : "Income remaining"}
+              </Text>
+              <Feather
+                name={expanded ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={THEME.primary}
               />
             </View>
-          ))}
-        </View>
+            <Text
+              accessibilityLabel={`${formatCurrency(net, currencyCode)} ${net < 0 ? "over income" : "income remaining"}`}
+              adjustsFontSizeToFit
+              numberOfLines={1}
+              style={{
+                color: net < 0 ? THEME.danger : THEME.textPrimary,
+                fontSize: 36,
+                fontWeight: "800",
+                letterSpacing: -1.3,
+                fontVariant: ["tabular-nums"],
+                marginTop: 4,
+              }}
+            >
+              {formatCurrency(net, currencyCode)}
+            </Text>
+          </LinearGradient>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              padding: 16,
+              gap: 12,
+              backgroundColor: THEME.surface,
+              borderTopLeftRadius: 22,
+              borderTopRightRadius: 22,
+              marginTop: -8,
+            }}
+          >
+            {[
+              {
+                label: "Income",
+                amount: income,
+                icon: "arrow-up" as const,
+                color: THEME.primary,
+                background: THEME.subtleSurface,
+              },
+              {
+                label: "Expenses",
+                amount: totalSpent,
+                icon: "arrow-down" as const,
+                color: THEME.danger,
+                background: THEME.errorSurface,
+              },
+            ].map((item, index) => (
+              <View
+                key={item.label}
+                style={{
+                  flex: 1,
+                  minWidth: 120,
+                  flexDirection: stackMetrics ? "column" : "row",
+                  alignItems: stackMetrics ? "flex-start" : "center",
+                  gap: 10,
+                  borderLeftWidth: index ? 1 : 0,
+                  borderLeftColor: hexToRgba(THEME.border, 0.55),
+                  paddingLeft: index ? 12 : 0,
+                }}
+              >
+                <View
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 17,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: item.background,
+                  }}
+                >
+                  <Feather name={item.icon} size={21} color={item.color} />
+                </View>
+                <View
+                  style={{
+                    alignSelf: "stretch",
+                    flex: stackMetrics ? undefined : 1,
+                  }}
+                >
+                  <Text style={{ color: THEME.textSecondary, fontSize: 12 }}>
+                    {item.label}
+                  </Text>
+                  <Text
+                    adjustsFontSizeToFit
+                    numberOfLines={1}
+                    style={{
+                      color: THEME.textPrimary,
+                      fontSize: stackMetrics ? 18 : 19,
+                      fontWeight: "700",
+                      fontVariant: ["tabular-nums"],
+                      marginTop: 3,
+                    }}
+                  >
+                    {formatCurrency(item.amount, currencyCode)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </TouchableOpacity>
+        {expanded && (
+          <MonthlyDetails
+            monthlyIncome={monthlyIncome}
+            totalSpent={totalSpent}
+            currencyCode={currencyCode}
+            daily={daily}
+            month={month}
+            year={year}
+            report={report}
+            monthLabel={monthLabel}
+            isCurrentMonth={isCurrentMonth}
+          />
+        )}
       </View>
     </DashboardCard>
   );

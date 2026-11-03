@@ -2,6 +2,7 @@ import React from "react";
 import renderer, { act } from "react-test-renderer";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
 import { buildDailySpendTotals } from "@/utils/transaction/helpers";
+import { TouchableOpacity } from "react-native";
 import type { ITransaction } from "@/types/transaction/types";
 
 jest.mock("@/hooks/useRedux", () => ({
@@ -35,6 +36,12 @@ function bars(transactions: ITransaction[]) {
         }))}
       />,
     );
+  });
+  act(() => {
+    tree.root
+      .findAllByType(TouchableOpacity)
+      .find((n) => n.props.accessibilityLabel === "Monthly details")!
+      .props.onPress();
   });
   const heights = tree.root
     .findAllByType("View" as any)
@@ -106,6 +113,12 @@ test("the current-day bar stays highlighted when an early month is left-padded",
           daily={[{ day: 1, netSpent: 30 }]}
         />,
       );
+    });
+    act(() => {
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .find((n) => n.props.accessibilityLabel === "Monthly details")!
+        .props.onPress();
     });
     const styles = tree.root
       .findAllByType("View" as any)

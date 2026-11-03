@@ -43,7 +43,6 @@ const NO_BUDGETS: IBudget[] = [];
  *    month so navigation can never mix months.
  *  - backend-normalized financial aggregates
  *  - month metadata + calendar navigation handlers
- *  - help modal state
  *
  * Contains no JSX. Global data stays in Redux; display transforms stay in
  * `useTransactionDisplayAmounts` / `useBudgetDisplayAmounts`.
@@ -118,9 +117,6 @@ export const useHomeScreen = () => {
     activeCurrency,
   );
 
-  // ── Modal / screen-level UI state ─────────────────────────────────────
-  const [helpOpen, setHelpOpen] = useState(false);
-
   // ── Pull-to-refresh: force a network revalidation of all three sources ─
   const { refreshing, onRefresh } = useRefresh(() =>
     Promise.all([
@@ -146,10 +142,6 @@ export const useHomeScreen = () => {
   const handleNextMonth = useCallback(() => {
     dispatch(nextMonth());
   }, [dispatch]);
-
-  const handleInfoPress = useCallback(() => {
-    setHelpOpen(true);
-  }, []);
 
   return {
     reporting: financialSummaryQuery,
@@ -178,12 +170,9 @@ export const useHomeScreen = () => {
     year: calendar.year,
     upcomingBills,
     handleDismissBill,
-    helpOpen,
-    setHelpOpen,
     refreshing,
     onRefresh,
     handlePrevMonth,
     handleNextMonth,
-    handleInfoPress,
   };
 };

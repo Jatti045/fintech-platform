@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { BRAND } from "@/constants/ThemePalettes";
 import { formatCurrency } from "@/utils/helper";
 import type { IRecurringPayment } from "@/types/recurring/types";
-import DashboardCard from "./DashboardCard";
+import ActivityIcon from "./ActivityIcon";
 import DashboardSection from "./DashboardSection";
 import DashboardState from "./DashboardState";
 
@@ -42,24 +41,18 @@ export default function UpcomingBillsCard({
   onRetry,
 }: UpcomingBillsCardProps) {
   const { THEME } = useTheme();
+  const [showAll, setShowAll] = useState(false);
+  const visibleBills = showAll ? bills : bills.slice(0, 2);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   return (
     <DashboardSection
       title="Upcoming Bills"
       action="See all upcoming bills"
-      onPress={onSeeAll}
+      onPress={
+        onSeeAll || (bills.length > 2 ? () => setShowAll(!showAll) : undefined)
+      }
     >
-      <DashboardCard paddingHorizontal={BRAND.spacing.md}>
-        <Text
-          style={{
-            color: THEME.textSecondary,
-            fontSize: 12,
-            lineHeight: 19,
-            paddingTop: BRAND.spacing.md,
-          }}
-        >
-          Estimates based on recent activity, independent of the selected month.
-        </Text>
+      <View>
         {error && (
           <DashboardState
             error
@@ -77,7 +70,7 @@ export default function UpcomingBillsCard({
             }
           />
         )}
-        {bills.map((bill, i) => {
+        {visibleBills.map((bill, i) => {
           const expanded = expandedKey === bill.seriesKey;
           const currency = bill.currency || currencyCode;
           const estimate = `~${formatCurrency(bill.expectedAmount, currency)}`;
@@ -90,9 +83,7 @@ export default function UpcomingBillsCard({
             <View
               key={bill.seriesKey}
               style={{
-                paddingVertical: BRAND.spacing.md,
-                borderBottomWidth: i < bills.length - 1 ? 1 : 0,
-                borderBottomColor: THEME.border,
+                paddingVertical: 8,
               }}
             >
               <TouchableOpacity
@@ -109,8 +100,10 @@ export default function UpcomingBillsCard({
                     gap: BRAND.spacing.sm,
                   }}
                 >
+                  <ActivityIcon category={bill.name} />
                   <View style={{ flex: 1 }}>
                     <Text
+                      numberOfLines={2}
                       style={{
                         color: THEME.textPrimary,
                         fontSize: 15,
@@ -123,40 +116,24 @@ export default function UpcomingBillsCard({
                       style={{
                         color: THEME.textSecondary,
                         fontSize: 12,
-                        marginTop: 4,
+                        marginTop: 2,
                       }}
                     >
-                      Expected {shortDate(bill.nextExpectedDate)} ·{" "}
-                      {bill.cadence.toLowerCase()}
+                      {shortDate(bill.nextExpectedDate)}
                     </Text>
                   </View>
-                  <Feather
-                    name={expanded ? "chevron-up" : "chevron-down"}
-                    size={18}
-                    color={THEME.textSecondary}
-                  />
+                  <Text
+                    style={{
+                      color: THEME.textPrimary,
+                      fontSize: 15,
+                      fontWeight: "700",
+                      fontVariant: ["tabular-nums"],
+                      flexShrink: 1,
+                    }}
+                  >
+                    {estimate}
+                  </Text>
                 </View>
-                <Text
-                  style={{
-                    color: THEME.textPrimary,
-                    fontSize: 18,
-                    fontWeight: "700",
-                    fontVariant: ["tabular-nums"],
-                    marginTop: BRAND.spacing.sm,
-                  }}
-                >
-                  {estimate}
-                </Text>
-                <Text
-                  style={{
-                    color: THEME.textSecondary,
-                    fontSize: 12,
-                    lineHeight: 19,
-                    marginTop: BRAND.spacing.xs,
-                  }}
-                >
-                  {hint}
-                </Text>
                 {bill.confidence === "MEDIUM" && (
                   <Text
                     style={{ color: THEME.warning, fontSize: 11, marginTop: 4 }}
@@ -186,6 +163,15 @@ export default function UpcomingBillsCard({
                     marginTop: BRAND.spacing.sm,
                   }}
                 >
+                  <Text
+                    style={{
+                      color: THEME.textSecondary,
+                      fontSize: 12,
+                      lineHeight: 19,
+                    }}
+                  >
+                    {hint} · {bill.cadence.toLowerCase()}
+                  </Text>
                   <Text
                     style={{
                       color: THEME.textSecondary,
@@ -228,10 +214,44 @@ export default function UpcomingBillsCard({
                   </TouchableOpacity>
                 </View>
               )}
+              {i < visibleBills.length - 1 && (
+                <View
+                  style={{
+                    height: 1,
+                    backgroundColor: THEME.border,
+                    opacity: 0.5,
+                    marginLeft: 48,
+                    marginTop: 8,
+                  }}
+                />
+              )}
             </View>
           );
         })}
-      </DashboardCard>
+        <Text
+          style={{
+            color: THEME.textSecondary,
+            fontSize: 11,
+            lineHeight: 16,
+            marginTop: 6,
+            marginBottom: 4,
+          }}
+        >
+          Estimates from recent activity, independent of the selected month.
+        </Text>
+        {showAll && !onSeeAll && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Show fewer upcoming bills"
+            onPress={() => setShowAll(false)}
+            style={{ minHeight: 48, justifyContent: "center" }}
+          >
+            <Text style={{ color: THEME.primary, fontSize: 12 }}>
+              Show fewer bills
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </DashboardSection>
   );
 }

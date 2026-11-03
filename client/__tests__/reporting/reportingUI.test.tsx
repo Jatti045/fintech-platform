@@ -1,4 +1,5 @@
 import React from "react";
+import { TouchableOpacity } from "react-native";
 import renderer, { act } from "react-test-renderer";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
 import FinancialMetrics from "@/components/home/FinancialMetrics";
@@ -193,12 +194,19 @@ test("Home keeps negative remaining income, zero activity bars, and no hard-code
   );
   expect(texts(tree)).toContain("-600");
   expect(texts(tree)).toContain("over income");
+  act(() => {
+    tree.root
+      .findAllByType(TouchableOpacity)
+      .find((node) => node.props.accessibilityLabel === "Monthly details")!
+      .props.onPress();
+  });
   const bars = tree.root
     .findAllByType("View" as any)
     .filter(
       (n) =>
         n.props.style?.width === 5 && n.props.style?.marginBottom === undefined,
     );
+  expect(bars).toHaveLength(8);
   expect(bars.every((n) => n.props.style.height === 0)).toBe(true);
   act(() => {
     tree.unmount();

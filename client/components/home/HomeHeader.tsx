@@ -1,103 +1,94 @@
 import React from "react";
-import { Image, View, Text, TouchableOpacity } from "react-native";
+import { Image, View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { useTheme, useUser } from "@/hooks/useRedux";
 import { capitalizeFirst } from "@/utils/helper";
-import { BRAND } from "@/constants/ThemePalettes";
+import MonthSelector from "./MonthSelector";
 
-type Props = { onInfoPress: () => void; onSettingsPress?: () => void };
+type Props = {
+  onSettingsPress: () => void;
+  monthLabel: string;
+  isCurrentMonth: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+};
 
-export default function HomeHeader({ onInfoPress, onSettingsPress }: Props) {
-  const user = useUser();
+export default function HomeHeader({ onSettingsPress, ...calendar }: Props) {
   const { THEME } = useTheme();
+  const user = useUser();
   const name = capitalizeFirst(String(user?.username || "").trim());
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: BRAND.spacing.sm,
-        marginBottom: BRAND.spacing.lg,
-      }}
-    >
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: BRAND.spacing.sm,
-            marginBottom: BRAND.spacing.sm,
-          }}
-        >
+    <View style={styles.header}>
+      <View style={styles.brandRow}>
+        <View style={styles.brand}>
           <Image
             source={require("@/assets/fundleaf-brand-assets/logo-mark.png")}
-            style={{ width: 26, height: 26 }}
+            style={styles.logo}
             resizeMode="contain"
             accessible={false}
           />
-          <Text
-            style={{ color: THEME.primary, fontSize: 15, fontWeight: "700" }}
-          >
+          <Text style={[styles.wordmark, { color: THEME.textPrimary }]}>
             Fundleaf
           </Text>
         </View>
-        <Text
-          accessibilityRole="header"
-          style={{
-            color: THEME.textPrimary,
-            fontSize: 25,
-            fontWeight: "700",
-            letterSpacing: -0.7,
-          }}
+        <TouchableOpacity
+          onPress={onSettingsPress}
+          accessibilityRole="button"
+          accessibilityLabel="Profile settings"
+          style={[styles.settings, { backgroundColor: THEME.subtleSurface }]}
         >
-          {greeting}
-          {name ? `, ${name}` : ""}
-        </Text>
-        <Text
-          style={{
-            color: THEME.textSecondary,
-            fontSize: 14,
-            marginTop: BRAND.spacing.xs,
-          }}
-        >
-          Your month at a glance.
-        </Text>
+          <Feather name="settings" size={23} color={THEME.textPrimary} />
+        </TouchableOpacity>
       </View>
-      <View style={{ flexDirection: "row", gap: BRAND.spacing.xs }}>
-        {(
-          [
-            ["info", "Help and usage", onInfoPress],
-            [
-              "settings",
-              "Profile settings",
-              onSettingsPress || (() => router.push("/(tabs)/profile")),
-            ],
-          ] as const
-        ).map(([icon, label, onPress]) => (
-          <TouchableOpacity
-            key={label}
-            onPress={onPress}
-            accessibilityRole="button"
-            accessibilityLabel={label}
-            style={{
-              width: BRAND.touchTarget,
-              height: BRAND.touchTarget,
-              borderRadius: BRAND.radius.input,
-              backgroundColor: THEME.surface,
-              borderWidth: 1,
-              borderColor: THEME.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+      <View style={styles.welcomeRow}>
+        <View style={styles.welcome}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.title, { color: THEME.textPrimary }]}
           >
-            <Feather name={icon} size={20} color={THEME.textSecondary} />
-          </TouchableOpacity>
-        ))}
+            Welcome back{name ? `, ${name}` : ""}!
+          </Text>
+          <Text style={[styles.subtitle, { color: THEME.textSecondary }]}>
+            Here’s your money at a glance.
+          </Text>
+        </View>
+        <MonthSelector {...calendar} compact />
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  header: { marginBottom: 22 },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 22,
+  },
+  brand: { flexDirection: "row", alignItems: "center", gap: 9, flexShrink: 1 },
+  logo: { width: 30, height: 30 },
+  wordmark: {
+    fontSize: 27,
+    fontWeight: "800",
+    letterSpacing: -1.1,
+    flexShrink: 1,
+  },
+  settings: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  welcomeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  welcome: { flexGrow: 1, flexBasis: 180 },
+  title: { fontSize: 21, fontWeight: "700", letterSpacing: -0.7 },
+  subtitle: { fontSize: 13, lineHeight: 19, marginTop: 3 },
+});

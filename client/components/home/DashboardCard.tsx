@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
-import { BRAND } from "@/constants/ThemePalettes";
+import { hexToRgba } from "@/utils/helper";
 import { useTheme } from "@/hooks/useRedux";
 
 export interface DashboardCardProps {
@@ -19,7 +19,7 @@ export interface DashboardCardProps {
 export default function DashboardCard({
   children,
   style,
-  radius = BRAND.radius.card,
+  radius = 18,
   padding,
   paddingHorizontal,
   paddingVertical,
@@ -32,7 +32,7 @@ export default function DashboardCard({
         styles.card,
         {
           backgroundColor: THEME.surface,
-          borderColor: THEME.border,
+          borderColor: hexToRgba(THEME.border, 0.25),
           borderRadius: radius,
           padding: padding !== undefined ? padding : undefined,
           paddingHorizontal:
@@ -51,6 +51,10 @@ export default function DashboardCard({
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    overflow: "hidden",
+    shadowColor: "#072B20",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
   },
 });

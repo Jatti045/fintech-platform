@@ -2,7 +2,7 @@
  * Index (Home tab) integration tests.
  *
  * Verifies the refactored screen composition: homepage sections render,
- * month navigation + refresh are wired, and the info modal opens from the header.
+ * month navigation + refresh are wired, and settings navigation is preserved.
  */
 
 /// <reference types="jest" />
@@ -242,7 +242,7 @@ describe("Index", () => {
   it("keeps the dashboard usable when bills fail and retries them independently", async () => {
     mockedRecurringFetch.mockRejectedValue(new Error("offline"));
     await setup();
-    expect(renderedText("Monthly overview")).toBe(true);
+    expect(renderedText("Income remaining")).toBe(true);
     expect(renderedText("Upcoming bills could not be refreshed.")).toBe(true);
     mockedRecurringFetch.mockResolvedValue({
       success: true,
@@ -280,9 +280,9 @@ describe("Index", () => {
   it("renders the homepage sections", async () => {
     await setup({ withBudgets: true });
 
-    expect(renderedText("Monthly overview")).toBe(true);
-    expect(renderedText("Recent transactions")).toBe(true);
-    expect(renderedText("Monthly budgets")).toBe(true);
+    expect(renderedText("Income remaining")).toBe(true);
+    expect(renderedText("Recent Transactions")).toBe(true);
+    expect(renderedText("Monthly Budget")).toBe(true);
     expect(renderedText("Upcoming Bills")).toBe(true);
     expect(renderedText("Quick actions")).toBe(false);
     expect(renderedText("Quick Actions")).toBe(false);
@@ -303,6 +303,11 @@ describe("Index", () => {
   it("wires the month selector to the calendar", async () => {
     const { store } = await setup();
 
+    renderer.act(() => {
+      lastProps(touchableOpacityMock, (props) =>
+        String(props.accessibilityLabel).startsWith("Select month,"),
+      )!.onPress();
+    });
     const prev = lastProps(
       touchableOpacityMock,
       (props) => props.accessibilityLabel === "Previous month",
@@ -313,6 +318,34 @@ describe("Index", () => {
 
     expect(store.getState().calendar.month).toBe(0);
     expect(store.getState().calendar.year).toBe(2026);
+  });
+
+  it("reopens month selection and prevents navigation past the current month", async () => {
+    const { tree, store } = await setup();
+    const now = new Date();
+    renderer.act(() => {
+      store.dispatch(
+        setMonthYear({ month: now.getUTCMonth(), year: now.getUTCFullYear() }),
+      );
+    });
+    const findButton = (label: string) =>
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .find((node) => node.props.accessibilityLabel === label);
+    const open = () =>
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .find((node) =>
+          String(node.props.accessibilityLabel).startsWith("Select month,"),
+        )!;
+    renderer.act(() => open().props.onPress());
+    expect(findButton("Next month")!.props.disabled).toBe(true);
+    renderer.act(() => findButton("Previous month")!.props.onPress());
+    expect(findButton("Next month")!.props.disabled).toBe(false);
+    renderer.act(() => findButton("Done selecting month")!.props.onPress());
+    expect(findButton("Previous month")).toBeUndefined();
+    renderer.act(() => open().props.onPress());
+    expect(findButton("Previous month")).toBeDefined();
   });
 
   it("refreshes the homepage data on pull-to-refresh", async () => {
@@ -331,18 +364,21 @@ describe("Index", () => {
     expect(mockedRecurringFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("opens the info modal from the header", async () => {
+  it("removes Home help controls and keeps only settings in the header", async () => {
     await setup();
-
-    const info = lastProps(
-      touchableOpacityMock,
-      (props) => props.accessibilityLabel === "Help and usage",
-    );
-    renderer.act(() => {
-      info!.onPress();
-    });
-
-    expect(renderedText("Help & Usage")).toBe(true);
+    expect(
+      lastProps(
+        touchableOpacityMock,
+        (props) => props.accessibilityLabel === "Help and usage",
+      ),
+    ).toBeUndefined();
+    expect(renderedText("Help & Usage")).toBe(false);
+    expect(
+      lastProps(
+        touchableOpacityMock,
+        (props) => props.accessibilityLabel === "Profile settings",
+      ),
+    ).toBeDefined();
   });
 
   it("navigates to Profile when Settings is pressed in the header", async () => {
