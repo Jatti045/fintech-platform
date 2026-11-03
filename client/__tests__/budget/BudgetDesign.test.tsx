@@ -125,7 +125,11 @@ it.each(["Light", "Dark"])(
       theme,
     );
     expect(text(tree)).toContain(formatCurrency(-17.34, "USD"));
-    expect(text(tree)).toContain("Over budget");
+    expect(
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .some((n) => n.props.accessibilityLabel?.includes("Over budget")),
+    ).toBe(true);
     const bar = tree.root
       .findAllByType("View" as any)
       .find((n) => n.props.accessibilityRole === "progressbar")!;
@@ -161,7 +165,11 @@ it.each([
       onDelete={jest.fn()}
     />,
   );
-  expect(text(tree)).toContain(status);
+  expect(
+    tree.root
+      .findAllByType(TouchableOpacity)
+      .some((n) => n.props.accessibilityLabel?.endsWith(status)),
+  ).toBe(true);
   act(() => {
     tree.unmount();
   });
@@ -399,5 +407,70 @@ it("protects an edited budget draft until discard is confirmed", () => {
   act(() => button(tree, "Cancel budget").props.onPress());
   act(() => button(tree, "Discard changes").props.onPress());
   expect(closed).toHaveBeenCalledWith(false);
+  act(() => tree.unmount());
+});
+
+it.each([
+  [0, 25, "No budget limits set", 0],
+  [100, 117, "117% of limits used, over budget", 100],
+  [100, -20, "-20% of limits used", 0],
+] as const)(
+  "keeps the summary accurate for limit %s and spending %s",
+  (limit, spent, description, progress) => {
+    const { tree } = mount(
+      <BudgetHalo
+        budgets={[{ id: "edge", displayLimit: limit, displaySpent: spent }]}
+        monthlySpent={spent}
+        monthLabel="February"
+        year={2026}
+        currencyCode="CAD"
+      />,
+    );
+    const ring = tree.root
+      .findAllByType("View" as any)
+      .find((n) => n.props.accessibilityLabel === "Overall budget progress")!;
+    expect(ring.props.accessibilityValue).toMatchObject({
+      now: progress,
+      text: description,
+    });
+    expect(text(tree)).toContain(formatCurrency(limit - spent, "CAD"));
+    expect(text(tree)).not.toMatch(/NaN|Infinity/);
+    act(() => tree.unmount());
+  },
+);
+
+it("preserves zero-limit display and row selection, edit, and delete callbacks", () => {
+  const raw = budgetReport.budgets[0];
+  const budget = { ...raw, date: new Date(raw.date), limit: 0, spent: 0 };
+  const select = jest.fn();
+  const edit = jest.fn();
+  const remove = jest.fn();
+  const { tree } = mount(
+    <BudgetReservoirRow
+      budget={budget}
+      expanded
+      onToggle={select}
+      onEdit={edit}
+      onDelete={remove}
+    />,
+  );
+  expect(text(tree)).toContain("No limit");
+  expect(text(tree)).not.toMatch(/NaN|Infinity/);
+  expect(
+    tree.root
+      .findAllByType("View" as any)
+      .some((n) => n.props.accessibilityRole === "progressbar"),
+  ).toBe(false);
+  act(() =>
+    button(
+      tree,
+      "Groceries budget, no limit configured, No limit configured",
+    ).props.onPress(),
+  );
+  act(() => button(tree, "Edit").props.onPress());
+  act(() => button(tree, "Delete").props.onPress());
+  expect(select).toHaveBeenCalledWith(budget);
+  expect(edit).toHaveBeenCalledWith(budget);
+  expect(remove).toHaveBeenCalledWith(budget.id);
   act(() => tree.unmount());
 });

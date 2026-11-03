@@ -10,6 +10,8 @@ import BudgetIncomeSummary from "./BudgetIncomeSummary";
 import BudgetReservoirRow from "./BudgetReservoirRow";
 import UnbudgetedBudgetSection from "./UnbudgetedBudgetSection";
 import EmptyBudgetState from "./EmptyBudgetState";
+import DashboardState from "@/components/home/DashboardState";
+import DashboardCard from "@/components/home/DashboardCard";
 import type { DisplayBudget, IBudget } from "@/types/budget/types";
 import type { ITransaction } from "@/types/transaction/types";
 
@@ -37,6 +39,7 @@ export interface BudgetContentProps {
 
 /** Monthly reporting values stay independent of the category search and row selection. */
 export default function BudgetContent({
+  isInitialLoading,
   searchQuery,
   selectedBudget,
   monthLabel,
@@ -56,39 +59,52 @@ export default function BudgetContent({
   const { THEME } = useTheme();
   const isSearching = searchQuery.trim().length > 0;
 
+  const reportStatus = (reporting.error || reporting.stale) && (
+    <DashboardCard padding={14} style={{ marginBottom: 14 }}>
+      <DashboardState
+        error={Boolean(reporting.error)}
+        message={
+          reporting.error
+            ? "Cached report · Refresh failed. Your last available figures are shown."
+            : "Cached report · Updating your monthly figures…"
+        }
+        onRetry={reporting.refetch}
+      />
+    </DashboardCard>
+  );
   if (!report)
     return (
-      <>
-        {reporting.isFetching && (
-          <View
-            accessible={false}
-            style={{
-              backgroundColor: THEME.surface,
-              borderColor: THEME.border,
-              borderWidth: 1,
-              borderRadius: BRAND.radius.card,
-              padding: BRAND.spacing.lg,
-              gap: BRAND.spacing.md,
-            }}
+      <DashboardCard padding={16}>
+        <DashboardState
+          loading={reporting.isFetching || isInitialLoading}
+          error={Boolean(reporting.error)}
+          message={
+            reporting.error
+              ? "Your budget report could not be loaded."
+              : reporting.isFetching || isInitialLoading
+                ? "Loading your budgets…"
+                : "Your budget report is unavailable. Pull to refresh or try again."
+          }
+          onRetry={reporting.refetch}
+        />
+        {!reporting.error && !reporting.isFetching && !isInitialLoading && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Retry budget report"
+            onPress={reporting.refetch}
+            style={{ minHeight: 48, justifyContent: "center" }}
           >
-            {["70%", "90%", "60%"].map((width) => (
-              <View
-                key={width}
-                style={{
-                  width: width as `${number}%`,
-                  height: 20,
-                  borderRadius: 8,
-                  backgroundColor: THEME.surfaceHover,
-                }}
-              />
-            ))}
-          </View>
+            <Text style={{ color: THEME.primary, fontWeight: "600" }}>
+              Try again
+            </Text>
+          </TouchableOpacity>
         )}
-      </>
+      </DashboardCard>
     );
   if (!report.budgets.length)
     return (
       <>
+        {reportStatus}
         <EmptyBudgetState onSetup={onSetup} />
       </>
     );
@@ -118,7 +134,8 @@ export default function BudgetContent({
 
   return (
     <>
-      {/* ── 1. Monthly summary ────────────────────────────────────── */}
+      {reportStatus}
+      {/* Monthly summary */}
       <BudgetHalo
         budgets={allBudgets}
         monthlySpent={totalSpent}
@@ -127,16 +144,7 @@ export default function BudgetContent({
         currencyCode={report.currency}
       />
 
-      {/* ── 2. Income context ────────────────────────── */}
-      <BudgetIncomeSummary
-        income={monthlyIncome}
-        totalSpent={totalSpent}
-        totalLimit={totalLimit}
-        currencyCode={report.currency}
-        onPressLimit={onSetup}
-      />
-
-      {/* ── 3. Categories Section Header ────────────────────────────────── */}
+      {/* Category totals stay scoped to search; the monthly summary stays complete. */}
       <View
         style={{
           flexDirection: "row",
@@ -210,23 +218,10 @@ export default function BudgetContent({
           )}
         </View>
       )}
-      {/* ── Unified Categories List Container ───────────────────────────── */}
+      {/* Individually styled category cards retain selection and swipe actions. */}
       {limited.length > 0 && (
-        <View
-          style={{
-            backgroundColor: THEME.surface,
-            borderRadius: 20,
-            borderWidth: 1,
-            borderColor: THEME.border,
-            overflow: "hidden",
-            marginBottom: 14,
-          }}
-        >
+        <View style={{ marginBottom: 4 }}>
           {categoriesToShow.map((budget, index) => {
-            const isLast =
-              index === categoriesToShow.length - 1 &&
-              (limited.length <= 6 || showAllCategories || isSearching);
-
             return (
               <BudgetReservoirRow
                 key={budget.id}
@@ -237,7 +232,6 @@ export default function BudgetContent({
                 utilizationPercentage={budget.utilizationPercentage}
                 currencyCode={budget.displayCurrency || activeCurrency}
                 expanded={selectedBudget?.id === budget.id}
-                isLast={isLast}
                 onToggle={onToggle}
                 onEdit={onEdit}
                 onDelete={onDelete}
@@ -297,7 +291,7 @@ export default function BudgetContent({
         </View>
       )}
 
-      {/* ── 4. Lightweight Unbudgeted Spending Section ─────────────────── */}
+      {/* Imported categories without limits retain their setup flow. */}
       {unbudgeted.length > 0 && (
         <UnbudgetedBudgetSection
           budgets={unbudgeted}
@@ -305,6 +299,14 @@ export default function BudgetContent({
           onUseSuggestions={onSetup}
         />
       )}
+      {/* Preserve the existing income context after the primary budget content. */}
+      <BudgetIncomeSummary
+        income={monthlyIncome}
+        totalSpent={totalSpent}
+        totalLimit={totalLimit}
+        currencyCode={report.currency}
+        onPressLimit={onSetup}
+      />
     </>
   );
 }

@@ -288,7 +288,7 @@ describe("BudgetScreen", () => {
 
     expect(renderedText("Budgets")).toBe(true);
     expect(renderedText("Total budgeted")).toBe(true); // BudgetHalo vitals
-    expect(renderedText("Budget remaining")).toBe(true); // BudgetTrendCard vitals
+    expect(renderedText("Remaining")).toBe(true); // BudgetTrendCard vitals
     expect(renderedText("CATEGORIES")).toBe(true);
     expect(renderedText("Food")).toBe(true);
     expect(renderedText("Transport")).toBe(true);

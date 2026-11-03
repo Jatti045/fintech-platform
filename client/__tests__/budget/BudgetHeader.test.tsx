@@ -74,8 +74,10 @@ describe("BudgetHeader", () => {
     renderHeader({ monthLabel: "March" });
 
     expect(renderedText("Budgets")).toBe(true);
-    expect(renderedText("Make room for what matters.")).toBe(true);
-    expect(renderedText("March")).toBe(true);
+    expect(
+      renderedText("Plan, track and stay in control of your spending."),
+    ).toBe(true);
+    expect(renderedText("Mar")).toBe(true);
   });
 
   it("renders the search bar when budgets exist", () => {

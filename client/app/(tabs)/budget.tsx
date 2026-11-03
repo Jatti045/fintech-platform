@@ -57,7 +57,7 @@ export default function BudgetScreen() {
     <SafeAreaView
       edges={["top", "left", "right"]}
       className="flex-1"
-      style={{ backgroundColor: THEME.background }}
+      style={{ flex: 1, backgroundColor: THEME.background }}
     >
       <ScrollView
         style={{ flex: 1 }}
@@ -67,7 +67,7 @@ export default function BudgetScreen() {
         contentContainerStyle={{
           paddingBottom: BRAND.spacing.xl,
           paddingHorizontal: 16,
-          paddingTop: 8,
+          paddingTop: 12,
         }}
         refreshControl={
           <RefreshControl
