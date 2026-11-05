@@ -1,4 +1,4 @@
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -79,7 +79,7 @@ export default function ProfileHeader({
             borderRadius: 999,
             paddingHorizontal: 9,
             paddingVertical: 3,
-            backgroundColor: hexToRgba(theme.primary, 0.08),
+            backgroundColor: accentSurface(theme, hexToRgba(theme.primary, 0.08)),
             borderWidth: 1,
             borderColor: hexToRgba(theme.primary, 0.3),
           }}

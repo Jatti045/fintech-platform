@@ -1,3 +1,4 @@
+import { sheetSurface } from "@/constants/ThemePalettes";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -82,7 +83,7 @@ function ForgotPasswordModal({
         <SafeAreaView
           style={{
             height: modalHeight,
-            backgroundColor: THEME.background,
+            backgroundColor: sheetSurface(THEME, THEME.background),
             padding: 18,
             position: "relative",
             borderTopLeftRadius: MODAL_BORDER_RADIUS,
@@ -97,7 +98,7 @@ function ForgotPasswordModal({
           </View>
           <KeyboardAvoidingView
             behavior="padding"
-            style={{ flex: 1, backgroundColor: THEME.background }}
+            style={{ flex: 1, backgroundColor: sheetSurface(THEME, THEME.background) }}
           >
             <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
               <View className="flex-1 px-4 ">

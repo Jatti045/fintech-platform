@@ -6,7 +6,7 @@ import {
   useFinancialSummary,
   useTransactionMutationStatus,
 } from "@/hooks/useRedux";
-import { useGetBudgetsQuery } from "@/store/api/apiSlice";
+import { useGetBudgetsQuery, useGetTransactionCategoriesQuery } from "@/store/api/apiSlice";
 import { useRefresh } from "@/hooks/useRefresh";
 import { useTransactionDisplayAmounts } from "./useTransactionDisplayAmounts";
 import { useTransactionFilters } from "./useTransactionFilters";
@@ -48,7 +48,19 @@ export const useTransactionScreen = () => {
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
 
+  const [categoriesRequested, setCategoriesRequested] = useState(false);
+  const categoryQuery = useGetTransactionCategoriesQuery({
+    currentMonth: calendar.month, currentYear: calendar.year,
+  }, { skip: !categoriesRequested, refetchOnMountOrArgChange: 60 });
+  const requestCategories = useCallback(() => setCategoriesRequested(true), []);
+  const retryCategories = () => {
+    void categoryQuery.refetch();
+    void budgetsQuery.refetch();
+  };
+  const selectedCategory = filterCategoryId.startsWith("category:")
+    ? filterCategoryId.slice("category:".length) : null;
   const selectedBudgetId =
+    !selectedCategory &&
     filterCategoryId !== "all" &&
     filterCategoryId !== "income" &&
     filterCategoryId !== "transfer_out" &&
@@ -76,6 +88,7 @@ export const useTransactionScreen = () => {
     currentMonth: calendar.month,
     currentYear: calendar.year,
     budgetId: selectedBudgetId,
+    category: selectedCategory,
     minAmount: selectedMinAmount,
     maxAmount: selectedMaxAmount,
   });
@@ -146,7 +159,8 @@ export const useTransactionScreen = () => {
 
   // ── Pull-to-refresh: transactions (respecting the query) + budgets ─────
   const { refreshing, onRefresh } = useRefresh(() =>
-    Promise.all([refreshTransactions(), budgetsQuery.refetch()]),
+    Promise.all([refreshTransactions(), budgetsQuery.refetch(),
+      ...(categoriesRequested ? [categoryQuery.refetch()] : [])]),
   );
 
   // Only the delete handler is needed at screen level;
@@ -276,6 +290,11 @@ export const useTransactionScreen = () => {
   return {
     displayTransactions,
     budgets,
+    categories: categoryQuery.currentData ?? [],
+    categoriesLoading: categoriesRequested && (categoryQuery.isFetching || budgetsQuery.isFetching),
+    categoriesError: Boolean(categoryQuery.error || budgetsQuery.error),
+    requestCategories,
+    retryCategories,
     monthlyIncome,
     actualIncome,
     expectedIncome,

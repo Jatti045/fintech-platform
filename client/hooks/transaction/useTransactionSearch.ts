@@ -12,6 +12,7 @@ type UseTransactionSearchParams = {
   currentMonth: number;
   currentYear: number;
   budgetId?: string | null;
+  category?: string | null;
   minAmount?: number | null;
   maxAmount?: number | null;
 };
@@ -34,6 +35,7 @@ export function useTransactionSearch({
   currentMonth,
   currentYear,
   budgetId,
+  category,
   minAmount,
   maxAmount,
 }: UseTransactionSearchParams) {
@@ -68,10 +70,11 @@ export function useTransactionSearch({
         currentYear,
         debouncedQuery,
         budgetId,
+        category,
         minAmount,
         maxAmount,
       ]),
-    [currentMonth, currentYear, debouncedQuery, budgetId, minAmount, maxAmount],
+    [currentMonth, currentYear, debouncedQuery, budgetId, category, minAmount, maxAmount],
   );
 
   useEffect(() => {
@@ -117,6 +120,7 @@ export function useTransactionSearch({
     ...defaultTransactionArgs(currentMonth, currentYear),
     searchQuery: debouncedQuery,
     budgetId,
+    category,
     minAmount,
     maxAmount,
     page,

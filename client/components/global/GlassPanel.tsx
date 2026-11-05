@@ -1,3 +1,4 @@
+import { isDarkPalette, accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -64,10 +65,11 @@ const GlassPanel = React.memo(function GlassPanel({
             : THEME.primary;
 
   const surfaceTint = tinted || tone !== "surface";
-  const base = surfaceTint
+  const dark = isDarkPalette(THEME);
+  const base = dark ? THEME.surface : surfaceTint
     ? tintHex(accent, 10)
     : tintHex(THEME.surface, 6);
-  const baseDeep = surfaceTint
+  const baseDeep = dark ? THEME.subtleSurface : surfaceTint
     ? tintHex(accent, tone === "danger" ? -26 : tone === "success" ? -22 : -18)
     : tintHex(THEME.surface, -22);
 
@@ -94,7 +96,7 @@ const GlassPanel = React.memo(function GlassPanel({
         end={{ x: 1, y: 1 }}
         style={[styles.fill, { borderRadius: radius }]}
       >
-        {glow && (
+        {glow && !dark && (
           <>
             <View
               pointerEvents="none"
@@ -114,7 +116,7 @@ const GlassPanel = React.memo(function GlassPanel({
               style={[
                 styles.glowOrb,
                 {
-                  backgroundColor: hexToRgba(THEME.primary, 0.07),
+                  backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.07)),
                   bottom: -60,
                   left: -46,
                   width: 180,

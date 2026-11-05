@@ -1,3 +1,5 @@
+import { isDarkPalette } from "@/constants/ThemePalettes";
+import { useTheme } from "@/hooks/useRedux";
 import React from "react";
 import { View, Text } from "react-native";
 import Svg, { Path } from "react-native-svg";
@@ -14,6 +16,8 @@ export default function BrandIcon({
   category,
   size = 32,
 }: BrandIconProps) {
+  const { THEME } = useTheme();
+  const dark = isDarkPalette(THEME);
   const normalized = (name || "").toLowerCase();
   const normalizedCat = (category || "").toLowerCase();
 
@@ -150,7 +154,7 @@ export default function BrandIcon({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: "#162e20",
+          backgroundColor: dark ? THEME.subtleSurface : "#162e20",
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -173,7 +177,7 @@ export default function BrandIcon({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: "#162e20",
+          backgroundColor: dark ? THEME.subtleSurface : "#162e20",
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -243,7 +247,7 @@ export default function BrandIcon({
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: "#152a1e",
+          backgroundColor: dark ? THEME.subtleSurface : "#152a1e",
           alignItems: "center",
           justifyContent: "center",
         }}

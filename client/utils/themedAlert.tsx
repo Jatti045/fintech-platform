@@ -1,3 +1,4 @@
+import { sheetSurface } from "@/constants/ThemePalettes";
 import React, {
   createContext,
   useContext,
@@ -94,7 +95,7 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
           <View
             style={[
               styles.alertContainer,
-              { backgroundColor: THEME.surface, borderColor: THEME.border },
+              { backgroundColor: sheetSurface(THEME), borderColor: THEME.border },
             ]}
           >
             {/* Title */}

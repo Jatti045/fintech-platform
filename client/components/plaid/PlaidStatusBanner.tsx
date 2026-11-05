@@ -1,21 +1,12 @@
 import { FLOATING_TAB_BAR, getFloatingTabBarHeight } from "@/constants/appConfig";
 import React, { useEffect } from "react";
-import {
-  ActivityIndicator,
-  AppState,
-  Text,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { AppState, ScrollView, View, useWindowDimensions } from "react-native";
+import BankAttentionCard from "./BankAttentionCard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
-import { useAppDispatch, useTheme } from "@/hooks/useRedux";
+import { useAppDispatch } from "@/hooks/useRedux";
 import { fetchPlaidItems } from "@/store/slices/plaidSlice";
 import { usePlaidHealth } from "@/hooks/plaid/usePlaidHealth";
-import { hexToRgba } from "@/utils/helper";
-import type { IPlaidItem } from "@/types/plaid/types";
 
 /**
  * Global, persistent Plaid attention banner.
@@ -31,11 +22,10 @@ import type { IPlaidItem } from "@/types/plaid/types";
  * (retry). There is deliberately NO dismiss action — items stay elevated until
  * their server-side health actually clears.
  */
-export default function PlaidStatusBanner() {
+export default function PlaidStatusBanner({ onHeightChange }: { onHeightChange?: (height: number) => void }) {
   const dispatch = useAppDispatch();
-  const { THEME } = useTheme();
   const insets = useSafeAreaInsets();
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, height } = useWindowDimensions();
   const {
     reauthItems,
     retryableItems,
@@ -66,129 +56,11 @@ export default function PlaidStatusBanner() {
     return () => clearInterval(interval);
   }, [dispatch, reauthItems.length, retryableItems.length]);
 
+  useEffect(() => {
+    if (!needsAttention) onHeightChange?.(0);
+  }, [needsAttention, onHeightChange]);
+
   if (!needsAttention) return null;
-
-  const reauthBanner = (item: IPlaidItem) => {
-    const bank = item.institutionName || "Your bank";
-    const isReauthing = reauthingItemId === item.id;
-    return (
-      <TouchableOpacity
-        key={item.id}
-        activeOpacity={0.85}
-        onPress={() => openReauth(item)}
-        disabled={isReauthing}
-        accessibilityRole="button"
-        accessibilityLabel={`Reconnect ${bank}`}
-        style={{
-          backgroundColor: hexToRgba(THEME.danger, 0.14),
-          borderColor: hexToRgba(THEME.danger, 0.45),
-          borderWidth: 1,
-          borderRadius: 14,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
-          flexDirection: "row",
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <View
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 10,
-            backgroundColor: hexToRgba(THEME.danger, 0.18),
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: 10,
-          }}
-        >
-          <Ionicons name="alert-circle" size={18} color={THEME.danger} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{ color: THEME.danger, fontSize: 13, fontWeight: "800" }}
-          >
-            {bank} connection needs attention
-          </Text>
-          <Text
-            style={{ color: THEME.textSecondary, fontSize: 11, marginTop: 2 }}
-          >
-            Tap here to reconnect and keep your transactions syncing.
-          </Text>
-        </View>
-        {isReauthing ? (
-          <ActivityIndicator size="small" color={THEME.danger} />
-        ) : (
-          <Text
-            style={{ color: THEME.danger, fontSize: 12, fontWeight: "800" }}
-          >
-            Reconnect
-          </Text>
-        )}
-      </TouchableOpacity>
-    );
-  };
-
-  const syncErrorBanner = (item: IPlaidItem) => {
-    const bank = item.institutionName || "Your bank";
-    const isSyncing = syncingItemIds.includes(item.id);
-    return (
-      <TouchableOpacity
-        key={item.id}
-        activeOpacity={0.85}
-        onPress={() => retrySync(item)}
-        disabled={isSyncing}
-        accessibilityRole="button"
-        accessibilityLabel={`Refresh sync for ${bank}`}
-        style={{
-          backgroundColor: hexToRgba(THEME.primary, 0.12),
-          borderColor: hexToRgba(THEME.primary, 0.4),
-          borderWidth: 1,
-          borderRadius: 14,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
-          flexDirection: "row",
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <View
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 10,
-            backgroundColor: hexToRgba(THEME.primary, 0.16),
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: 10,
-          }}
-        >
-          <Ionicons name="refresh" size={18} color={THEME.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{ color: THEME.primary, fontSize: 13, fontWeight: "800" }}
-          >
-            We had trouble syncing your {bank} transactions.
-          </Text>
-          <Text
-            style={{ color: THEME.textSecondary, fontSize: 11, marginTop: 2 }}
-          >
-            We&apos;ll retry automatically, or you can tap to refresh.
-          </Text>
-        </View>
-        {isSyncing ? (
-          <ActivityIndicator size="small" color={THEME.primary} />
-        ) : (
-          <Text
-            style={{ color: THEME.primary, fontSize: 12, fontWeight: "800" }}
-          >
-            Refresh
-          </Text>
-        )}
-      </TouchableOpacity>
-    );
-  };
 
   return (
     <View
@@ -196,16 +68,24 @@ export default function PlaidStatusBanner() {
       style={{
         position: "absolute",
         bottom: getFloatingTabBarHeight(fontScale) + FLOATING_TAB_BAR.gap * 2 + insets.bottom,
-        left: 0,
-        right: 0,
+        left: insets.left,
+        right: insets.right,
         zIndex: 100,
         elevation: 30,
-        paddingTop: insets.top + 8,
+        paddingTop: 8,
         paddingHorizontal: 12,
       }}
+      onLayout={(event) => onHeightChange?.(event.nativeEvent.layout.height)}
+      accessibilityLiveRegion="polite"
+      testID="bank-attention-notification"
     >
-      {reauthItems.map(reauthBanner)}
-      {retryableItems.map(syncErrorBanner)}
+      <ScrollView style={{ maxHeight: Math.max(160, height * 0.35) }}
+        keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {reauthItems.map((item) => <BankAttentionCard key={item.id} item={item} reconnect
+          busy={reauthingItemId === item.id} onPress={() => openReauth(item)} />)}
+        {retryableItems.map((item) => <BankAttentionCard key={item.id} item={item} reconnect={false}
+          busy={syncingItemIds.includes(item.id)} onPress={() => retrySync(item)} />)}
+      </ScrollView>
     </View>
   );
 }

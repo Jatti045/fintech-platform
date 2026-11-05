@@ -79,7 +79,7 @@ export function AppRoutes() {
     <>
       <StatusBar
         barStyle={
-          selectedTheme === "Light" || selectedTheme === "Ember"
+          selectedTheme === "Light"
             ? "dark-content"
             : "light-content"
         }

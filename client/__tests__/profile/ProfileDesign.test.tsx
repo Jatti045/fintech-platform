@@ -63,7 +63,7 @@ it.each(["Light", "Dark"])(
     act(() => tree.unmount());
   },
 );
-it("offers System and retains all legacy appearance choices", () => {
+it("offers exactly System, Light, and Dark", () => {
   const select = jest.fn();
   const tree = mount(
     <ThemeSwitcher
@@ -75,14 +75,12 @@ it("offers System and retains all legacy appearance choices", () => {
   expect(button(tree, "System theme").props.accessibilityState.selected).toBe(
     true,
   );
-  for (const name of ["Light", "Dark", "System", "Ember", "Aurora"])
+  for (const name of ["Light", "Dark", "System"])
     act(() => button(tree, `${name} theme`).props.onPress());
   expect(select.mock.calls.map((c) => c[0])).toEqual([
     "Light",
     "Dark",
     "System",
-    "Ember",
-    "Aurora",
   ]);
   act(() => tree.unmount());
 });
@@ -179,7 +177,7 @@ it("income states identify the selected month and retain the original save callb
   expect(save).toHaveBeenCalled();
   act(() => tree.unmount());
 });
-it("bank status and reconnect, refresh, disconnect and link actions retain their item", () => {
+it("bank status, refresh, disconnect and link retain their item without duplicate reconnect", () => {
   const link = jest.fn(),
     disconnect = jest.fn();
   const item = {
@@ -202,8 +200,8 @@ it("bank status and reconnect, refresh, disconnect and link actions retain their
     />,
   );
   expect(JSON.stringify(tree.toJSON())).toContain("Reconnect required");
-  act(() => button(tree, `Reconnect ${item.institutionName}`).props.onPress());
-  expect(reconnect).toHaveBeenCalledWith(item);
+  expect(button(tree, `Reconnect ${item.institutionName}`)).toBeUndefined();
+  expect(reconnect).not.toHaveBeenCalled();
   act(() =>
     button(tree, `Refresh sync for ${item.institutionName}`).props.onPress(),
   );

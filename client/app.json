@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fundleaf",
     "slug": "budgee-app",
-    "version": "4.0.1",
+    "version": "4.1",
     "description": "Open-source personal finance and budgeting application",
     "orientation": "portrait",
     "privacy": "public",
@@ -37,7 +37,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.budgee.finance",
-      "versionCode": 72,
+      "versionCode": 73,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -64,7 +64,7 @@
           "backgroundColor": "#F7FAF8",
           "dark": {
             "image": "./assets/fundleaf-brand-assets/splash-mark.png",
-            "backgroundColor": "#071D17"
+            "backgroundColor": "#121212"
           }
         }
       ],

@@ -1,7 +1,7 @@
 // ─── Profile Domain Types ───────────────────────────────────────────────────
 
 import type { IUser } from "@/types/user/types";
-import type { ITheme } from "@/types/theme/types";
+import type { ITheme, ThemePreference } from "@/types/theme/types";
 import type { IPlaidItem } from "@/types/plaid/types";
 
 /** Represents a single item in the Settings list. */
@@ -14,7 +14,7 @@ export interface SettingsItem {
 
 /** Shape of the theme option rendered in the theme switcher. */
 export interface ThemeOption {
-  name: string;
+  name: ThemePreference;
   color: string;
   icon: string;
 }
@@ -50,8 +50,8 @@ export interface ProfileHeaderProps extends ThemedProps {
 
 /** Props for ThemeSwitcher. */
 export interface ThemeSwitcherProps extends ThemedProps {
-  selectedTheme: string;
-  onThemeSelect: (name: string) => void;
+  selectedTheme: ThemePreference;
+  onThemeSelect: (name: ThemePreference) => void;
 }
 
 /** Props for CurrencySelector (the row that opens the picker). */

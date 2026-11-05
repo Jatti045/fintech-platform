@@ -39,7 +39,7 @@ export const fetchPlaidItems = createAsyncThunk(
       const previous = (getState() as { plaid?: { items: IPlaidItem[] } }).plaid?.items ?? [];
       const response = await plaidAPI.fetchItems();
       if (response.data.items.some(item => item.lastSyncedAt && previous.find(p => p.id === item.id)?.lastSyncedAt !== item.lastSyncedAt)) {
-        dispatch(api.util.invalidateTags([{ type: "Summary", id: "reports" }]));
+        dispatch(api.util.invalidateTags([{ type: "Summary", id: "reports" }, { type: "Categories" }]));
       }
       return response.data.items;
     } catch (error: unknown) {

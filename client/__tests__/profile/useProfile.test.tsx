@@ -352,7 +352,7 @@ it("Profile exposes the saved System preference while rendering the effective pa
   const { captured, store } = setup();
   await renderer.act(async () => { await flush(); });
   expect(captured.current!.selectedTheme).toBe("System");
-  for (const name of ["Dark", "Light", "System", "Ember", "Aurora"]) {
+  for (const name of ["Dark", "Light", "System"] as const) {
     await renderer.act(async () => { await captured.current!.handleThemeSelect(name); });
     expect(store.getState().theme.selectedTheme).toBe(name);
     expect(captured.current!.selectedTheme).toBe(name);

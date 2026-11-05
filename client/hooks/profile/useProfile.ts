@@ -1,3 +1,4 @@
+import type { ThemePreference } from "@/types/theme/types";
 // ─── useProfile Hook ────────────────────────────────────────────────────────
 // Single source of truth for all profile-screen state, side-effects, and
 // handler logic.  The profile screen composes dumb sub-components that
@@ -56,7 +57,7 @@ export interface UseProfileReturn {
   user: ReturnType<typeof useAuth>["user"];
   /** Theme colours & selected theme name */
   THEME: ReturnType<typeof useTheme>["THEME"];
-  selectedTheme: string;
+  selectedTheme: ThemePreference;
 
   /** Loading / overlay flags */
   uploading: boolean;
@@ -71,7 +72,7 @@ export interface UseProfileReturn {
   handleDeleteImage: () => void;
 
   /** Theme handler */
-  handleThemeSelect: (name: string) => Promise<void>;
+  handleThemeSelect: (name: ThemePreference) => Promise<void>;
 
   /** Currency picker state & handler */
   currencyPickerOpen: boolean;
@@ -399,6 +400,7 @@ export function useProfile(): UseProfileReturn {
                   id: `${monthTag.year}-${monthTag.month}`,
                 },
                 { type: "Budgets", id: `${monthTag.year}-${monthTag.month}` },
+                { type: "Categories", id: `${monthTag.year}-${monthTag.month}` },
                 { type: "Summary", id: `${monthTag.year}-${monthTag.month}` },
               ]),
             );
@@ -557,7 +559,7 @@ export function useProfile(): UseProfileReturn {
 
   // ── theme ────────────────────────────────────────────────────────────────
   const handleThemeSelect = useCallback(
-    async (themeName: string) => {
+    async (themeName: ThemePreference) => {
       dispatch(setTheme(themeName));
       await persistTheme(themeName);
       showAlert({

@@ -1,3 +1,4 @@
+import { isDarkPalette } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { hexToRgba } from "@/utils/helper";
@@ -32,6 +33,7 @@ export default function DashboardCard({
         styles.card,
         {
           backgroundColor: THEME.surface,
+          ...(isDarkPalette(THEME) ? { shadowColor: THEME.sheetBackdrop } : {}),
           borderColor: hexToRgba(THEME.border, 0.25),
           borderRadius: radius,
           padding: padding !== undefined ? padding : undefined,

@@ -780,3 +780,52 @@ test("classification refresh cancels an older in-flight page response", async ()
   expect(api.endpoints.getTransactions.select({currentMonth:4,currentYear:2026,page:1})(store.getState()).data?.transaction.map(t=>t.id)).toEqual(["fresh"]);
   store.dispatch(api.util.resetApiState());
 });
+
+
+describe("transaction category catalog", () => {
+  it("reads all unfiltered pages, including income and custom categories, and deduplicates names", async () => {
+    const store = makeStore();
+    mockedTxFetch.mockImplementation(async ({ page }) => ({
+      data: {
+        transaction: page === 1
+          ? [{ ...makeTx("one"), category: "Groceries" }, { ...makeTx("two"), category: "groceries" }]
+          : [{ ...makeTx("three"), category: "Freelance income", type: "INCOME" }, { ...makeTx("four"), category: "Custom pottery" }],
+        pagination: { hasNextPage: page === 1 },
+      },
+    }));
+    const request = store.dispatch(api.endpoints.getTransactionCategories.initiate({ currentMonth: 1, currentYear: 2026 }));
+    expect(await request.unwrap()).toEqual(["Custom pottery", "Freelance income", "groceries"]);
+    expect(mockedTxFetch.mock.calls.map(([args]) => args)).toEqual([
+      { currentMonth: 1, currentYear: 2026, searchQuery: "", page: 1, limit: 100 },
+      { currentMonth: 1, currentYear: 2026, searchQuery: "", page: 2, limit: 100 },
+    ]);
+    request.unsubscribe();
+    store.dispatch(api.util.resetApiState());
+  });
+
+  it("never presents a partial catalog as complete when a later page fails", async () => {
+    const store = makeStore();
+    mockedTxFetch.mockResolvedValueOnce({ data: { transaction: [makeTx("one")], pagination: { hasNextPage: true } } })
+      .mockRejectedValueOnce(new Error("Offline"));
+    const request = store.dispatch(api.endpoints.getTransactionCategories.initiate({ currentMonth: 1, currentYear: 2026 }));
+    const result = await request;
+    expect(result.error).toBeDefined();
+    expect(result.data).toBeUndefined();
+    request.unsubscribe();
+    store.dispatch(api.util.resetApiState());
+  });
+
+  it("sends category filtering to the server and isolates its cache and pagination", async () => {
+    const store = makeStore();
+    mockedTxFetch.mockResolvedValue(txResponse([makeTx("one")]));
+    const base = { currentMonth: 1, currentYear: 2026 };
+    const food = store.dispatch(api.endpoints.getTransactions.initiate({ ...base, category: "Food" }));
+    const salary = store.dispatch(api.endpoints.getTransactions.initiate({ ...base, category: "Salary" }));
+    await Promise.all([food, salary]);
+    expect(mockedTxFetch).toHaveBeenCalledWith(expect.objectContaining({ category: "Food" }));
+    expect(mockedTxFetch).toHaveBeenCalledWith(expect.objectContaining({ category: "Salary" }));
+    expect(Object.keys(store.getState().api.queries)).toHaveLength(2);
+    food.unsubscribe(); salary.unsubscribe();
+    store.dispatch(api.util.resetApiState());
+  });
+});

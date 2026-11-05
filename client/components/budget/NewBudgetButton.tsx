@@ -5,22 +5,17 @@ import { useTheme } from "@/hooks/useRedux";
 import { BRAND } from "@/constants/ThemePalettes";
 export interface NewBudgetButtonProps {
   onPress: () => void;
-  inline?: boolean;
-  primary?: string;
-  secondary?: string;
-  textPrimary?: string;
 }
 const NewBudgetButton = React.memo(function NewBudgetButton({
   onPress,
-  inline = false,
 }: NewBudgetButtonProps) {
   const { THEME } = useTheme();
   return (
     <View
       style={{
-        position: inline ? "relative" : "absolute",
-        bottom: inline ? undefined : BRAND.spacing.lg,
-        right: inline ? undefined : BRAND.spacing.md,
+        position: "absolute",
+        bottom: BRAND.spacing.lg,
+        right: BRAND.spacing.md,
         zIndex: 50,
       }}
     >
@@ -28,6 +23,7 @@ const NewBudgetButton = React.memo(function NewBudgetButton({
         accessibilityRole="button"
         accessibilityLabel="New Budget"
         onPress={onPress}
+        activeOpacity={0.85}
         style={{
           flexDirection: "row",
           alignItems: "center",

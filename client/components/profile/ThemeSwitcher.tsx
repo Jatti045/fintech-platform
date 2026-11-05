@@ -1,3 +1,4 @@
+import { accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,7 +24,7 @@ export default function ThemeSwitcher({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: hexToRgba(THEME.primary, 0.12),
+            backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.12)),
             borderWidth: 1,
             borderColor: hexToRgba(THEME.primary, 0.25),
             alignItems: "center",
@@ -52,7 +53,7 @@ export default function ThemeSwitcher({
         </View>
       </View>
 
-      {/* 4 Theme Option Tiles */}
+      {/* Appearance options */}
       <View
         style={{
           flexDirection: "row",

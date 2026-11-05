@@ -15,7 +15,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, sheetSurface } from "@/constants/ThemePalettes";
 
 export const SheetInputContext = createContext(false);
 const activeSheets: symbol[] = [];
@@ -197,7 +197,7 @@ export default function FundleafSheet({
       enableBlurKeyboardOnGesture={false}
       backdropComponent={backdrop}
       backgroundStyle={{
-        backgroundColor: THEME.surface,
+        backgroundColor: sheetSurface(THEME),
         borderTopLeftRadius: BRAND.radius.card,
         borderTopRightRadius: BRAND.radius.card,
       }}

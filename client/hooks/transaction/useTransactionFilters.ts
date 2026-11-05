@@ -117,6 +117,9 @@ export function useTransactionFilters(
           ) {
             return false;
           }
+        } else if (filterCategoryId.startsWith("category:")) {
+          if (String(t.category).trim().toLowerCase() !==
+              filterCategoryId.slice("category:".length).toLowerCase()) return false;
         } else {
           const txBudgetId = t.budgetId ?? t.budget?.id;
           if (txBudgetId) {

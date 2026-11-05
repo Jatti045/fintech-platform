@@ -1,3 +1,4 @@
+import { accentSurface } from "@/constants/ThemePalettes";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -113,7 +114,7 @@ export default function MonthlyInsightCard({ month, year }: Props) {
               width: 42,
               height: 42,
               borderRadius: 12,
-              backgroundColor: hexToRgba(THEME.primary, 0.15),
+              backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.15)),
               alignItems: "center",
               justifyContent: "center",
             }}

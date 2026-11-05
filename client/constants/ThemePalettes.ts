@@ -17,28 +17,28 @@ export const BRAND = {
 } as const;
 
 const dark = {
-  sheetHandle: "#547365",
+  sheetHandle: "#666666",
   sheetBackdrop: "#000000",
-  background: "#071D17",
-  surface: "#102C23",
-  surfaceHover: "#173E2E",
+  background: "#121212",
+  surface: "#1E1E1E",
+  surfaceHover: "#242424",
   primary: "#6CE0A0",
   primaryHover: "#93EAB8",
   secondary: "#6CE0A0",
-  onPrimary: "#071D17",
-  onDanger: "#071D17",
-  textPrimary: "#EAF6EF",
-  textSecondary: "#ADC7B8",
-  textDisabled: "#ADC7B8",
-  disabledBackground: "#27473A",
+  onPrimary: "#121212",
+  onDanger: "#121212",
+  textPrimary: "#FFFFFF",
+  textSecondary: "#B3B3B3",
+  textDisabled: "#B3B3B3",
+  disabledBackground: "#333333",
   success: "#6CE0A0",
   danger: "#FFB4AB",
   warning: "#F5CE80",
-  border: "#27473A",
-  inputBackground: "#102C23",
-  placeholderText: "#ADC7B8",
-  subtleSurface: "#173E2E",
-  errorSurface: "#482923",
+  border: "#333333",
+  inputBackground: "#242424",
+  placeholderText: "#B3B3B3",
+  subtleSurface: "#242424",
+  errorSurface: "#382523",
   chart1: "#6CE0A0",
   chart2: "#A6E664",
   chart3: "#84C8E8",
@@ -74,74 +74,22 @@ const light = {
   chart4: "#8057A6",
 };
 
-// "Ember" — a minimal, warm, developer-focused aesthetic: warm paper
-// neutrals with a terracotta/clay accent, generous contrast, no cool tones.
-const ember = {
-  sheetHandle: "#B8C9BE",
-  sheetBackdrop: "#071D17",
-  onPrimary: "#16110E",
-  onDanger: "#16110E",
-  disabledBackground: "#33261F",
-  subtleSurface: "#2C221D",
-  errorSurface: "#3C211C",
-  background: "#16110E",
-  surface: "#211915",
-  surfaceHover: "#2C221D",
-  primary: "#E8865A",
-  primaryHover: "#D06E44",
-  secondary: "#F2B48C",
-  textPrimary: "#FDF8F5",
-  textSecondary: "#A8988C",
-  textDisabled: "#57493F",
-  success: "#7FBF7F",
-  danger: "#E06C5C",
-  warning: "#E0A458",
-  border: "#33261F",
-  inputBackground: "#1B1410",
-  placeholderText: "#7E6E63",
-  chart1: "#E8865A",
-  chart2: "#F2B48C",
-  chart3: "#8FB8A8",
-  chart4: "#7FBF7F",
-};
-
-// "Aurora" — a clean, modern, highly polished AI-chat aesthetic: soft
-// violet-tinted surfaces with an indigo→violet accent, crisp hierarchy.
-const aurora = {
-  sheetHandle: "#547365",
-  sheetBackdrop: "#000000",
-  onPrimary: "#0D0E15",
-  onDanger: "#0D0E15",
-  disabledBackground: "#232538",
-  subtleSurface: "#1E2030",
-  errorSurface: "#381F2E",
-  background: "#0D0E15",
-  surface: "#151622",
-  surfaceHover: "#1E2030",
-  primary: "#7C6CF6",
-  primaryHover: "#6553E0",
-  secondary: "#A78BFA",
-  textPrimary: "#F4F3FB",
-  textSecondary: "#9B98B3",
-  textDisabled: "#43415A",
-  success: "#5ECFA0",
-  danger: "#F0708A",
-  warning: "#E8B95E",
-  border: "#232538",
-  inputBackground: "#11121C",
-  placeholderText: "#656282",
-  chart1: "#7C6CF6",
-  chart2: "#A78BFA",
-  chart3: "#5ECFA0",
-  chart4: "#E8B95E",
-};
-
 export const THEME_PALETTES = {
   DARK: dark,
   LIGHT: light,
-  EMBER: ember,
-  AURORA: aurora,
 } as const;
 
 export type ThemePaletteKey = keyof typeof THEME_PALETTES;
 export type ThemePalette = (typeof THEME_PALETTES)[ThemePaletteKey];
+
+/** Keep existing light tokens identical; dark sheets sit above card surfaces. */
+export const sheetSurface = (
+  theme: { background: string; surface: string },
+  lightSurface = theme.surface,
+) => theme.background === dark.background ? "#282828" : lightSurface;
+
+export const isDarkPalette = (theme: { background: string }) =>
+  theme.background === dark.background;
+
+export const accentSurface = (theme: { background: string; subtleSurface: string }, lightColor: string) =>
+  isDarkPalette(theme) ? theme.subtleSurface : lightColor;
