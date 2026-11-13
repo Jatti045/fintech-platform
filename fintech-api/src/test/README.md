@@ -5,7 +5,7 @@ This project includes full-context integration tests under `src/test/java/com/fi
 ## Prerequisites
 
 - Java 17+
-- A dedicated PostgreSQL test database
+- A fresh, disposable local PostgreSQL test database
 
 Default test datasource values are in `src/test/resources/application-test.properties` and can be overridden:
 
@@ -32,6 +32,7 @@ TEST_DB_PASSWORD=postgres \
 ## Notes
 
 - Tests use `@SpringBootTest` + `@AutoConfigureMockMvc` and hit real application beans.
-- Tests are transactional and roll back DB changes per test method.
+- The test profile runs the same Flyway migrations as the release command. Hibernate validates the schema.
+- Most tests roll back database changes per method. Tests that verify real commits clean up their fixtures explicitly.
 - Some role-based and cloud-upload happy-path tests are marked `TODO`/`@Disabled` until RBAC and external-upload test strategy are finalized.
 

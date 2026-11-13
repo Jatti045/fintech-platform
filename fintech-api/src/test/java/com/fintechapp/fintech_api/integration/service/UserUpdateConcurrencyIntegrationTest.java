@@ -51,7 +51,7 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
     }
     @AfterEach void cleanup() {
         if (userRepository.existsById(actor.getId())) userRepository.deleteById(actor.getId());
-        jdbc.update("DELETE FROM profile_image_cleanup_jobs WHERE public_id IN ('old-asset','new-asset','first.png-asset','second.png-asset','failed-asset')");
+        jdbc.update("DELETE FROM profile_image_cleanup_jobs WHERE public_id IN ('old-asset','new-asset','first.png-asset','second.png-asset',?)", "x".repeat(300));
 
     }
     private static void assertNoTransaction() {
@@ -153,13 +153,13 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
     @Test void databaseFailureCleansUpTheNewUploadAndPreservesThePreviousPicture() {
         when(cloud.uploadProfileImage(any(), eq(actor.getId()))).thenAnswer(inv -> {
             assertNoTransaction();
-            return new CloudinaryService.UploadedImage("https://example.com/" + "x".repeat(300), "failed-asset");
+            return new CloudinaryService.UploadedImage("https://example.com/new.png", "x".repeat(300));
         });
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
                 () -> users.uploadProfilePicture(actor.getId(), file("failure.png"), auth));
         assertEquals("old-asset", current().getProfilePicPublicId());
         imageWorker.processOne();
-        verify(cloud).deleteImage("failed-asset"); verify(cloud, never()).deleteImage("old-asset");
+        verify(cloud).deleteImage("x".repeat(300)); verify(cloud, never()).deleteImage("old-asset");
     }
     @Test void accountDeletionSurvivesAnOutageAndAnAbandonedCleanupLease() {
         doThrow(new IllegalStateException("Cloud unavailable")).doNothing().when(cloud).deleteImage("old-asset");
