@@ -45,6 +45,9 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
         try (var resource = new org.springframework.core.io.ClassPathResource("db/migration/V29__transaction_submissions.sql").getInputStream()) {
             jdbcTemplate.execute(new String(resource.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
         } catch (java.io.IOException error) { throw new IllegalStateException("Transaction submission schema unavailable", error); }
+        try (var resource = new org.springframework.core.io.ClassPathResource("db/migration/V31__profile_image_cleanup.sql").getInputStream()) {
+            jdbcTemplate.execute(new String(resource.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException error) { throw new IllegalStateException("Profile image cleanup schema unavailable", error); }
         // Safety patch for month-scoped user income persistence.
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS user_monthly_incomes (

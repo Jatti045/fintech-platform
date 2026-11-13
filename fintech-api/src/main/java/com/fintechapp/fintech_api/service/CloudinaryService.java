@@ -16,6 +16,10 @@ import com.cloudinary.Cloudinary;
 @Service
 public class CloudinaryService {
 
+    private static final Map<String, Object> DELETE_OPTIONS = Map.of(
+            "invalidate", true, "connect_timeout", 10_000,
+            "connection_request_timeout", 10_000, "timeout", 30_000);
+
     private final Cloudinary cloudinary;
     private final String profileFolder;
 
@@ -29,20 +33,12 @@ public class CloudinaryService {
 
     public UploadedImage uploadProfileImage(MultipartFile file, String ownerId) {
         try {
-            String originalFilename = StringUtils.hasText(file.getOriginalFilename())
-                    ? file.getOriginalFilename()
-                    : "image";
-            String baseName = originalFilename.replaceAll("\\.[^.]+$", "").replaceAll("[^a-zA-Z0-9_-]", "-");
-            if (!StringUtils.hasText(baseName)) {
-                baseName = "image";
-            }
-
             Map<String, Object> options = new HashMap<>();
             options.put("folder", profileFolder);
             options.put("resource_type", "image");
             options.put("transformation", "c_fill,g_face,h_400,w_400/q_auto,f_auto");
-            options.put("public_id", profileFolder + "/" + ownerId + "-" + System.currentTimeMillis() + "-" + baseName);
-            options.put("overwrite", true);
+            options.put("public_id", profileFolder + "/" + ownerId + "-" + java.util.UUID.randomUUID());
+            options.put("overwrite", false);
             options.put("invalidate", true);
 
             Map<String, Object> result = cloudinary.uploader().upload(file.getBytes(), options);
@@ -69,17 +65,15 @@ public class CloudinaryService {
         }
 
         try {
-            cloudinary.uploader().destroy(publicId, Map.of());
+            var response = cloudinary.uploader().destroy(publicId, new HashMap<>(DELETE_OPTIONS));
+            Object result = response == null ? null : response.get("result");
+            if ("ok".equals(result) || "not found".equals(result)) return;
         } catch (Exception ex) {
-            // Best-effort cleanup; user-facing flow should not fail on delete errors.
+            throw new IllegalStateException("Cloudinary image deletion failed");
         }
+        throw new IllegalStateException("Cloudinary image deletion was not confirmed");
     }
 
     public record UploadedImage(String url, String publicId) {
     }
 }
-
-
-
-
-

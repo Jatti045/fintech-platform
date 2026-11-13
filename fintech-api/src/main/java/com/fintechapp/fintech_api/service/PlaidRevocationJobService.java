@@ -90,7 +90,12 @@ public class PlaidRevocationJobService {
     public void logQueueHealth() {
         var health = jdbc.queryForMap("""
                 SELECT COUNT(*) AS pending, COUNT(*) FILTER (WHERE last_error_code IS NOT NULL) AS failed,
-                    MAX(attempt_count) AS max_attempts, MIN(created_at) AS oldest
+                    MAX(attempt_count) AS max_attempts, MIN(created_at) AS oldest,
+                    COUNT(*) FILTER (WHERE next_attempt_at <= NOW()
+                        AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())) AS due,
+                    COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(next_attempt_at) FILTER
+                        (WHERE next_attempt_at <= NOW() AND (lease_expires_at IS NULL
+                            OR lease_expires_at <= NOW()))))::bigint, 0) AS oldest_due_seconds
                 FROM plaid_revocation_jobs
                 """);
         logger.info("Plaid revocation queue health: {}", health);

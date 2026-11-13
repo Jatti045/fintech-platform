@@ -266,6 +266,14 @@ public class PlaidSyncJobService {
         List<Map<String, Object>> counts = jdbc.queryForList("""
                 SELECT status, COUNT(*) AS jobs, MAX(attempt_count) AS max_attempts,
                        MIN(updated_at) AS oldest,
+                       COUNT(*) FILTER (WHERE status IN ('QUEUED','RETRYING') AND next_attempt_at <= NOW()
+                           OR status='PROCESSING' AND lease_expires_at <= NOW()
+                           OR status='FAILED' AND recover_after <= NOW()) AS due,
+                       COALESCE(EXTRACT(EPOCH FROM (NOW() - MIN(CASE
+                           WHEN status IN ('QUEUED','RETRYING') AND next_attempt_at <= NOW() THEN next_attempt_at
+                           WHEN status='PROCESSING' AND lease_expires_at <= NOW() THEN lease_expires_at
+                           WHEN status='FAILED' AND recover_after <= NOW() THEN recover_after
+                       END)))::bigint, 0) AS oldest_due_seconds,
                        AVG(EXTRACT(EPOCH FROM (COALESCE(completed_at,NOW())-started_at)))
                            FILTER (WHERE started_at IS NOT NULL) AS avg_processing_seconds
                 FROM plaid_sync_jobs GROUP BY status ORDER BY status
