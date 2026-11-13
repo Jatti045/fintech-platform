@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fintechapp.fintech_api.model.PlaidItemStatus;
@@ -38,6 +39,18 @@ public class PlaidSyncJobService {
     public PlaidSyncJobService(JdbcTemplate jdbc, PlaidItemRepository items) {
         this.jdbc = jdbc;
         this.items = items;
+    }
+
+    /** Insert the initial obligation in the same transaction as the item. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public JobStatus ensureInitialSync(String itemId) {
+        jdbc.update("""
+                INSERT INTO plaid_sync_jobs(item_id, status)
+                SELECT item_id, CASE WHEN status='REQUIRES_REAUTH' THEN 'ACTION_REQUIRED' ELSE 'QUEUED' END
+                FROM plaid_items WHERE item_id=?
+                ON CONFLICT (item_id) DO NOTHING
+                """, itemId);
+        return statusForItem(itemId).orElseThrow();
     }
 
     /** Persists the request before callers acknowledge a webhook or return accepted status. */
@@ -78,6 +91,8 @@ public class PlaidSyncJobService {
                                 plaid_sync_jobs.updated_at) + INTERVAL '5 minutes')
                         WHEN plaid_sync_jobs.status = 'ACTION_REQUIRED' THEN NOW()
                         ELSE plaid_sync_jobs.next_attempt_at END,
+                    recover_after = CASE WHEN plaid_sync_jobs.status='FAILED' THEN NULL
+                        ELSE plaid_sync_jobs.recover_after END,
                     last_requested_at = GREATEST(plaid_sync_jobs.last_requested_at, NOW()),
                     updated_at = NOW()
                 """, itemId, manual, manual, manual);
@@ -95,6 +110,8 @@ public class PlaidSyncJobService {
                     next_attempt_at=CASE WHEN requested_version > claimed_version
                         THEN NOW() + INTERVAL '5 minutes' ELSE next_attempt_at END,
                     lease_owner=NULL, lease_expires_at=NULL, completed_at=NOW(),
+                    recover_after=CASE WHEN requested_version=claimed_version
+                        THEN NOW() + INTERVAL '6 hours' END,
                     last_error_code='LEASE_EXHAUSTED', last_error_at=NOW(), updated_at=NOW()
                 WHERE (status='PROCESSING' AND lease_expires_at <= NOW() OR status='RETRYING')
                   AND attempt_count >= ?
@@ -143,7 +160,7 @@ public class PlaidSyncJobService {
                     next_attempt_at=CASE WHEN requested_version > claimed_version
                         THEN NOW() + INTERVAL '30 seconds' ELSE NOW() END,
                     last_success_at=NOW(), completed_at=NOW(),
-                    last_error_code=NULL, last_error_at=NULL, lease_owner=NULL,
+                    recover_after=NULL, last_error_code=NULL, last_error_at=NULL, lease_owner=NULL,
                     lease_expires_at=NULL, updated_at=NOW()
                 WHERE item_id=? AND status='PROCESSING' AND lease_owner=?
                 """, claim.itemId(), claim.owner()) == 1;
@@ -151,7 +168,7 @@ public class PlaidSyncJobService {
 
     @Transactional
     public boolean retry(JobClaim claim, String errorCode) {
-        if (claim.attemptCount() >= maxAttempts) return fail(claim, "RETRY_EXHAUSTED");
+        if (claim.attemptCount() >= maxAttempts) return finishFailure(claim, errorCode, true);
         long base = Math.min(3600L, 15L * (1L << Math.min(8, claim.attemptCount() - 1)));
         long delay = base + ThreadLocalRandom.current().nextLong(Math.max(1, base / 4));
         return jdbc.update("""
@@ -163,26 +180,35 @@ public class PlaidSyncJobService {
 
     @Transactional
     public boolean requireAction(JobClaim claim, String errorCode) {
-        items.markRequiresReauth(claim.itemId(), PlaidItemStatus.REQUIRES_REAUTH, Instant.now());
-        return jdbc.update("""
-                UPDATE plaid_sync_jobs SET status='ACTION_REQUIRED', last_error_code=?, last_error_at=NOW(),
+        // Take the item lock before the job lock, as disconnect and webhook writers do.
+        if (items.findByItemIdForUpdate(claim.itemId()).isEmpty()) return false;
+        boolean owned = jdbc.update("""
+                UPDATE plaid_sync_jobs SET status='ACTION_REQUIRED', recover_after=NULL, last_error_code=?, last_error_at=NOW(),
                     completed_at=NOW(), lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW()
-                WHERE item_id=? AND status='PROCESSING' AND lease_owner=?
+                WHERE item_id=? AND status='PROCESSING' AND lease_owner=? AND lease_expires_at > NOW()
                 """, safeCode(errorCode), claim.itemId(), claim.owner()) == 1;
+        if (owned) items.markRequiresReauth(claim.itemId(), PlaidItemStatus.REQUIRES_REAUTH, Instant.now());
+        return owned;
     }
 
     @Transactional
     public boolean fail(JobClaim claim, String errorCode) {
+        return finishFailure(claim, errorCode, false);
+    }
+
+    private boolean finishFailure(JobClaim claim, String errorCode, boolean recoverable) {
         return jdbc.update("""
                 UPDATE plaid_sync_jobs SET
                     status=CASE WHEN requested_version > claimed_version THEN 'QUEUED' ELSE 'FAILED' END,
                     attempt_count=CASE WHEN requested_version > claimed_version THEN 0 ELSE attempt_count END,
                     next_attempt_at=CASE WHEN requested_version > claimed_version
                         THEN NOW() + INTERVAL '5 minutes' ELSE next_attempt_at END,
+                    recover_after=CASE WHEN ? AND requested_version=claimed_version
+                        THEN NOW() + INTERVAL '6 hours' + random() * INTERVAL '15 minutes' END,
                     last_error_code=?, last_error_at=NOW(), completed_at=NOW(),
                     lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW()
                 WHERE item_id=? AND status='PROCESSING' AND lease_owner=?
-                """, safeCode(errorCode), claim.itemId(), claim.owner()) == 1;
+                """, recoverable, safeCode(errorCode), claim.itemId(), claim.owner()) == 1;
     }
 
     public Optional<JobStatus> statusForItem(String itemId) {
@@ -197,7 +223,7 @@ public class PlaidSyncJobService {
                 INSERT INTO plaid_sync_jobs(item_id, status, requested_version, claimed_version,
                     attempt_count, next_attempt_at, last_requested_at, last_error_code, last_error_at, updated_at)
                 VALUES (?, 'ACTION_REQUIRED', 1, 0, 0, NOW(), NOW(), 'ITEM_LOGIN_REQUIRED', NOW(), NOW())
-                ON CONFLICT (item_id) DO UPDATE SET status='ACTION_REQUIRED',
+                ON CONFLICT (item_id) DO UPDATE SET status='ACTION_REQUIRED', recover_after=NULL,
                     last_error_code='ITEM_LOGIN_REQUIRED', last_error_at=NOW(), completed_at=NOW(),
                     lease_owner=NULL, lease_expires_at=NULL, updated_at=NOW()
                 """, itemId);
@@ -207,6 +233,20 @@ public class PlaidSyncJobService {
     @Scheduled(fixedDelayString = "${app.plaid.sync.reconcile-interval-ms:900000}",
             initialDelayString = "${app.plaid.sync.reconcile-initial-delay-ms:0}")
     public void reconcileStaleItems() {
+        int recovered = jdbc.update("""
+                WITH eligible AS (
+                    SELECT j.item_id FROM plaid_sync_jobs j JOIN plaid_items i ON i.item_id=j.item_id
+                    WHERE j.status='FAILED' AND j.recover_after <= NOW() AND i.status='ACTIVE'
+                    ORDER BY j.recover_after, j.item_id
+                    FOR UPDATE OF j SKIP LOCKED LIMIT 100
+                )
+                UPDATE plaid_sync_jobs j SET status='QUEUED', attempt_count=0,
+                    requested_version=GREATEST(requested_version, claimed_version+1),
+                    next_attempt_at=NOW(), recover_after=NULL, last_requested_at=NOW(), updated_at=NOW()
+                FROM eligible e WHERE j.item_id=e.item_id
+                """);
+        if (recovered > 0) logger.info("Plaid reconciliation reopened {} exhausted sync jobs", recovered);
+
         List<String> stale = jdbc.queryForList("""
                 SELECT i.item_id FROM plaid_items i
                 LEFT JOIN plaid_sync_jobs j ON j.item_id=i.item_id

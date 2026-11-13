@@ -183,6 +183,9 @@ public class DatabaseSchemaAutoPatch implements ApplicationRunner {
                 CREATE INDEX IF NOT EXISTS idx_plaid_items_last_synced
                 ON plaid_items(status, last_synced_at)
                 """);
+        try (var resource = new org.springframework.core.io.ClassPathResource("db/migration/V30__plaid_connection_and_sync_recovery.sql").getInputStream()) {
+            jdbcTemplate.execute(new String(resource.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException error) { throw new IllegalStateException("Plaid recovery schema unavailable", error); }
         // Idempotency key for Plaid-synced transactions (column on existing table).
         jdbcTemplate.execute("""
                 ALTER TABLE transactions

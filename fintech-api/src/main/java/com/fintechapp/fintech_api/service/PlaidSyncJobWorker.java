@@ -90,18 +90,23 @@ public class PlaidSyncJobWorker {
     }
 
     private static boolean isActionRequired(Throwable failure) {
-        String text = failureText(failure);
-        return text.contains("ITEM_LOGIN_REQUIRED") || text.contains("INVALID_ACCESS_TOKEN");
+        String code = errorCode(failure);
+        return "ITEM_LOGIN_REQUIRED".equals(code) || "INVALID_ACCESS_TOKEN".equals(code);
     }
 
     private static boolean isRetryable(Throwable failure) {
-        if (failure instanceof PlaidSyncDeferredException) return true;
-        if (failure instanceof TransientDataAccessException || failure instanceof java.sql.SQLTransientException) return true;
-        String text = failureText(failure);
-        if (text.contains("Plaid error ") && List.of("INVALID_API_KEYS", "INVALID_CLIENT_ID", "INVALID_REQUEST",
-                "INVALID_INPUT", "ITEM_NOT_FOUND", "PRODUCT_NOT_READY", "INVALID_PRODUCT")
-                .stream().anyMatch(text::contains)) return false;
+        if (failure instanceof PlaidSyncDeferredException || failure instanceof PlaidPaginationMutationException
+                || failure instanceof TransientDataAccessException || failure instanceof java.sql.SQLTransientException) {
+            return true;
+        }
         for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof PlaidService.PlaidProviderException provider) {
+                return provider.upstreamStatus == 429 || provider.upstreamStatus >= 500
+                        || isTransientProviderCode(provider.code);
+            }
+            if (current.getMessage() != null && current.getMessage().contains("Plaid error ")) {
+                return isTransientProviderCode(errorCode(current));
+            }
             if (current instanceof ResponseStatusException response) {
                 HttpStatusCode status = response.getStatusCode();
                 return status.value() == 429 || status.is5xxServerError();
@@ -110,8 +115,19 @@ public class PlaidSyncJobWorker {
         return failure instanceof java.io.IOException || failure instanceof java.util.concurrent.TimeoutException;
     }
 
+    private static boolean isTransientProviderCode(String code) {
+        return code != null && List.of("INTERNAL_SERVER_ERROR", "RATE_LIMIT_EXCEEDED", "INSTITUTION_DOWN",
+                "INSTITUTION_NOT_RESPONDING", "PLANNED_MAINTENANCE", "PRODUCT_NOT_READY",
+                "ITEM_RATE_LIMIT_EXCEEDED").contains(code);
+    }
+
     private static String errorCode(Throwable failure) {
         if (failure instanceof PlaidSyncDeferredException deferred) return deferred.code();
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof PlaidService.PlaidProviderException provider) {
+                return provider.code != null ? provider.code : "HTTP_" + provider.upstreamStatus;
+            }
+        }
         String text = failureText(failure);
         int marker = text.indexOf("Plaid error ");
         if (marker >= 0) {

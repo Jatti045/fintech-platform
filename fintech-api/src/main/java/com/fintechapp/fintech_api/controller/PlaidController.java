@@ -33,6 +33,7 @@ import com.fintechapp.fintech_api.dto.plaid.UpdateLinkTokenRequest;
 import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.service.PlaidService;
 import com.fintechapp.fintech_api.service.PlaidSyncJobService;
+import com.fintechapp.fintech_api.service.PlaidConnectionService;
 import com.fintechapp.fintech_api.service.PlaidWebhookService;
 import com.fintechapp.fintech_api.service.PlaidWebhookVerificationService;
 
@@ -54,6 +55,7 @@ public class PlaidController {
     private static final String PLAID_VERIFICATION_HEADER = "Plaid-Verification";
 
     private final PlaidService plaidService;
+    private final PlaidConnectionService connections;
     private final PlaidSyncJobService syncJobs;
     private final PlaidWebhookService webhookService;
     private final PlaidWebhookVerificationService webhookVerificationService;
@@ -61,11 +63,13 @@ public class PlaidController {
 
     public PlaidController(
             PlaidService plaidService,
+            PlaidConnectionService connections,
             PlaidSyncJobService syncJobs,
             PlaidWebhookService webhookService,
             PlaidWebhookVerificationService webhookVerificationService,
             ObjectMapper objectMapper) {
         this.plaidService = plaidService;
+        this.connections = connections;
         this.syncJobs = syncJobs;
         this.webhookService = webhookService;
         this.webhookVerificationService = webhookVerificationService;
@@ -85,9 +89,9 @@ public class PlaidController {
     public ExchangeTokenResponse exchangePublicToken(
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @Valid @RequestBody ExchangePublicTokenRequest request) {
-        PlaidItem item = plaidService.exchangePublicToken(authenticatedUser, request.publicToken());
-
-        PlaidSyncJobService.JobStatus jobStatus = syncJobs.requestSync(item.getItemId(), false);
+        var connection = connections.connect(authenticatedUser, request.publicToken());
+        PlaidItem item = connection.item();
+        PlaidSyncJobService.JobStatus jobStatus = connection.sync();
 
         PlaidItemResponse response = new PlaidItemResponse(
                 item.getId(), item.getItemId(), item.getInstitutionName(), item.getCreatedAt(),
