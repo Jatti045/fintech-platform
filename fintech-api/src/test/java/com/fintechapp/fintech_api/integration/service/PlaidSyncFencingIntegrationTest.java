@@ -23,6 +23,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -49,6 +51,31 @@ class PlaidSyncFencingIntegrationTest extends BaseIntegrationTest {
     @Autowired private InternalTransferReconciliationService transfers;
     @Autowired private PlatformTransactionManager transactionManager;
     @Autowired private JdbcTemplate jdbc;
+
+    @Test
+    void unavailableFxLeavesCursorAndFinancialRowsUnchanged() throws Exception {
+        PlaidItem item = createItem();
+        try {
+            assertTrue(leases.tryAcquire(item.getItemId(), "fx-lease", Duration.ofMinutes(5)));
+            var original = financialState(item);
+            when(currencyConversionService.convert(0, "EUR", "USD")).thenAnswer(call -> {
+                assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Rate unavailable");
+            });
+            var worker = service(() -> payload("C1", """
+                    "added":[{"transaction_id":"foreign","amount":20,"date":"2026-10-01","iso_currency_code":"EUR"}],
+                    "modified":[],"removed":[]
+                    """), "C0");
+
+            assertEquals(HttpStatus.SERVICE_UNAVAILABLE, assertThrows(ResponseStatusException.class,
+                    () -> worker.fetchAndApplySyncPage(item.getItemId(), "fx-lease", new PlaidService.SyncAttempt()))
+                    .getStatusCode());
+            assertEquals("C0", items.findById(item.getId()).orElseThrow().getCursor());
+            assertEquals(original, financialState(item));
+        } finally {
+            cleanup(item);
+        }
+    }
 
     @Test
     void expiredWorkerCannotApplyOldPageAfterAnotherWorkerCommits() throws Exception {

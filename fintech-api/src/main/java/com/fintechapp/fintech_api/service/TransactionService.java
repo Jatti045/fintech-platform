@@ -55,6 +55,16 @@ public class TransactionService {
     private final InternalTransferReconciliationService transferReconciliation;
     private final TransactionSubmissionRepository submissions;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    private TransactionDataResponse financialWrite(java.util.function.Supplier<TransactionDataResponse> write) {
+        if (transactionManager == null) return write.get();
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        return CurrencyConversionService.withPreparedRates(currencyConversionService,
+                () -> transaction.execute(status -> write.get()));
+    }
+
     /**
      * Used to refresh the in-memory {@link Budget} after an atomic
      * {@code spent} update so response payloads reflect the value the
@@ -173,15 +183,18 @@ public class TransactionService {
     /**
      * Creates a transaction and updates related budget aggregates atomically.
      */
-    @Transactional
     public TransactionDataResponse createTransaction(
             AuthenticatedUser authenticatedUser, CreateTransactionRequest request) {
         return createTransaction(authenticatedUser, request, null);
     }
 
-    @Transactional
     public TransactionDataResponse createTransaction(
             AuthenticatedUser authenticatedUser, CreateTransactionRequest request, UUID submissionId) {
+        return financialWrite(() -> createLocked(authenticatedUser, request, submissionId));
+    }
+
+    private TransactionDataResponse createLocked(AuthenticatedUser authenticatedUser,
+            CreateTransactionRequest request, UUID submissionId) {
         String userId = requireUserId(authenticatedUser);
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
@@ -381,10 +394,14 @@ public class TransactionService {
      * Updates a transaction and synchronizes related budget aggregates
      * atomically.
      */
-    @Transactional
     public TransactionDataResponse updateTransaction(
             AuthenticatedUser authenticatedUser,
             String transactionId,
+            UpdateTransactionRequest request) {
+        return financialWrite(() -> updateLocked(authenticatedUser, transactionId, request));
+    }
+
+    private TransactionDataResponse updateLocked(AuthenticatedUser authenticatedUser, String transactionId,
             UpdateTransactionRequest request) {
         String userId = requireUserId(authenticatedUser);
         if (!StringUtils.hasText(transactionId)) {

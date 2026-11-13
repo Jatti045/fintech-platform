@@ -233,8 +233,18 @@ public class PlaidService {
             return new SyncPageResult(attempt.progressCursor, true);
         }
 
+        // Warm distinct currency pairs before acquiring the writer and item row locks.
+        // The write still resolves currency from the locked user and checks quote expiry.
+        User snapshot = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        for (JsonNode page : attempt.pages) {
+            ingestService.prepareRates(snapshot, java.util.stream.Stream.concat(
+                    nodes(page, "added").stream(), nodes(page, "modified").stream())
+                    .map(node -> toPlaidTransaction(node, itemId)).toList());
+        }
+
         // Step 3: Fence and persist the COMPLETE sequence in one transaction.
-        return inTransaction(status -> {
+        return CurrencyConversionService.withPreparedRates(ingestService.currencyConversion(), () -> inTransaction(status -> {
             transferReconciliation.lockUser(userId);
             PlaidItem managedItem = plaidItemRepository.findByItemIdForUpdate(itemId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
@@ -292,7 +302,7 @@ public class PlaidService {
             registerCursorCommitMilestone(itemId, userId, attempt.startCursor, managedItem.getCursor());
 
             return new SyncPageResult(managedItem.getCursor(), hasMore);
-        });
+        }));
     }
 
     /**

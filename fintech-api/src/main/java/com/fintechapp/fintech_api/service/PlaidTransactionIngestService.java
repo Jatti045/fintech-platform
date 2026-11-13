@@ -109,6 +109,18 @@ public class PlaidTransactionIngestService {
         this.currencyConversionService = currencyConversionService;
     }
 
+    CurrencyConversionService currencyConversion() {
+        return currencyConversionService;
+    }
+
+    void prepareRates(User user, List<PlaidTransaction> entries) {
+        String base = aggregationCurrency(user);
+        entries.stream().filter(tx -> StringUtils.hasText(tx.transactionId())).map(tx -> resolveCurrency(tx.isoCurrencyCode(), tx.unofficialCurrencyCode(), user))
+                .distinct().forEach(from -> {
+                    if (!from.equals(base)) currencyConversionService.convert(0, from, base);
+                });
+    }
+
     /**
      * Creates or updates a transaction for {@code plaidTx}, resolving (and
      * auto-creating if necessary) the user's zero-budget category for the

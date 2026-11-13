@@ -53,7 +53,7 @@ class DatabaseMigrationsIntegrationTest {
                 .filter(entry -> entry.getVersion() != null).map(entry -> entry.getVersion().getVersion()).toList();
         assertTrue(applied.indexOf("15") >= 0);
         assertEquals("15.1", applied.get(applied.indexOf("15") + 1));
-        assertEquals("32", applied.get(applied.size() - 1));
+        assertEquals("33", applied.get(applied.size() - 1));
         assertEquals(0, flyway.migrate().migrationsExecuted);
         strategy.databaseMigrationStrategy(false).migrate(flyway);
         strategy.databaseMigrationStrategy(false).migrate(flyway);
@@ -112,7 +112,7 @@ class DatabaseMigrationsIntegrationTest {
         var flyway = configuration().baselineVersion("31").load();
         flyway.baseline();
         assertThrows(IllegalStateException.class, () -> strategy.databaseMigrationStrategy(false).migrate(flyway));
-        assertEquals(1, flyway.migrate().migrationsExecuted);
+        assertEquals(2, flyway.migrate().migrationsExecuted);
         strategy.databaseMigrationStrategy(false).migrate(flyway);
     }
 
