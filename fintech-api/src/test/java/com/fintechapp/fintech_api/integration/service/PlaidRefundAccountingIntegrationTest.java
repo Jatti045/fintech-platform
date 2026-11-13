@@ -25,6 +25,7 @@ import com.fintechapp.fintech_api.service.PlaidTransactionIngestService.PlaidTra
 import org.springframework.web.server.ResponseStatusException;
 
 class PlaidRefundAccountingIntegrationTest extends BaseIntegrationTest {
+    @Autowired private FinancialSummaryService financialSummary;
     private static final Instant DATE = Instant.parse("2026-10-15T12:00:00Z");
     @Autowired private PlaidTransactionIngestService ingest;
     @Autowired private InternalTransferReconciliationService reconciliation;
@@ -55,7 +56,7 @@ class PlaidRefundAccountingIntegrationTest extends BaseIntegrationTest {
     }
 
     private void net(User user, double expected) {
-        var summary = new FinancialSummaryService(income, transactionRepository, userRepository).resolveForMonth(user, 2026, 9);
+        var summary = financialSummary.resolveForMonth(user, 2026, 9);
         assertEquals(expected, summary.totalAmount());
         assertEquals(0, summary.actualIncome(), "Expense credits must never be earned income");
         assertEquals(1000, summary.monthlyIncome(), "Refunds must not replace the expected-income baseline");
@@ -181,7 +182,7 @@ class PlaidRefundAccountingIntegrationTest extends BaseIntegrationTest {
         User user = user(); apply(user, tx("purchase", 100), tx("refund", -40));
         apply(user, new PlaidTransaction("refund", "Merchant refund", Instant.parse("2026-11-15T12:00:00Z"),
                 "Food", -40, false, "USD", null, "card", "item", "FOOD_AND_DRINK_FAST_FOOD"));
-        var summary = new FinancialSummaryService(income, transactionRepository, userRepository);
+        var summary = financialSummary;
         assertEquals(100, summary.resolveForMonth(user, 2026, 9).totalAmount());
         assertEquals(-40, summary.resolveForMonth(user, 2026, 10).totalAmount());
         assertEquals(List.of(-40.0, 100.0), budgetRepository.findByUser_IdOrderByDateDesc(user.getId())

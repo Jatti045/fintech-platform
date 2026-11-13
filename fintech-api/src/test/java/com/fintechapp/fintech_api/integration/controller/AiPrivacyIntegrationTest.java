@@ -7,8 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -26,20 +24,19 @@ import org.springframework.web.server.ResponseStatusException;
 import com.fintechapp.fintech_api.ai.AiCompletionClient;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.user.UpdateAiPrivacyRequest;
-import com.fintechapp.fintech_api.dto.financialSummary.FinancialSummaryResponse.FinancialSummaryData;
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.service.AiPrivacyService;
-import com.fintechapp.fintech_api.service.FinancialSummaryService;
 import com.fintechapp.fintech_api.service.MonthlyInsightService;
 
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class AiPrivacyIntegrationTest extends BaseIntegrationTest {
     @MockitoBean private AiCompletionClient provider;
-    @MockitoBean private FinancialSummaryService summary;
+
     @Autowired private AiPrivacyService privacy;
     @Autowired private MonthlyInsightService insights;
     @Autowired private javax.sql.DataSource database;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager manager;
     private User actor;
     private User victim;
 
@@ -47,16 +44,19 @@ class AiPrivacyIntegrationTest extends BaseIntegrationTest {
     void prepare() {
         actor = createUser("privacy-" + UUID.randomUUID() + "@example.com", "Password123!", "privacy");
         victim = createUser("victim-" + UUID.randomUUID() + "@example.com", "Password123!", "victim");
-        when(summary.resolveForMonth(any(), anyInt(), anyInt())).thenReturn(
-                new FinancialSummaryData(100, 1000, 1000, 1000, 100, 900, 10));
-        when(summary.monthStart(anyInt(), anyInt())).thenAnswer(inv -> LocalDate.of(
-                inv.getArgument(0), (Integer)inv.getArgument(1) + 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant());
+        createTransaction(actor, null, "Historical expense", Instant.parse("2026-09-05T00:00:00Z"),
+                "Food", com.fintechapp.fintech_api.model.TransactionType.EXPENSE, 100);
         when(provider.complete(anyString(), anyString())).thenReturn("{\"summary\":\"Your month\",\"highlights\":[]}");
     }
 
     @AfterEach
     void cleanup() {
-        if (actor != null) userRepository.deleteById(actor.getId());
+        if (actor != null) {
+            new org.springframework.transaction.support.TransactionTemplate(manager).executeWithoutResult(status -> {
+                transactionRepository.deleteByUser_Id(actor.getId());
+                userRepository.deleteById(actor.getId());
+            });
+        }
         if (victim != null) userRepository.deleteById(victim.getId());
     }
 
@@ -138,6 +138,63 @@ class AiPrivacyIntegrationTest extends BaseIntegrationTest {
             assertThrows(ResponseStatusException.class, () -> insights.generateForAuthenticatedUser(auth(actor), 2026, 8));
             verify(provider, times(1)).complete(anyString(), anyString());
         } finally { release.countDown(); pool.shutdownNow(); assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS)); }
+    }
+
+    @Test
+    void postAndLegacyGetUseTheSameHistoricalReportWithOffsettingRefunds() throws Exception {
+        new org.springframework.transaction.support.TransactionTemplate(manager).executeWithoutResult(status -> {
+            transactionRepository.deleteByUser_Id(actor.getId());
+            var date = Instant.parse("2026-09-05T00:00:00Z");
+            var type = com.fintechapp.fintech_api.model.TransactionType.EXPENSE;
+            createTransaction(actor, null, "Purchase", date, "Food", type, 20.005);
+            createTransaction(actor, null, "Refund", date.plusSeconds(1), "Food", type, -20.005);
+            createTransaction(actor, null, "Outside requested month", date.plusSeconds(40 * 86400L), "Other", type, 300);
+        });
+        String path = "/api/insights/monthly";
+        mockMvc.perform(post(path).header(authHeaderName(), authHeader(actor)).contentType(json())
+                .content("{\"year\":2026,\"month\":8}")).andExpect(status().isForbidden());
+        privacy.update(auth(actor), new UpdateAiPrivacyRequest(true, "1"));
+
+        mockMvc.perform(post(path)
+                .header(authHeaderName(), authHeader(actor)).contentType(json())
+                .content("{\"year\":2026,\"month\":12}")).andExpect(status().isBadRequest());
+        mockMvc.perform(post(path)
+                .header(authHeaderName(), authHeader(actor)).contentType(json())
+                .content("{\"year\":2026}")).andExpect(status().isBadRequest());
+        mockMvc.perform(post(path).header(authHeaderName(), authHeader(actor)).contentType(json())
+                .content("{\"year\":2026,\"month\":8.5}")).andExpect(status().isBadRequest());
+        mockMvc.perform(get(path).header(authHeaderName(), authHeader(actor)).param("year", "2026").param("month", "-1"))
+                .andExpect(status().isBadRequest());
+        verify(provider, never()).complete(anyString(), anyString());
+
+        String reportBody = mockMvc.perform(get("/api/financial-summary/report")
+                .header(authHeaderName(), authHeader(actor)).param("year", "2026").param("month", "8"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String response = mockMvc.perform(post(path)
+                .header(authHeaderName(), authHeader(actor)).contentType(json())
+                .content("{\"year\":2026,\"month\":8}")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.insufficientData").value(false))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andReturn().getResponse().getContentAsString();
+        verify(provider, times(1)).complete(anyString(), anyString());
+        String legacy = mockMvc.perform(get(path).header(authHeaderName(), authHeader(actor))
+                .param("year", "2026").param("month", "8")).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(objectMapper.readTree(response), objectMapper.readTree(legacy));
+
+        var payload = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(provider, times(2)).complete(anyString(), payload.capture());
+        assertEquals(payload.getAllValues().get(0), payload.getAllValues().get(1));
+        var facts = objectMapper.readTree(payload.getValue());
+        var report = objectMapper.readTree(reportBody).path("data");
+        assertEquals(0.0, facts.path("expenses").asDouble());
+        assertEquals(20.01, facts.path("grossExpenses").asDouble());
+        assertEquals(report.path("grossExpenses"), facts.path("grossExpenses"));
+        assertEquals(report.path("expenseCredits"), facts.path("expenseCredits"));
+        assertEquals(report.at("/categories/0/netSpent"), facts.at("/categories/0/total"));
+        assertEquals(1, facts.path("categories").size());
+        assertFalse(facts.has("recurringChanges"));
     }
 
     private static AuthenticatedUser auth(User user) {

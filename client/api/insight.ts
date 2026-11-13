@@ -4,8 +4,7 @@ import type { IMonthlyInsightResponse } from "@/types/insight/types";
 class InsightAPI extends BaseAPI {
   /**
    * AI-generated explanation of the given month, computed by the backend from
-   * Fundleaf's deterministic financial services. Cached per month by the API
-   * slice; generation only happens when the user explicitly requests it.
+   * Fundleaf's authoritative report. Generation requires an explicit user action.
    */
   async fetchMonthlyInsight({
     currentMonth,
@@ -17,8 +16,8 @@ class InsightAPI extends BaseAPI {
     return this.makeRequest<IMonthlyInsightResponse["data"]>(
       "/insights/monthly",
       {
-        method: "GET",
-        params: { month: currentMonth, year: currentYear },
+        method: "POST",
+        data: { month: currentMonth, year: currentYear },
       },
     );
   }
