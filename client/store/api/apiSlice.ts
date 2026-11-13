@@ -8,6 +8,7 @@ import insightAPI from "@/api/insight";
 import aiPrivacyAPI, { type AiPrivacyPreference } from "@/api/aiPrivacy";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import type {
+  CreateTransactionInput,
   ITransaction,
   ITransactionPagination,
   ITransactionResponse,
@@ -464,13 +465,11 @@ export const api = createApi({
 
     createTransaction: build.mutation<
       ITransactionResponse<ITransaction>,
-      Partial<ITransaction>
+      CreateTransactionInput
     >({
       queryFn: async (transaction) => {
         try {
-          const response = await transactionAPI.create(
-            transaction as ITransaction,
-          );
+          const response = await transactionAPI.create(transaction);
           if (response?.data?.transaction) {
             const t = response.data.transaction as any;
             t.budgetId = t.budgetId ?? t.budget?.id ?? null;

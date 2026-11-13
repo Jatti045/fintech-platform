@@ -72,7 +72,7 @@ class TransactionServiceTest {
                                 transactionRepository,
                                 userRepository,
                                 cacheInvalidator,
-                                currencyConversionService, transferReconciliation);
+                                currencyConversionService, transferReconciliation, null);
                 // @PersistenceContext fields are not populated by plain `new`;
                 // inject the mock the same way the container would.
                 org.springframework.test.util.ReflectionTestUtils.setField(

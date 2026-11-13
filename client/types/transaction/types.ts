@@ -36,6 +36,8 @@ export interface ITransaction {
   } | null;
 }
 
+export type CreateTransactionInput = Partial<ITransaction> & { submissionId?: string };
+
 export interface ITransactionPagination {
   currentPage: number;
   totalPages: number;

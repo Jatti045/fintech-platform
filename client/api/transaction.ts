@@ -2,6 +2,7 @@ import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import BaseAPI from "./base";
 import {
   TransactionType,
+  type CreateTransactionInput,
   ITransaction,
   ITransactionPagination,
   ITransactionFilter,
@@ -58,11 +59,12 @@ class TransactionAPI extends BaseAPI {
   }
 
   async create(
-    transaction: ITransaction,
+    { submissionId, ...transaction }: CreateTransactionInput,
   ): Promise<ITransactionResponse<ITransaction>> {
     return this.makeRequest("/transaction", {
       method: "POST",
       data: transaction,
+      ...(submissionId ? { headers: { "Idempotency-Key": submissionId } } : {}),
     });
   }
 

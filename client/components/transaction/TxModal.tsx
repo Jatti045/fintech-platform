@@ -86,6 +86,7 @@ function TransactionModal({
     monthStartDate,
     monthEndDate,
     handleCreateTransaction,
+    clearCreateSubmission,
     handleUpdateTransaction,
   } = useTransactionOperations();
 
@@ -109,6 +110,8 @@ function TransactionModal({
   const prevOpenRef = useRef(openSheet);
   useEffect(() => {
     if (!openSheet && prevOpenRef.current) {
+      // Closing the sheet ends this draft and its submission identity.
+      clearCreateSubmission();
       // Modal transitioned from open -> closed: clear form fields
       try {
         setTxName("");
@@ -126,7 +129,10 @@ function TransactionModal({
       if (onClose) onClose();
     }
     prevOpenRef.current = openSheet;
-  }, [openSheet]);
+  }, [
+    openSheet, clearCreateSubmission, onClose, setTxName, setTxAmount,
+    setTxSelectedCategoryAndId, setTxDate, setTxCurrency, setType, userCurrency,
+  ]);
 
   // Populate fields when editingTransaction is provided
   useEffect(() => {
