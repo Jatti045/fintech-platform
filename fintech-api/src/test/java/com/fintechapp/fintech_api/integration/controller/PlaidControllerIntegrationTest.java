@@ -26,6 +26,7 @@ import com.fintechapp.fintech_api.model.PlaidItem;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.service.PlaidService;
 import com.fintechapp.fintech_api.service.PlaidSyncJobService;
+import com.fintechapp.fintech_api.service.PlaidConnectionService;
 import com.fintechapp.fintech_api.service.PlaidWebhookService;
 import com.fintechapp.fintech_api.service.PlaidWebhookVerificationService;
 
@@ -41,6 +42,9 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
 
         @MockitoBean
         private PlaidSyncJobService syncJobs;
+
+        @MockitoBean
+        private PlaidConnectionService connections;
 
         @MockitoBean
         private PlaidWebhookService webhookService;
@@ -142,9 +146,8 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
                 item.setItemId("plaid-item-1");
                 item.setInstitutionName("Chase");
                 item.setCreatedAt(Instant.ofEpochSecond(1_700_000_000L));
-                when(plaidService.exchangePublicToken(any(), eq("pub-1"))).thenReturn(item);
-                when(syncJobs.requestSync("plaid-item-1", false))
-                                .thenReturn(new PlaidSyncJobService.JobStatus("QUEUED", 0, null));
+                when(connections.connect(any(), eq("pub-1"))).thenReturn(new PlaidConnectionService.Connection(
+                                item, new PlaidSyncJobService.JobStatus("QUEUED", 0, null)));
 
                 mockMvc.perform(post("/api/plaid/token")
                                 .header(authHeaderName(), authHeader(user))
@@ -155,8 +158,7 @@ class PlaidControllerIntegrationTest extends BaseIntegrationTest {
                                 .andExpect(jsonPath("$.message").value("Bank connected"))
                                 .andExpect(jsonPath("$.data.item.itemId").value("plaid-item-1"));
 
-                // Initial synchronization is durable before the connection response.
-                verify(syncJobs).requestSync("plaid-item-1", false);
+                verify(syncJobs, never()).requestSync("plaid-item-1", false);
         }
 
         @Test

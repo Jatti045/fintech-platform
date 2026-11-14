@@ -12,14 +12,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProfilePictureStore {
     private final UserRepository users;
 
-    public ProfilePictureStore(UserRepository users) {
+    private final ProfileImageCleanupJobs cleanup;
+
+    public ProfilePictureStore(UserRepository users, ProfileImageCleanupJobs cleanup) {
         this.users = users;
+        this.cleanup = cleanup;
     }
 
-    public record Change(User user, String previousPublicId) { }
-
     @Transactional
-    public Change replace(String userId, String url, String publicId) {
+    public User replace(String userId, String url, String publicId) {
         User user = users.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
         String previousPublicId = user.getProfilePicPublicId();
@@ -27,6 +28,7 @@ public class ProfilePictureStore {
         user.setProfilePicPublicId(publicId);
         // Flush for the generated timestamp/version and to surface failures before cleanup.
         users.saveAndFlush(user);
-        return new Change(user, previousPublicId);
+        if (!java.util.Objects.equals(previousPublicId, publicId)) cleanup.enqueue(previousPublicId);
+        return user;
     }
 }

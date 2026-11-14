@@ -48,6 +48,40 @@ public class CurrencyConversionService {
             return round2(amount * cached.value());
         }
 
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new RateRequired(from, to);
+        }
+        return round2(amount * fetchRate(from, to));
+    }
+
+    // A cache miss inside a write aborts the transaction before fetching externally.
+    // The next attempt rereads and revalidates all inputs under the writer lock.
+    static <T> T withPreparedRates(CurrencyConversionService rates, java.util.function.Supplier<T> write) {
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return write.get();
+            } catch (RateRequired missing) {
+                if (attempt >= 8 || org.springframework.transaction.support.TransactionSynchronizationManager
+                        .isActualTransactionActive()) {
+                    throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                            "Currency rates could not be prepared. Please retry.");
+                }
+                rates.convert(0, missing.from, missing.to);
+            }
+        }
+    }
+
+    private static final class RateRequired extends RuntimeException {
+        private final String from;
+        private final String to;
+        private RateRequired(String from, String to) {
+            this.from = from;
+            this.to = to;
+        }
+    }
+
+    private double fetchRate(String from, String to) {
+        String key = from + ":" + to;
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restClient.get()
@@ -63,7 +97,7 @@ public class CurrencyConversionService {
                 throw new IllegalStateException("invalid exchange rate");
             }
             rates.put(key, new CachedRate(value, Instant.now().plus(ttl)));
-            return round2(amount * value);
+            return value;
         } catch (Exception ex) {
             // Do not persist a raw amount under a different currency label. A
             // retryable failure is safer than silently corrupting aggregates.

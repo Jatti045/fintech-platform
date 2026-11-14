@@ -239,8 +239,7 @@ it("a pending save blocks Back, backdrop and Cancel, then allows dismissal after
     input(tree, "Transaction name").props.onChangeText("Income");
     input(tree, "Transaction amount").props.onChangeText("10");
   });
-  // The existing create flow closes before the request starts. Seed a pending
-  // mutation while open to verify the UI guard independently of that close.
+  // Seed a pending mutation while open to verify the dismissal guard.
   let operation: any;
   await act(async () => {
     operation = store.dispatch(
@@ -315,4 +314,53 @@ it("preserves the existing close-on-submit flow and reopens with fresh defaults 
     button(tree, "Expense transaction").props.accessibilityState.selected,
   ).toBe(true);
   act(() => tree.unmount());
+});
+
+it("retains the draft and submission ID after a lost response, then starts a fresh submission", async () => {
+  const { tree, closed, store } = await mount();
+  const create = jest.mocked(transactionApi.create);
+  create.mockRejectedValueOnce(new Error("Connection lost"));
+  create.mockImplementation(async (input) => ({
+    success: true,
+    message: "Created",
+    data: { transaction: { ...input, id: "created" } as any },
+  }));
+
+  const openIncome = () => act(() => {
+    button(tree, "Open transaction").props.onPress();
+  });
+  const fillIncome = () => act(() => {
+    button(tree, "Income transaction").props.onPress();
+    input(tree, "Transaction name").props.onChangeText("Pay");
+    input(tree, "Transaction amount").props.onChangeText("10");
+  });
+  const save = async () => {
+    await act(async () => {
+      await button(tree, "Save Transaction").props.onPress();
+      await flush();
+    });
+  };
+
+  openIncome();
+  fillIncome();
+  await save();
+  expect(closed).not.toHaveBeenCalled();
+  expect(input(tree, "Transaction name").props.value).toBe("Pay");
+  const original = create.mock.calls[0][0];
+  expect(original.submissionId).toMatch(/^[0-9a-f-]{36}$/);
+  const dismissError = button(tree, "OK");
+  if (dismissError) act(() => dismissError.props.onPress());
+
+  await save();
+  expect(create.mock.calls[1][0]).toEqual(original);
+  await until(() => closed.mock.calls.length === 1);
+
+  openIncome();
+  fillIncome();
+  await save();
+  expect(create.mock.calls[2][0].submissionId).not.toBe(original.submissionId);
+  await act(async () => {
+    tree.unmount();
+    store.dispatch(api.util.resetApiState());
+  });
 });

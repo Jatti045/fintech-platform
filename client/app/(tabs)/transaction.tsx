@@ -30,6 +30,7 @@ export default function TransactionScreen() {
   const {
     displayTransactions,
     budgets,
+    categories, categoriesLoading, categoriesError, requestCategories, retryCategories,
     monthlyIncome,
     actualIncome,
     expectedIncome,
@@ -109,6 +110,11 @@ export default function TransactionScreen() {
               searchQuery={searchQuery}
               onSearchChange={handleSearchQueryChange}
               budgets={budgets}
+              categories={categories}
+              categoriesLoading={categoriesLoading}
+              categoriesError={categoriesError}
+              requestCategories={requestCategories}
+              retryCategories={retryCategories}
               filterCategoryId={filterCategoryId}
               onFilterCategoryChange={setFilterCategoryId}
               minAmount={minAmount}

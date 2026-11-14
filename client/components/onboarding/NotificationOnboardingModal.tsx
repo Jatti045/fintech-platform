@@ -1,4 +1,4 @@
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, accentSurface } from "@/constants/ThemePalettes";
 // ─── Notification Onboarding Modal ──────────────────────────────────────────
 // A concise, optional prompt shown once after account creation. It explains
 // the benefit of notifications and offers an explicit enable/decline choice.
@@ -47,7 +47,7 @@ export default function NotificationOnboardingModal({
                 width: 52,
                 height: 52,
                 borderRadius: 16,
-                backgroundColor: hexToRgba(THEME.primary, 0.16),
+                backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.16)),
                 alignItems: "center",
                 justifyContent: "center",
                 marginBottom: 14,

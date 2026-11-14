@@ -1,7 +1,6 @@
-import { ScrollView } from "react-native-gesture-handler";
 import FundleafSheet from "@/components/sheets/FundleafSheet";
-import React, { useState } from "react";
-import { Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { BRAND } from "@/constants/ThemePalettes";
@@ -10,6 +9,11 @@ import type { IBudget } from "@/types/budget/types";
 
 interface Props {
   budgets: IBudget[];
+  categories?: string[];
+  categoriesLoading?: boolean;
+  categoriesError?: boolean;
+  onOpenCategories?: () => void;
+  onRetryCategories?: () => void;
   filterCategoryId: string;
   setFilterCategoryId: (id: string) => void;
   minAmount: string;
@@ -21,6 +25,8 @@ interface Props {
 }
 export default function FilterTransaction({
   budgets,
+  categories = [], categoriesLoading = false, categoriesError = false,
+  onOpenCategories, onRetryCategories,
   filterCategoryId,
   setFilterCategoryId,
   minAmount,
@@ -34,31 +40,27 @@ export default function FilterTransaction({
   const [amountsOpen, setAmountsOpen] = useState(false);
   const amountActive = !!(minAmount || maxAmount);
   const active = filterCategoryId !== "all" || amountActive;
-  const categorySelected = ![
-    "all",
-    "income",
-    "transfer_out",
-    "transfer_in",
-  ].includes(filterCategoryId);
+  const categorySelected = !["all", "income"].includes(filterCategoryId);
   const options = [
     { id: "all", label: "All", accessibility: "All categories" },
     { id: "income", label: "Income", accessibility: "Filter by Income" },
-    {
-      id: "transfer_out",
-      label: "Transfer out",
-      accessibility: "Filter by Transfer out",
-    },
-    {
-      id: "transfer_in",
-      label: "Transfer in",
-      accessibility: "Filter by Transfer in",
-    },
-    ...budgets.map((b) => ({
-      id: b.id,
-      label: capitalizeFirst(b.category),
-      accessibility: `Filter by ${b.category}`,
-    })),
   ];
+  const categoryOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const name of [...budgets.map((b) => b.category), ...categories]) {
+      const label = name.trim();
+      if (label) names.set(label.toLowerCase(), label);
+    }
+    return [
+      { id: "all", category: "All Categories" },
+      { id: "income", category: "All income" },
+      { id: "transfer_out", category: "Transfers out" },
+      { id: "transfer_in", category: "Transfers in" },
+      ...[...names.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([key, category]) => ({
+        id: `category:${key}`, category,
+      })),
+    ];
+  }, [budgets, categories]);
   const chip = (selected: boolean) => ({
     minHeight: BRAND.touchTarget,
     paddingHorizontal: BRAND.spacing.md,
@@ -99,16 +101,11 @@ export default function FilterTransaction({
   );
   return (
     <View style={{ marginBottom: BRAND.spacing.sm }}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          gap: BRAND.spacing.sm,
-          paddingBottom: BRAND.spacing.sm,
-        }}
-      >
-        {options.slice(0, 4).map(renderOption)}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: BRAND.spacing.sm }}>
+        <View style={{ flexDirection: "row", gap: BRAND.spacing.sm }}>
+          {options.map(renderOption)}
+        </View>
+        <View style={{ flexDirection: "row", gap: BRAND.spacing.sm }}>
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="More category filters"
@@ -116,7 +113,10 @@ export default function FilterTransaction({
             selected: categorySelected,
             expanded: showMoreModal,
           }}
-          onPress={() => setShowMoreModal(true)}
+          onPress={() => {
+            onOpenCategories?.();
+            setShowMoreModal(true);
+          }}
           style={chip(categorySelected)}
         >
           <Text
@@ -126,20 +126,10 @@ export default function FilterTransaction({
               fontWeight: "600",
             }}
           >
-            Categories
+            Category
           </Text>
           <Feather name="chevron-down" size={16} color={THEME.primary} />
         </TouchableOpacity>
-        {options.slice(4).map(renderOption)}
-      </ScrollView>
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: BRAND.spacing.sm,
-        }}
-      >
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Amount filters"
@@ -157,6 +147,9 @@ export default function FilterTransaction({
             Amount{amountActive ? " · Active" : ""}
           </Text>
         </TouchableOpacity>
+        </View>
+      </View>
+      <View style={{ alignItems: "flex-start" }}>
         {active && (
           <TouchableOpacity
             accessibilityRole="button"
@@ -236,7 +229,16 @@ export default function FilterTransaction({
         onDismiss={() => setShowMoreModal(false)}
         title="Select category"
       >
-        {[{ id: "all", category: "All Categories" }, ...budgets].map(
+        {categoriesLoading && <ActivityIndicator accessibilityLabel="Loading categories" color={THEME.primary} />}
+        {categoriesError && <View style={{ gap: 8 }}>
+          <Text accessibilityLiveRegion="polite" style={{ color: THEME.danger }}>Could not load all categories.</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry categories" onPress={onRetryCategories} style={chip(false)}>
+            <Text style={{ color: THEME.primary }}>Try again</Text>
+          </TouchableOpacity>
+        </View>}
+        {!categoriesLoading && !categoriesError && categoryOptions.length === 4 &&
+          <Text style={{ color: THEME.textSecondary }}>No categories for this month yet.</Text>}
+        {categoryOptions.map(
           (option) => (
             <TouchableOpacity
               key={option.id}
@@ -247,7 +249,7 @@ export default function FilterTransaction({
               }}
               onPress={() => {
                 if (option.id === "all") clearFilters();
-                else setFilterCategoryId(option.id);
+                else setFilterCategoryId(filterCategoryId === option.id ? "all" : option.id);
                 setShowMoreModal(false);
               }}
               style={{

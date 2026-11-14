@@ -44,10 +44,10 @@ import financialSummaryApi from "@/api/financialSummary";
 import recurringApi from "@/api/recurring";
 import api, { defaultTransactionArgs } from "@/store/api/apiSlice";
 import type { GetTransactionsArgs } from "@/store/api/apiSlice";
-import { hydrateApiCache } from "@/store/api/cachePersistence";
+import { hydrateApiCache, apiCachePersistenceMiddleware } from "@/store/api/cachePersistence";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import { establishSession, invalidateSession } from "@/utils/session";
-import { writeEncryptedCache } from "@/utils/encryptedStorage";
+import { writeEncryptedCache, readEncryptedCache } from "@/utils/encryptedStorage";
 
 // ── API module mocks ──────────────────────────────────────────────────────────
 
@@ -963,4 +963,23 @@ describe("Cache behavior — RTK Query invariants", () => {
       queryKeys(store).filter((k) => k.includes("getTransactions")),
     ).toHaveLength(1);
   });
+});
+
+
+it("does not overwrite the unfiltered cold-start cache with a category-only feed", async () => {
+  const userId = "category-cache-test";
+  await establishSession("test-token", { id: userId });
+  const store = configureStore({
+    reducer: { [api.reducerPath]: api.reducer },
+    middleware: (gDM) => gDM().prepend(apiCachePersistenceMiddleware.middleware).concat(api.middleware),
+  });
+  mockedTxFetch.mockResolvedValue({ success: true, data: txEnvelope([{ id: "filtered", category: "Food", amount: 10 }]) });
+  const request = store.dispatch(api.endpoints.getTransactions.initiate({
+    ...defaultTransactionArgs(1, 2026), category: "Food",
+  }));
+  await request;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(await readEncryptedCache(userId, `rtkq:v2:transactions:${userId}:2026-1`)).toBeNull();
+  request.unsubscribe(); store.dispatch(api.util.resetApiState());
+  await invalidateSession();
 });

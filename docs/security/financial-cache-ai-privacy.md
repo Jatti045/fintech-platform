@@ -45,11 +45,11 @@ V23 adds `ai_processing_enabled` (default false), `ai_consent_version`, and `ai_
 
 Monthly generation checks enabled state and disclosure version before financial context generation or any provider call. Generation and consent writes obtain the same PostgreSQL user row lock. Opt-out waits for already admitted generation to finish; after disable succeeds, new calls are rejected. Data already sent cannot be recalled. The lock is held during the existing bounded provider call (default timeout 30 seconds), so concurrent consent/profile writes may wait for completion.
 
-The home card and Profile AI privacy control share server preference state. Cancel/dismiss never grants consent. Acceptance only saves the preference; a separate explicit press generates an explanation. Generation is an RTK mutation: screen loads, preference changes and financial tag invalidation cannot automatically generate requests. AI output stays in memory and is not persisted in the cache or database.
+The home card and Profile AI privacy control share server preference state. Cancel/dismiss never grants consent. Acceptance only saves the preference; a separate explicit press generates an explanation. Generation uses a non-cacheable POST with an explicit month and year. The deprecated GET remains available for installed clients that send both parameters. Generation is an RTK mutation: screen loads, preference changes and financial tag invalidation cannot automatically generate requests. AI output stays in memory and is not persisted in the cache or database.
 
 ## External payload and disclosure
 
-The provider receives month/year/currency, aggregate income/expenses/net, category totals/prior comparisons, budget labels/limits/spending, and recurring bill labels/amount changes. Raw transactions, stored account/Plaid/user IDs, email, tokens and passwords are excluded as fields. User-written labels may themselves contain personal text; labels are disclosed and treated as untrusted prompt data.
+The provider receives month/year/currency, aggregate income, gross expenses, expense credits, net spending, remaining income, category totals and prior comparisons, and budget usage from the authoritative report. Recurring bill names and changes are omitted. Raw transactions, stored account/Plaid/user IDs, email, tokens and passwords are excluded as fields. User-written labels may themselves contain personal text; labels are disclosed and treated as untrusted prompt data.
 
 Provider logging uses coarse error types. Google-auth response logs and raw client HTTP error logging were removed. Arbitrary provider configuration means the application cannot assert a universal retention/training policy. The disclosure promises neither zero retention nor exclusion from training.
 

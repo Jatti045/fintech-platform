@@ -29,7 +29,9 @@ export interface ITheme {
   chart4: string;
 }
 
+export type ThemePreference = "System" | "Light" | "Dark";
+
 export interface IThemeState {
-  selectedTheme: string;
+  selectedTheme: ThemePreference;
   THEME: ITheme;
 }

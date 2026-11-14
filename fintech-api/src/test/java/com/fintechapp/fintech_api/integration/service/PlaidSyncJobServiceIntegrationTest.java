@@ -92,6 +92,45 @@ class PlaidSyncJobServiceIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    void exhaustedTemporaryFailureRecoversAfterCooldownWithoutAnotherEvent() {
+        String itemId = createItem();
+        // Even recently synced Items are eligible for recovery after exhaustion.
+        jdbc.update("UPDATE plaid_items SET last_synced_at=NOW() WHERE item_id=?", itemId);
+        jobs.requestSync(itemId, false);
+        for (int attempt = 1; attempt <= 8; attempt++) {
+            var claim = jobs.claimNext().orElseThrow();
+            assertTrue(jobs.retry(claim, "INSTITUTION_DOWN"));
+            if (attempt < 8) makeReady(itemId);
+        }
+        jobs.reconcileStaleItems();
+        assertEquals("FAILED", jobs.statusForItem(itemId).orElseThrow().status());
+        assertTrue(jobs.claimNext().isEmpty());
+
+        jdbc.update("UPDATE plaid_sync_jobs SET recover_after=NOW() - INTERVAL '1 second' WHERE item_id=?", itemId);
+        jobs.reconcileStaleItems();
+        jobs.reconcileStaleItems();
+        var recovered = jobs.claimNext().orElseThrow();
+        assertEquals(1, recovered.attemptCount());
+        assertEquals(2, recovered.claimedVersion());
+        assertTrue(jobs.complete(recovered));
+        assertEquals("SUCCEEDED", jobs.statusForItem(itemId).orElseThrow().status());
+    }
+
+    @Test
+    void permanentAndReauthenticationFailuresAreNotAutomaticallyReopened() {
+        String permanent = createItem();
+        jobs.requestSync(permanent, false);
+        assertTrue(jobs.fail(jobs.claimNext().orElseThrow(), "INVALID_INPUT"));
+        String reauth = createItem();
+        jobs.requestSync(reauth, false);
+        assertTrue(jobs.requireAction(jobs.claimNext().orElseThrow(), "ITEM_LOGIN_REQUIRED"));
+        jobs.reconcileStaleItems();
+        assertEquals("FAILED", jobs.statusForItem(permanent).orElseThrow().status());
+        assertEquals("ACTION_REQUIRED", jobs.statusForItem(reauth).orElseThrow().status());
+        assertTrue(jobs.claimNext().isEmpty());
+    }
+
+    @Test
     void staleActiveItemIsReconciledAndDisconnectedItemDropsItsJob() {
         String itemId = createItem();
         jdbc.update("UPDATE plaid_items SET last_synced_at=? WHERE item_id=?",

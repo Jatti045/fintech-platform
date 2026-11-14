@@ -1,13 +1,13 @@
 import React from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BRAND } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 import { useBudgetScreen } from "@/hooks/budget/useBudgetScreen";
 import {
   BudgetContent,
   BudgetHeader,
   BudgetModal,
+  NewBudgetButton,
   MonthSetupModal,
 } from "@/components/budget";
 
@@ -65,7 +65,7 @@ export default function BudgetScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         contentContainerStyle={{
-          paddingBottom: BRAND.spacing.xl,
+          paddingBottom: 120,
           paddingHorizontal: 16,
           paddingTop: 12,
         }}
@@ -87,7 +87,6 @@ export default function BudgetScreen() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onSetup={handleOpenSetup}
-            onAddBudget={handleNewBudget}
           />
           <BudgetContent
             isInitialLoading={isInitialLoading}
@@ -111,6 +110,8 @@ export default function BudgetScreen() {
           />
         </View>
       </ScrollView>
+
+      <NewBudgetButton onPress={handleNewBudget} />
 
       {/* Create / Edit modal — self-contained via useBudgetOperations */}
       <BudgetModal

@@ -764,3 +764,17 @@ describe("useTransactionScreen", () => {
     );
   });
 });
+
+
+it("filters a custom category on the server without treating it as a budget ID", async () => {
+  mockedTxFetch.mockImplementation(async (args) => txEnvelope([
+    makeTx({ id: "income", type: "INCOME", category: "Freelance income" }),
+    makeTx({ id: "expense", type: "EXPENSE", category: "Food" }),
+  ].filter((tx) => !args.category || tx.category.toLowerCase() === args.category.toLowerCase())));
+  const { captured, store } = await setup();
+  renderer.act(() => captured.current!.setFilterCategoryId("category:freelance income"));
+  await until(() => txSettled(store));
+  refresh();
+  expect(mockedTxFetch).toHaveBeenLastCalledWith(expect.objectContaining({ category: "freelance income", budgetId: null }));
+  expect(captured.current!.sectionsWithTotals.flatMap((section) => section.data).map((tx) => tx.id)).toEqual(["income"]);
+});

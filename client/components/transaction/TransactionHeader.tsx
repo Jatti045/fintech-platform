@@ -20,6 +20,11 @@ export interface TransactionHeaderProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   budgets: IBudget[];
+  categories?: string[];
+  categoriesLoading?: boolean;
+  categoriesError?: boolean;
+  requestCategories?: () => void;
+  retryCategories?: () => void;
   filterCategoryId: string | "all";
   onFilterCategoryChange: (id: string | "all") => void;
   minAmount: string;
@@ -39,6 +44,7 @@ export default function TransactionHeader({
   searchQuery,
   onSearchChange,
   budgets,
+  categories, categoriesLoading, categoriesError, requestCategories, retryCategories,
   filterCategoryId,
   onFilterCategoryChange,
   minAmount,
@@ -52,17 +58,33 @@ export default function TransactionHeader({
   return (
     <View style={{ paddingTop: BRAND.spacing.sm, gap: BRAND.spacing.md }}>
       <View>
-        <Text
-          accessibilityRole="header"
+        <View
           style={{
-            color: THEME.textPrimary,
-            fontSize: 28,
-            fontWeight: "700",
-            letterSpacing: -0.8,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
           }}
         >
-          Transactions
-        </Text>
+          <Text
+            accessibilityRole="header"
+            style={{
+              color: THEME.textPrimary,
+              fontSize: 28,
+              fontWeight: "700",
+              letterSpacing: -0.8,
+              flexShrink: 1,
+              maxWidth: "60%",
+            }}
+          >
+            Transactions
+          </Text>
+          <View style={{ flex: 1, minWidth: 0, maxWidth: 400 }}>
+            <MonthPicker
+              value={{ month, year }}
+              onChange={(value) => dispatch(setMonthYear(value))}
+            />
+          </View>
+        </View>
         <Text
           style={{
             color: THEME.textSecondary,
@@ -73,10 +95,6 @@ export default function TransactionHeader({
           Your money, in detail · {currencyCode}
         </Text>
       </View>
-      <MonthPicker
-        value={{ month, year }}
-        onChange={(value) => dispatch(setMonthYear(value))}
-      />
       <View
         style={{
           flexDirection: "row",
@@ -127,6 +145,11 @@ export default function TransactionHeader({
       </View>
       <FilterTransaction
         budgets={budgets}
+        categories={categories}
+        categoriesLoading={categoriesLoading}
+        categoriesError={categoriesError}
+        onOpenCategories={requestCategories}
+        onRetryCategories={retryCategories}
         filterCategoryId={filterCategoryId}
         setFilterCategoryId={onFilterCategoryChange}
         minAmount={minAmount}

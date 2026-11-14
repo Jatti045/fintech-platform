@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  Image,
   Text,
   TextInput,
   TouchableOpacity,
@@ -10,7 +9,6 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useAppDispatch, useAppSelector, useTheme } from "@/hooks/useRedux";
 import { setMonthYear } from "@/store/slices/calendarSlice";
-import NewBudgetButton from "./NewBudgetButton";
 import MonthPicker from "@/components/calendar/MonthPicker";
 
 export interface BudgetHeaderProps {
@@ -20,7 +18,6 @@ export interface BudgetHeaderProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onSetup?: () => void;
-  onAddBudget?: () => void;
 }
 export default function BudgetHeader({
   month,
@@ -29,7 +26,6 @@ export default function BudgetHeader({
   searchQuery,
   onSearchChange,
   onSetup,
-  onAddBudget,
 }: BudgetHeaderProps) {
   const { THEME } = useTheme();
   const dispatch = useAppDispatch();
@@ -38,20 +34,6 @@ export default function BudgetHeader({
   const displayYear = year ?? calendar?.year ?? now.getUTCFullYear();
   return (
     <View style={styles.header}>
-      <View style={styles.brandRow}>
-        <View style={styles.brand}>
-          <Image
-            source={require("@/assets/fundleaf-brand-assets/logo-mark.png")}
-            style={{ width: 30, height: 30 }}
-            resizeMode="contain"
-            accessible={false}
-          />
-          <Text style={[styles.wordmark, { color: THEME.textPrimary }]}>
-            Fundleaf
-          </Text>
-        </View>
-        {onAddBudget && <NewBudgetButton inline onPress={onAddBudget} />}
-      </View>
       <View style={styles.titleRow}>
         <Text
           accessibilityRole="header"
@@ -59,7 +41,7 @@ export default function BudgetHeader({
         >
           Budgets
         </Text>
-        <View style={{ flex: 1, minWidth: 190, maxWidth: 400 }}>
+        <View style={{ flex: 1, minWidth: 0, maxWidth: 400 }}>
           <MonthPicker
             value={{ month, year: displayYear }}
             onChange={(value) => dispatch(setMonthYear(value))}
@@ -122,24 +104,13 @@ export default function BudgetHeader({
 }
 const styles = StyleSheet.create({
   header: { marginBottom: 18 },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    marginBottom: 20,
-  },
-  brand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  wordmark: { fontSize: 26, fontWeight: "800", letterSpacing: -1 },
   titleRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
   },
-  title: { fontSize: 32, fontWeight: "800", letterSpacing: -1 },
+  title: { flexShrink: 1, maxWidth: "60%", fontSize: 32, fontWeight: "800", letterSpacing: -1 },
   subtitle: { fontSize: 13, lineHeight: 20, marginTop: 5, marginBottom: 14 },
   tools: {
     flexDirection: "row",

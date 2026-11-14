@@ -31,6 +31,7 @@ import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 
 @Service
 public class UserService {
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UserService.class);
 
     @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.CategorizationRuleRepository categorizationRules;
     @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.RuleApplicationRepository ruleApplications;
@@ -46,6 +47,7 @@ public class UserService {
     private final CloudinaryService cloudinaryService;
     private final UploadValidationService uploadValidationService;
     private final ProfilePictureStore profilePictures;
+    private final ProfileImageCleanupJobs imageCleanup;
     private final FinancialCacheInvalidator cacheInvalidator;
     private final PlaidRevocationJobService revocations;
 
@@ -62,7 +64,7 @@ public class UserService {
             UploadValidationService uploadValidationService,
             FinancialCacheInvalidator cacheInvalidator,
             ProfilePictureStore profilePictures,
-            PlaidRevocationJobService revocations) {
+            PlaidRevocationJobService revocations, ProfileImageCleanupJobs imageCleanup) {
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
@@ -76,6 +78,7 @@ public class UserService {
         this.cacheInvalidator = cacheInvalidator;
         this.profilePictures = profilePictures;
         this.revocations = revocations;
+        this.imageCleanup = imageCleanup;
     }
 
     public UserDataResponse getCurrentUser(AuthenticatedUser authenticatedUser) {
@@ -111,6 +114,7 @@ public class UserService {
         // The outbox and local deletion commit together; never discard cleanup credentials.
         plaidItemRepository.flush();
         revocations.enqueueForUser(userId);
+        imageCleanup.enqueue(existingUser.getProfilePicPublicId());
 
         if (pendingChoices != null) pendingChoices.deleteByUser_Id(userId);
         if (ruleApplications != null) ruleApplications.deleteByUser_Id(userId);
@@ -141,28 +145,28 @@ public class UserService {
         }
 
         CloudinaryService.UploadedImage uploaded = cloudinaryService.uploadProfileImage(file, userId);
-        ProfilePictureStore.Change change;
+        User updated;
         try {
             // Reload and lock after upload; no pre-upload User snapshot is written back.
-            change = profilePictures.replace(userId, uploaded.url(), uploaded.publicId());
+            updated = profilePictures.replace(userId, uploaded.url(), uploaded.publicId());
         } catch (RuntimeException failure) {
-            cloudinaryService.deleteImage(uploaded.publicId());
+            try {
+                imageCleanup.enqueueUnattached(uploaded.publicId());
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+                logger.error("Could not persist cleanup for a failed profile image attachment");
+            }
             throw failure;
         }
-        // The store has committed. Clean up the asset actually replaced under its lock.
-        if (StringUtils.hasText(change.previousPublicId()) && !change.previousPublicId().equals(uploaded.publicId())) {
-            cloudinaryService.deleteImage(change.previousPublicId());
-        }
         return new ProfilePictureUploadResponse(true, "Profile picture uploaded successfully.",
-                toProfilePictureUser(change.user()));
+                toProfilePictureUser(updated));
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public UserDataResponse deleteProfilePicture(String userId, AuthenticatedUser authenticatedUser) {
         requireSameUser(userId, authenticatedUser);
-        ProfilePictureStore.Change change = profilePictures.replace(userId, null, null);
-        cloudinaryService.deleteImage(change.previousPublicId());
-        return new UserDataResponse(true, "Profile picture deleted.", toUserSummary(change.user()));
+        User updated = profilePictures.replace(userId, null, null);
+        return new UserDataResponse(true, "Profile picture deleted.", toUserSummary(updated));
     }
 
     @Transactional

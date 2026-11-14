@@ -68,11 +68,13 @@ class PlaidRevocationIntegrationTest extends BaseIntegrationTest {
 
     private User user;
     private AuthenticatedUser auth;
+    private String publicToken;
     private final List<String> jobIds = new ArrayList<>();
 
     @BeforeEach
     void prepare() {
         user = createUser("revoke-" + UUID.randomUUID() + "@example.com", "Password123!", "revocation");
+        publicToken = UUID.randomUUID().toString();
         auth = new AuthenticatedUser(user.getId(), user.getEmail(), 0L);
     }
 
@@ -302,33 +304,93 @@ class PlaidRevocationIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    void concurrentRegistrationIsIncludedInAccountDeletion() throws Exception {
+    void deletionDuringProviderExchangeDoesNotWaitAndQueuesCompensation() throws Exception {
         CountDownLatch exchanged = new CountDownLatch(1), release = new CountDownLatch(1);
         var builder = RestClient.builder().baseUrl(SETTINGS.baseUrl());
         var server = MockRestServiceServer.bindTo(builder).build();
         String remoteId = "register-" + UUID.randomUUID();
         server.expect(requestTo(SETTINGS.baseUrl() + "/item/public_token/exchange")).andRespond(request -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             exchanged.countDown(); await(release);
             return withSuccess("{\"item_id\":\"" + remoteId + "\",\"access_token\":\"access-sandbox-register\"}",
                     MediaType.APPLICATION_JSON).createResponse(request);
         });
-        var service = service(builder.build());
+        var connection = connection(builder.build(), syncJobs);
         var pool = Executors.newFixedThreadPool(2);
         try {
-            var registration = pool.submit(() -> new TransactionTemplate(manager)
-                    .execute(s -> service.exchangePublicToken(auth, "public-token")));
+            var registration = pool.submit(() -> connection.connect(auth, publicToken));
             assertTrue(exchanged.await(10, TimeUnit.SECONDS));
             var deletion = pool.submit(() -> users.deleteAccount(user.getId(), auth));
-            assertThrows(TimeoutException.class, () -> deletion.get(200, TimeUnit.MILLISECONDS));
+            deletion.get(5, TimeUnit.SECONDS);
             release.countDown();
-            PlaidItem registered = registration.get(10, TimeUnit.SECONDS);
-            jobIds.add(registered.getId());
-            deletion.get(10, TimeUnit.SECONDS);
+            assertInstanceOf(ResponseStatusException.class,
+                    assertThrows(ExecutionException.class, () -> registration.get(10, TimeUnit.SECONDS)).getCause());
             assertFalse(userRepository.existsById(user.getId()));
-            assertFalse(items.existsById(registered.getId()));
-            assertEquals("access-sandbox-register", encryption.decrypt((String) row(registered).get("access_token_encrypted")));
+            assertTrue(items.findByItemId(remoteId).isEmpty());
+            assertCompensation(remoteId);
             server.verify();
         } finally { release.countDown(); stop(pool); }
+    }
+
+    @Test
+    void lostConnectionResponseAndConcurrentReplayUseOneExchangeAndOneJob() throws Exception {
+        CountDownLatch requested = new CountDownLatch(1), release = new CountDownLatch(1);
+        var builder = RestClient.builder().baseUrl(SETTINGS.baseUrl());
+        var server = MockRestServiceServer.bindTo(builder).build();
+        String remoteId = "connect-" + UUID.randomUUID();
+        server.expect(requestTo(SETTINGS.baseUrl() + "/item/public_token/exchange")).andRespond(request -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            requested.countDown();
+            await(release);
+            return exchangeResponse(remoteId).createResponse(request);
+        });
+        var connection = connection(builder.build(), syncJobs);
+        var pool = Executors.newSingleThreadExecutor();
+        try {
+            var first = pool.submit(() -> connection.connect(auth, publicToken));
+            assertTrue(requested.await(5, TimeUnit.SECONDS));
+            assertEquals(HttpStatus.CONFLICT, assertThrows(ResponseStatusException.class,
+                    () -> connection.connect(auth, publicToken)).getStatusCode());
+            release.countDown();
+            var committed = first.get(5, TimeUnit.SECONDS);
+            var replay = connection.connect(auth, publicToken);
+            assertEquals(committed.item().getId(), replay.item().getId());
+            assertEquals("QUEUED", replay.sync().status());
+            assertEquals(1L, jdbc.queryForObject("SELECT requested_version FROM plaid_sync_jobs WHERE item_id=?",
+                    Long.class, remoteId));
+            assertEquals(1, items.findByUser_IdOrderByCreatedAtDesc(user.getId()).size());
+            server.verify();
+        } finally { release.countDown(); stop(pool); }
+    }
+
+    @Test
+    void queueFailureRollsBackItemAndEnqueuesEncryptedCompensation() {
+        var builder = RestClient.builder().baseUrl(SETTINGS.baseUrl());
+        var server = MockRestServiceServer.bindTo(builder).build();
+        String remoteId = "queue-failure-" + UUID.randomUUID();
+        server.expect(requestTo(SETTINGS.baseUrl() + "/item/public_token/exchange"))
+                .andRespond(exchangeResponse(remoteId));
+        var queue = org.mockito.Mockito.mock(PlaidSyncJobService.class);
+        org.mockito.Mockito.when(queue.ensureInitialSync(remoteId)).thenAnswer(invocation -> {
+            assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
+            assertTrue(items.findByItemId(remoteId).isPresent());
+            syncJobs.ensureInitialSync(remoteId);
+            throw new IllegalStateException("simulated queue write failure");
+        });
+        var connection = connection(builder.build(), queue);
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, assertThrows(ResponseStatusException.class,
+                () -> connection.connect(auth, publicToken)).getStatusCode());
+        assertTrue(items.findByItemId(remoteId).isEmpty());
+        assertTrue(syncJobs.statusForItem(remoteId).isEmpty());
+        assertCompensation(remoteId);
+        assertEquals(HttpStatus.CONFLICT, assertThrows(ResponseStatusException.class,
+                () -> connection.connect(auth, publicToken)).getStatusCode());
+        server.verify();
+    }
+
+    private static org.springframework.test.web.client.ResponseCreator exchangeResponse(String remoteId) {
+        return withSuccess("{\"item_id\":\"" + remoteId + "\",\"access_token\":\"access-sandbox-register\"}",
+                MediaType.APPLICATION_JSON);
     }
 
     @Test
@@ -336,9 +398,8 @@ class PlaidRevocationIntegrationTest extends BaseIntegrationTest {
         users.deleteAccount(user.getId(), auth);
         var builder = RestClient.builder().baseUrl(SETTINGS.baseUrl());
         var server = MockRestServiceServer.bindTo(builder).build();
-        var service = service(builder.build());
-        var error = assertThrows(ResponseStatusException.class, () -> new TransactionTemplate(manager)
-                .execute(s -> service.exchangePublicToken(auth, "public-token")));
+        var connection = connection(builder.build(), syncJobs);
+        var error = assertThrows(ResponseStatusException.class, () -> connection.connect(auth, publicToken));
         assertEquals(HttpStatus.UNAUTHORIZED, error.getStatusCode());
         server.verify();
     }
@@ -417,6 +478,20 @@ class PlaidRevocationIntegrationTest extends BaseIntegrationTest {
 
     private PlaidRevocationWorker worker(RestClient client, PlaidRevocationJobService service) {
         return new PlaidRevocationWorker(service, new PlaidRevocationClient(client, SETTINGS, encryption), Runnable::run);
+    }
+
+    private PlaidConnectionService connection(RestClient client, PlaidSyncJobService queue) {
+        return new PlaidConnectionService(service(client), encryption, items, userRepository, queue, jdbc, manager);
+    }
+
+    private void assertCompensation(String remoteId) {
+        String id = UUID.nameUUIDFromBytes(("plaid-connect-cleanup:" + remoteId)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        jobIds.add(id);
+        String encrypted = jdbc.queryForObject(
+                "SELECT access_token_encrypted FROM plaid_revocation_jobs WHERE id=?", String.class, id);
+        assertNotEquals("access-sandbox-register", encrypted);
+        assertEquals("access-sandbox-register", encryption.decrypt(encrypted));
     }
 
     private PlaidService service(RestClient client) {

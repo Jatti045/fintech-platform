@@ -28,13 +28,12 @@ public class FinancialReportService {
     private final UserRepository users;
     private final BudgetRepository budgets;
     private final UserMonthlyIncomeRepository incomes;
-    private final FinancialSummaryService summary;
     private final IncomeCalculationService income;
 
     public FinancialReportService(JdbcTemplate jdbc, UserRepository users, BudgetRepository budgets,
-            UserMonthlyIncomeRepository incomes, FinancialSummaryService summary, IncomeCalculationService income) {
+            UserMonthlyIncomeRepository incomes, IncomeCalculationService income) {
         this.jdbc = jdbc; this.users = users; this.budgets = budgets; this.incomes = incomes;
-        this.summary = summary; this.income = income;
+        this.income = income;
     }
 
     private static class Amounts {
@@ -45,13 +44,23 @@ public class FinancialReportService {
     private record Row(int day, String category, String budgetId, BigDecimal gross, BigDecimal credits,
             BigDecimal income, long count) {}
 
+    public record MonthlyFacts(Report report, List<Category> previousCategories) {}
+
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Report report(AuthenticatedUser auth, int year, int month) {
-        Instant generatedAt = Instant.now();
-        Instant from = summary.monthStart(year, month);
         if (auth == null || auth.userId() == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         var user = users.findById(auth.userId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+        return facts(user, year, month).report();
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public MonthlyFacts facts(com.fintechapp.fintech_api.model.User user, int year, int month) {
+        if (month < 0 || month > 11 || year < 1 || year > 9998) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid month/year value");
+        }
+        Instant generatedAt = Instant.now();
         YearMonth period = YearMonth.of(year, month + 1);
+        Instant from = start(period);
         Instant to = start(period.plusMonths(1));
         List<Row> rows = rows(user.getId(), from, to);
         Map<Integer, Amounts> daily = new LinkedHashMap<>();
@@ -89,17 +98,31 @@ public class FinancialReportService {
         YearMonth previous = period.minusMonths(1);
         List<Row> previousRows = rows(user.getId(), start(previous), from);
         BigDecimal previousIncome = BigDecimal.ZERO, previousGross = BigDecimal.ZERO, previousCredits = BigDecimal.ZERO;
+        Map<String, Amounts> previousCategories = new LinkedHashMap<>();
         for (Row r : previousRows) {
             previousIncome = previousIncome.add(r.income()); previousGross = previousGross.add(r.gross()); previousCredits = previousCredits.add(r.credits());
+            if (r.gross().signum() != 0 || r.credits().signum() != 0) {
+                previousCategories.computeIfAbsent(r.category(), key -> new Amounts()).add(r.gross(), r.credits());
+            }
         }
         double pi = money(previousIncome).doubleValue(), ps = money(previousGross.subtract(previousCredits)).doubleValue();
         var comparison = new Comparison(previous.getYear(), previous.getMonthValue() - 1, pi, ps,
                 round(actualIncome - pi), round(total.net() - ps), percentage(actualIncome, pi), percentage(total.net(), ps));
-        return new Report(year, month, user.getCurrency(), generatedAt, basis, configured, count, totals,
+        Amounts previousTotal = new Amounts();
+        previousTotal.gross = money(previousGross);
+        previousTotal.credits = previousTotal.gross.subtract(money(previousGross.subtract(previousCredits)));
+        reconcile(previousCategories, previousTotal);
+        var report = new Report(year, month, user.getCurrency(), generatedAt, basis, configured, count, totals,
                 total.gross.doubleValue(), total.credits.doubleValue(),
                 daily.entrySet().stream().map(e -> new Daily(e.getKey(), e.getValue().gross.doubleValue(), e.getValue().credits.doubleValue(), e.getValue().net())).toList(),
-                categories.entrySet().stream().map(e -> new Category(e.getKey(), e.getValue().gross.doubleValue(), e.getValue().credits.doubleValue(), e.getValue().net())).toList(),
+                categoryFacts(categories),
                 budgetRows, comparison);
+        return new MonthlyFacts(report, categoryFacts(previousCategories));
+    }
+
+    private static List<Category> categoryFacts(Map<String, Amounts> categories) {
+        return categories.entrySet().stream().map(e -> new Category(e.getKey(),
+                e.getValue().gross.doubleValue(), e.getValue().credits.doubleValue(), e.getValue().net())).toList();
     }
 
     private List<Row> rows(String userId, Instant from, Instant to) {
@@ -144,5 +167,5 @@ public class FinancialReportService {
     private static Instant start(YearMonth period) { return period.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC); }
     private static BigDecimal money(BigDecimal value) { return value.movePointRight(2).add(new BigDecimal("0.5")).setScale(0, RoundingMode.FLOOR).movePointLeft(2); }
     private static double round(double value) { return money(BigDecimal.valueOf(value)).doubleValue(); }
-    private static Double percentage(double current, double previous) { return previous > 0 ? round((current - previous) / previous * 100) : null; }
+    static Double percentage(double current, double previous) { return previous > 0 ? round((current - previous) / previous * 100) : null; }
 }

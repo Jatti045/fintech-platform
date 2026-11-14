@@ -15,6 +15,8 @@ import BudgetModal from "@/components/budget/BudgetModal";
 import BudgetHalo from "@/components/budget/BudgetHalo";
 import BudgetReservoirRow from "@/components/budget/BudgetReservoirRow";
 import MonthSetupModal from "@/components/budget/MonthSetupModal";
+import NewBudgetButton from "@/components/budget/NewBudgetButton";
+import AddNewTransactionButton from "@/components/transaction/AddTxButton";
 import BudgetHeader from "@/components/budget/BudgetHeader";
 import { useBudgetOperations } from "@/hooks/budget/useBudgetOperation";
 import { THEME_PALETTES } from "@/constants/ThemePalettes";
@@ -473,5 +475,24 @@ it("preserves zero-limit display and row selection, edit, and delete callbacks",
   expect(select).toHaveBeenCalledWith(budget);
   expect(edit).toHaveBeenCalledWith(budget);
   expect(remove).toHaveBeenCalledWith(budget.id);
+  act(() => tree.unmount());
+});
+
+it.each(["Light", "Dark"])("removes header branding and uses matching floating create actions in %s", (appearance) => {
+  const addBudget = jest.fn(), addTransaction = jest.fn();
+  const { tree } = mount(<>
+    <BudgetHeader month={1} year={2026} showSearch={false} searchQuery="" onSearchChange={jest.fn()} />
+    <NewBudgetButton onPress={addBudget} />
+    <AddNewTransactionButton setOpenSheet={addTransaction} />
+  </>, appearance);
+  expect(text(tree)).not.toContain("Fundleaf");
+  expect(text(tree)).toContain("Budgets");
+  const budget = button(tree, "New Budget"), transaction = button(tree, "New Transaction");
+  expect(budget.parent!.props.style).toEqual(transaction.parent!.props.style);
+  expect(budget.props.style).toEqual(transaction.props.style);
+  act(() => budget.props.onPress());
+  act(() => transaction.props.onPress());
+  expect(addBudget).toHaveBeenCalledTimes(1);
+  expect(addTransaction).toHaveBeenCalledWith(true);
   act(() => tree.unmount());
 });

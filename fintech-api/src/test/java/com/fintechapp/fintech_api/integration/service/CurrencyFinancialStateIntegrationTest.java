@@ -74,6 +74,50 @@ class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void coldFxWaitDoesNotHoldWriterLockAndRevalidatesCurrency() throws Exception {
+        User user = user();
+        var waiting = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var builder = org.springframework.web.client.RestClient.builder().baseUrl("https://rates.example.invalid");
+        var server = org.springframework.test.web.client.MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo(
+                "https://rates.example.invalid/v4/latest/EUR")).andRespond(request -> {
+            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            waiting.countDown();
+            try { assertTrue(release.await(10, TimeUnit.SECONDS)); }
+            catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new AssertionError(ex); }
+            return org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                    "{\"rates\":{\"USD\":1.25}}", org.springframework.http.MediaType.APPLICATION_JSON).createResponse(request);
+        });
+        var realRates = new com.fintechapp.fintech_api.service.CurrencyConversionService(builder.build(), 3600);
+        when(currencyConversionService.convert(org.mockito.ArgumentMatchers.anyDouble(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(call -> realRates.convert(call.getArgument(0), call.getArgument(1), call.getArgument(2)));
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var writing = pool.submit(() -> transactions.createTransaction(auth(user), new CreateTransactionRequest(
+                    "Payroll", 9, 2026, "2026-10-15T00:00:00Z", "Salary", "INCOME", 100d,
+                    null, null, "USD", "EUR", 100d)));
+            assertTrue(waiting.await(5, TimeUnit.SECONDS));
+            assertEquals("EUR", pool.submit(() -> users.updateCurrency(auth(user), new UpdateCurrencyRequest("EUR")))
+                    .get(5, TimeUnit.SECONDS).data().currency());
+            release.countDown();
+            var created = writing.get(5, TimeUnit.SECONDS).data().transaction();
+            assertEquals("EUR", created.baseCurrency());
+            assertEquals(100d, created.amount());
+            server.verify();
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                transactionRepository.deleteByUser_Id(user.getId());
+                userRepository.deleteById(user.getId());
+            });
+        }
+    }
+
+    @Test
     void noFinancialDataAllowsChange() {
         User user = user();
         assertEquals("CAD", users.updateCurrency(auth(user), new UpdateCurrencyRequest("cad")).data().currency());

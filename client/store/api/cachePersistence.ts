@@ -40,6 +40,7 @@ const isUnfilteredFirstPage = (arg: GetTransactionsArgs | undefined) =>
   (arg.page ?? 1) === 1 &&
   !(arg.searchQuery ?? "").trim() &&
   !arg.budgetId &&
+  !arg.category &&
   arg.minAmount == null &&
   arg.maxAmount == null &&
   !arg.startDate &&

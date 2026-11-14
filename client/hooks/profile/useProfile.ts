@@ -1,8 +1,10 @@
+import type { ThemePreference } from "@/types/theme/types";
 // ─── useProfile Hook ────────────────────────────────────────────────────────
 // Single source of truth for all profile-screen state, side-effects, and
 // handler logic.  The profile screen composes dumb sub-components that
 // receive slices of this hook's return value as props.
 
+import { sessionGeneration } from "@/utils/session";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Linking } from "react-native";
 import { router } from "expo-router";
@@ -56,7 +58,7 @@ export interface UseProfileReturn {
   user: ReturnType<typeof useAuth>["user"];
   /** Theme colours & selected theme name */
   THEME: ReturnType<typeof useTheme>["THEME"];
-  selectedTheme: string;
+  selectedTheme: ThemePreference;
 
   /** Loading / overlay flags */
   uploading: boolean;
@@ -71,7 +73,7 @@ export interface UseProfileReturn {
   handleDeleteImage: () => void;
 
   /** Theme handler */
-  handleThemeSelect: (name: string) => Promise<void>;
+  handleThemeSelect: (name: ThemePreference) => Promise<void>;
 
   /** Currency picker state & handler */
   currencyPickerOpen: boolean;
@@ -332,6 +334,7 @@ export function useProfile(): UseProfileReturn {
 
   // ── bank connection (Plaid Link) flow ─────────────────────────────────────
   const handleLinkBank = async () => {
+    const generation = sessionGeneration();
     setLinking(true);
     try {
       // Lazy-load the native Plaid Link SDK only when the user actually taps
@@ -369,48 +372,58 @@ export function useProfile(): UseProfileReturn {
         throw new Error("Plaid could not create a link token.");
       }
 
+      if (generation !== sessionGeneration()) return;
+      const exchange = async (publicToken: string, canRetry: boolean) => {
+        if (generation !== sessionGeneration()) return;
+        setLinking(true);
+        try {
+          const exchangeResponse = await plaidAPI.exchangePublicToken(publicToken);
+          if (generation !== sessionGeneration()) return;
+          // Immediately surface the newly connected bank in the list.
+          const item = exchangeResponse?.data?.item;
+          if (item) {
+            setPlaidItems((prev) =>
+              prev.some((existing) => existing.id === item.id)
+                ? prev
+                : [item, ...prev],
+            );
+            // Surface the post-connection dialog. This is shown EVERY time a
+            // new bank is connected — not just the first one.
+            setConnectedItem(item);
+          }
+          // Surface newly-synced transactions for the selected month:
+          // invalidate the month tags so RTK Query refetches the
+          // transactions, budgets and financial summary.
+          const monthTag = { year: calendar.year, month: calendar.month };
+          dispatch(
+            api.util.invalidateTags([
+              {
+                type: "Transactions",
+                id: `${monthTag.year}-${monthTag.month}`,
+              },
+              { type: "Budgets", id: `${monthTag.year}-${monthTag.month}` },
+              { type: "Categories", id: `${monthTag.year}-${monthTag.month}` },
+              { type: "Summary", id: `${monthTag.year}-${monthTag.month}` },
+            ]),
+          );
+        } catch (e) {
+          if (generation !== sessionGeneration()) return;
+          void loadPlaidItems();
+          showAlert({
+            title: "Bank connection could not be confirmed",
+            message: extractErrorMessage(e, "Check your connected banks before starting a new connection."),
+            buttons: canRetry ? [
+              { text: "Close", style: "cancel" },
+              { text: "Check again", onPress: () => { void exchange(publicToken, false); } },
+            ] : undefined,
+          });
+        } finally {
+          setLinking(false);
+        }
+      };
       const handler = await createPlaidLinkSession({
         token: linkToken,
-        onSuccess: async (success: LinkSuccess) => {
-          try {
-            const exchangeResponse = await plaidAPI.exchangePublicToken(
-              success.publicToken,
-            );
-            // Immediately surface the newly connected bank in the list.
-            const item = exchangeResponse?.data?.item;
-            if (item) {
-              setPlaidItems((prev) =>
-                prev.some((existing) => existing.id === item.id)
-                  ? prev
-                  : [item, ...prev],
-              );
-              // Surface the post-connection dialog. This is shown EVERY time a
-              // new bank is connected — not just the first one.
-              setConnectedItem(item);
-            }
-            // Surface newly-synced transactions for the selected month:
-            // invalidate the month tags so RTK Query refetches the
-            // transactions, budgets and financial summary.
-            const monthTag = { year: calendar.year, month: calendar.month };
-            dispatch(
-              api.util.invalidateTags([
-                {
-                  type: "Transactions",
-                  id: `${monthTag.year}-${monthTag.month}`,
-                },
-                { type: "Budgets", id: `${monthTag.year}-${monthTag.month}` },
-                { type: "Summary", id: `${monthTag.year}-${monthTag.month}` },
-              ]),
-            );
-          } catch (e) {
-            showAlert({
-              title: "Connection Failed",
-              message: extractErrorMessage(e, "Failed to connect your bank."),
-            });
-          } finally {
-            setLinking(false);
-          }
-        },
+        onSuccess: (success: LinkSuccess) => exchange(success.publicToken, true),
         onExit: () => setLinking(false),
         onEvent: () => {},
       });
@@ -557,7 +570,7 @@ export function useProfile(): UseProfileReturn {
 
   // ── theme ────────────────────────────────────────────────────────────────
   const handleThemeSelect = useCallback(
-    async (themeName: string) => {
+    async (themeName: ThemePreference) => {
       dispatch(setTheme(themeName));
       await persistTheme(themeName);
       showAlert({

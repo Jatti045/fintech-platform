@@ -8,7 +8,7 @@ import FundleafSheet from "@/components/sheets/FundleafSheet";
 import { useSheetDismiss } from "@/components/sheets/useSheetDismiss";
 import { AlertProvider } from "@/utils/themedAlert";
 import themeReducer, { setTheme } from "@/store/slices/themeSlice";
-import { THEME_PALETTES } from "@/constants/ThemePalettes";
+import { THEME_PALETTES, sheetSurface } from "@/constants/ThemePalettes";
 import BrandInput from "@/components/brand/BrandInput";
 
 function mount(element: React.ReactElement, theme = "Light") {
@@ -46,7 +46,7 @@ it.each(["Light", "Dark"])(
     const props = tree.root.findByType(BottomSheetModal).props;
     const theme =
       appearance === "Light" ? THEME_PALETTES.LIGHT : THEME_PALETTES.DARK;
-    expect(props.backgroundStyle.backgroundColor).toBe(theme.surface);
+    expect(props.backgroundStyle.backgroundColor).toBe(sheetSurface(theme));
     expect(props.enablePanDownToClose).toBe(true);
     expect(props.enableDynamicSizing).toBe(true);
     expect(props.keyboardBehavior).toBe("interactive");

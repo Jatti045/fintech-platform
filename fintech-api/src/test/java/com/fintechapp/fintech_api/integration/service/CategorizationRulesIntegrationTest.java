@@ -117,6 +117,24 @@ class CategorizationRulesIntegrationTest extends BaseIntegrationTest {
         assertTrue(rules.preview(auth(u),exact.id()).matches().isEmpty());
         assertThrows(ResponseStatusException.class,()->rules.save(auth(u),null,new RuleRequest("Scope","MERCHANT","EXACT","Starbucks",null,"unowned",null,"No",null,null,1,true,null)));
     }
+    @Test void previewTraversesTiedDatesAcrossPagesWithoutChangingUnicodeMatches() {
+        User u = user();
+        var request = new RuleRequest("Coffee", "MERCHANT", "NORMALIZED_EXACT", "CAFÉ",
+                null, null, null, "Coffee", null, null, 1, true, null);
+        var rule = rules.save(auth(u), null, request);
+        for (int i = 0; i < 260; i++) {
+            createTransaction(u, null, i % 2 == 0 ? "Ｃａｆｅ\u0301" : "Other", DATE, "Food", TransactionType.EXPENSE, 1);
+        }
+        em.flush();
+        var expected = transactionRepository.findByUser_IdOrderByDateDesc(u.getId()).stream()
+                .filter(t -> TransactionClassificationService.normalize(t.getName()).equals("café"))
+                .map(Transaction::getId).sorted().toList();
+        var preview = rules.preview(auth(u), rule.id());
+        assertEquals(130, expected.size());
+        assertEquals(expected, preview.matches().stream().map(CategorizationRuleService.Match::id).toList());
+        assertEquals(preview.token(), rules.preview(auth(u), rule.id()).token());
+    }
+
     @Test void migrationIsIdempotentAndPreservesAmbiguousHistory() throws Exception {
         String schema="migration_"+UUID.randomUUID().toString().replace("-","");
         String sql=new String(new org.springframework.core.io.ClassPathResource("db/migration/V24__transaction_categorization_rules.sql").getInputStream().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);

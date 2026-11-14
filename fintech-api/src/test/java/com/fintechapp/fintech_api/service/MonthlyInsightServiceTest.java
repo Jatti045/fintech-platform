@@ -24,16 +24,10 @@ import org.springframework.web.server.ResponseStatusException;
 import com.fintechapp.fintech_api.ai.AiClientException;
 import com.fintechapp.fintech_api.ai.AiCompletionClient;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
-import com.fintechapp.fintech_api.dto.budget.BudgetItemResponse;
-import com.fintechapp.fintech_api.dto.budget.BudgetsResponse;
+import com.fintechapp.fintech_api.dto.financialSummary.FinancialReportResponse.*;
 import com.fintechapp.fintech_api.dto.financialSummary.FinancialSummaryResponse.FinancialSummaryData;
 import com.fintechapp.fintech_api.dto.insight.MonthlyInsightResponse;
-import com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse.Data;
-import com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse.Item;
-import com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse.Item.AmountChange;
 import com.fintechapp.fintech_api.model.User;
-import com.fintechapp.fintech_api.repository.TransactionRepository;
-import com.fintechapp.fintech_api.repository.TransactionRepository.CategoryTotal;
 import com.fintechapp.fintech_api.repository.UserRepository;
 
 /**
@@ -48,10 +42,7 @@ class MonthlyInsightServiceTest {
             new AuthenticatedUser("user-1", "user@example.com", 0L);
 
     private AiCompletionClient aiClient;
-    private FinancialSummaryService financialSummaryService;
-    private BudgetService budgetService;
-    private RecurringPaymentService recurringPaymentService;
-    private TransactionRepository transactionRepository;
+    private FinancialReportService reports;
     private UserRepository userRepository;
     private User user;
 
@@ -60,10 +51,7 @@ class MonthlyInsightServiceTest {
     @BeforeEach
     void setUp() {
         aiClient = mock(AiCompletionClient.class);
-        financialSummaryService = mock(FinancialSummaryService.class);
-        budgetService = mock(BudgetService.class);
-        recurringPaymentService = mock(RecurringPaymentService.class);
-        transactionRepository = mock(TransactionRepository.class);
+        reports = mock(FinancialReportService.class);
         userRepository = mock(UserRepository.class);
 
         user = mock(User.class);
@@ -74,31 +62,17 @@ class MonthlyInsightServiceTest {
         when(user.isAiProcessingEnabled()).thenReturn(true);
         when(user.getAiConsentVersion()).thenReturn("1");
 
-        service = new MonthlyInsightService(
-                aiClient, financialSummaryService, budgetService,
-                recurringPaymentService, transactionRepository, userRepository);
+        service = new MonthlyInsightService(aiClient, reports, userRepository);
     }
 
-    private void stubFinancialMonth(int monthIndex, double expenses) {
-        when(financialSummaryService.resolveForMonth(user, 2026, monthIndex)).thenReturn(
-                new FinancialSummaryData(expenses, 4200, 4000, 4200, expenses,
-                        4200 - expenses, 50));
-        java.time.Instant monthStart = java.time.LocalDate
-                .of(2026, monthIndex + 1, 1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
-        java.time.Instant nextMonthStart = java.time.LocalDate
-                .of(2026, monthIndex + 1, 1).plusMonths(1)
-                .atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
-        when(financialSummaryService.monthStart(2026, monthIndex)).thenReturn(monthStart);
-        when(financialSummaryService.monthStart(
-                2026 + (monthIndex == 11 ? 1 : 0), (monthIndex + 1) % 12)).thenReturn(nextMonthStart);
-        when(transactionRepository.sumAmountByUserAndTypeGroupedByCategory(
-                eq("user-1"), any(), any(), any())).thenReturn(List.of(
-                categoryTotal("Restaurants", 320), categoryTotal("Groceries", 460)));
-        when(budgetService.getBudgets(any(), eq(String.valueOf(monthIndex)), eq("2026")))
-                .thenReturn(new BudgetsResponse(true, "ok", List.of(new BudgetItemResponse(
-                        "id", "uid", null, "Entertainment", 1000, 910, false, null, null))));
-        when(recurringPaymentService.detectForAuthenticatedUser(any())).thenReturn(
-                new Data(List.of(recurringItem())));
+    private void stubFinancialMonth(int month, double expenses) {
+        var summary = new FinancialSummaryData(expenses, 4200, 4000, 4200, expenses, 4200 - expenses, 50);
+        var report = new Report(2026, month, "EUR", null, "ACTUAL", true, 3, summary, expenses, 0,
+                List.of(), List.of(new Category("restaurants", 320, 0, 320), new Category("groceries", 460, 0, 460)),
+                List.of(new BudgetUsage("id", "Entertainment", 1000, 910, 90, 91.0, false, "user-1", null, null, null)),
+                null);
+        when(reports.facts(user, 2026, month)).thenReturn(new FinancialReportService.MonthlyFacts(report,
+                List.of(new Category("restaurants", 300, 0, 300))));
         when(aiClient.complete(anyString(), anyString())).thenReturn(
                 "{\"summary\":\"Spending is up.\",\"highlights\":[\"Restaurants +32%\"]}");
     }
@@ -114,26 +88,7 @@ class MonthlyInsightServiceTest {
         org.junit.jupiter.api.Assertions.assertThrows(ResponseStatusException.class,
                 () -> service.generateForAuthenticatedUser(AUTH, 2026, 8));
         verify(aiClient, never()).complete(anyString(), anyString());
-        verify(financialSummaryService, never()).resolveForMonth(any(), anyInt(), anyInt());
-    }
-
-    private static CategoryTotal categoryTotal(String category, double total) {
-        return new CategoryTotal() {
-            @Override
-            public String getCategory() {
-                return category;
-            }
-
-            @Override
-            public Double getTotal() {
-                return total;
-            }
-        };
-    }
-
-    private static Item recurringItem() {
-        return new Item("NETFLIX", "Netflix", 18, "USD", "MONTHLY", 30,
-                null, null, 4, "HIGH", 27, new AmountChange(15, 18), null);
+        verify(reports, never()).facts(any(), anyInt(), anyInt());
     }
 
     private ResponseStatusException generateExpectingFailure() {
@@ -144,10 +99,10 @@ class MonthlyInsightServiceTest {
 
     @Test
     void returnsDeterministicResponseWithoutCallingAiWhenMonthIsEmpty() {
-        when(financialSummaryService.resolveForMonth(user, 2026, 8)).thenReturn(
-                new FinancialSummaryData(0, 0, 0, 0, 0, 0, 0));
-        when(financialSummaryService.monthStart(2026, 8)).thenReturn(
-                java.time.Instant.parse("2026-09-01T00:00:00Z"));
+        var report = new Report(2026, 8, "EUR", null, "UNCONFIGURED", false, 0,
+                new FinancialSummaryData(0, 0, 0, 0, 0, 0, 0), 0, 0,
+                List.of(), List.of(), List.of(), null);
+        when(reports.facts(user, 2026, 8)).thenReturn(new FinancialReportService.MonthlyFacts(report, List.of()));
 
         MonthlyInsightResponse response = service.generateForAuthenticatedUser(AUTH, 2026, 8);
 
@@ -173,7 +128,7 @@ class MonthlyInsightServiceTest {
         assertTrue(json.contains("\"net\":450.0"));
         assertTrue(json.contains("\"currency\":\"EUR\""));
         assertTrue(json.contains("Entertainment"));
-        assertTrue(json.contains("Netflix"));
+        assertTrue(!json.contains("recurringChanges"));
         // ...and raw identifiers / transaction dumps / credentials are not.
         assertTrue(!json.contains("user-1"));
         assertTrue(!json.contains("transactions"));
@@ -213,11 +168,6 @@ class MonthlyInsightServiceTest {
         String json = userContent.getValue();
         assertTrue(json.contains("\"monthName\":\"January\""));
         assertTrue(json.contains("\"month\":1"));
-        // The financial windows must be January's, not December of the prior year.
-        verify(transactionRepository).sumAmountByUserAndTypeGroupedByCategory(
-                eq("user-1"), any(),
-                eq(java.time.Instant.parse("2026-01-01T00:00:00Z")),
-                eq(java.time.Instant.parse("2026-02-01T00:00:00Z")));
     }
 
     @Test
@@ -232,11 +182,6 @@ class MonthlyInsightServiceTest {
         String json = userContent.getValue();
         assertTrue(json.contains("\"monthName\":\"December\""));
         assertTrue(json.contains("\"month\":12"));
-        // December's window must not bleed into January of the next year.
-        verify(transactionRepository).sumAmountByUserAndTypeGroupedByCategory(
-                eq("user-1"), any(),
-                eq(java.time.Instant.parse("2026-12-01T00:00:00Z")),
-                eq(java.time.Instant.parse("2027-01-01T00:00:00Z")));
     }
 
     @Test
@@ -267,7 +212,7 @@ class MonthlyInsightServiceTest {
         assertEquals(List.of("Restaurants +32%"), response.data().highlights());
         assertEquals(2026, response.data().year());
         assertEquals(8, response.data().month());
-        verify(budgetService).getBudgets(any(), eq("8"), eq("2026"));
+        verify(reports).facts(user, 2026, 8);
     }
 
     @Test
@@ -339,6 +284,6 @@ class MonthlyInsightServiceTest {
                 () -> service.generateForAuthenticatedUser(AUTH, 2026, 8));
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
-        verify(financialSummaryService, never()).resolveForMonth(any(), anyInt(), anyInt());
+        verify(reports, never()).facts(any(), anyInt(), anyInt());
     }
 }

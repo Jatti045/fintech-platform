@@ -1,4 +1,5 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
+import { randomUUID } from "expo-crypto";
 import {
   useCreateTransactionMutation,
   useDeleteTransactionMutation,
@@ -53,6 +54,9 @@ export const useTransactionOperations = () => {
   const { showAlert } = useThemedAlert();
   const calendar = useCalendar();
   const transactions = useTransactions();
+  const submissionIds = useRef(new Map<string, string>());
+  const creating = useRef(false);
+  const clearCreateSubmission = useCallback(() => submissionIds.current.clear(), []);
   const [createTransactionMutation] = useCreateTransactionMutation();
   const [updateTransactionMutation] = useUpdateTransactionMutation();
   const [deleteTransactionMutation] = useDeleteTransactionMutation();
@@ -79,6 +83,7 @@ export const useTransactionOperations = () => {
    */
   const handleCreateTransaction = useCallback(
     async (setOpenSheet: (v: boolean) => void) => {
+      if (creating.current) return;
       if (!txName.trim() || !txAmount.trim()) {
         showAlert({ title: "Please enter a name and amount" });
         return;
@@ -102,7 +107,7 @@ export const useTransactionOperations = () => {
       const originalAmount = amt;
       const baseCurrency = userCurrency;
 
-      const payload: any = {
+      const payload = {
         name: txName.trim(),
         month: txDate.getUTCMonth(),
         year: txDate.getUTCFullYear(),
@@ -116,12 +121,20 @@ export const useTransactionOperations = () => {
         originalAmount,
       };
 
-      // Close modal first so any loader overlay is visible
-      setOpenSheet(false);
+      const submissionPayload = JSON.stringify(payload);
+      let submissionId = submissionIds.current.get(submissionPayload);
+      if (!submissionId) {
+        submissionId = randomUUID();
+        submissionIds.current.set(submissionPayload, submissionId);
+      }
 
+      // Keep the draft open after failure so Save can retry the same command.
+      creating.current = true;
       try {
-        const result = await createTransactionMutation(payload);
+        const result = await createTransactionMutation({ ...payload, submissionId });
         if (!result.error && result.data?.success) {
+          clearCreateSubmission();
+          setOpenSheet(false);
           hapticSuccess();
           // Reset form only on success
           setTxName("");
@@ -142,6 +155,8 @@ export const useTransactionOperations = () => {
           title: "Error",
           message: err.message || "Failed to create transaction",
         });
+      } finally {
+        creating.current = false;
       }
     },
     // Re-create when form values change so the callback always closes over fresh state
@@ -160,8 +175,8 @@ export const useTransactionOperations = () => {
       setTxCurrency,
       setType,
       showAlert,
-      calendar,
       createTransactionMutation,
+      clearCreateSubmission,
     ],
   );
 
@@ -361,6 +376,7 @@ export const useTransactionOperations = () => {
     // Spread all form state so the modal can bind inputs directly
     ...form,
     handleCreateTransaction,
+    clearCreateSubmission,
     handleUpdateTransaction,
     handleDeleteTransaction,
   };

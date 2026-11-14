@@ -34,6 +34,8 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
     @Autowired JwtService jwt;
     @Autowired PlatformTransactionManager manager;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ProfileImageCleanupJobs imageJobs;
+    private ProfileImageCleanupWorker imageWorker;
     @MockitoBean CloudinaryService cloud;
     @MockitoBean FinancialCacheInvalidator cache;
     private User actor;
@@ -44,10 +46,13 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
         actor.setProfilePic("https://example.com/old.png"); actor.setProfilePicPublicId("old-asset");
         actor = userRepository.saveAndFlush(actor);
         auth = new AuthenticatedUser(actor.getId(), actor.getEmail(), Instant.now().getEpochSecond(), actor.getSessionVersion());
+        imageWorker = new ProfileImageCleanupWorker(imageJobs, cloud, Runnable::run);
         doAnswer(inv -> { assertNoTransaction(); return null; }).when(cloud).deleteImage(any());
     }
     @AfterEach void cleanup() {
         if (userRepository.existsById(actor.getId())) userRepository.deleteById(actor.getId());
+        jdbc.update("DELETE FROM profile_image_cleanup_jobs WHERE public_id IN ('old-asset','new-asset','first.png-asset','second.png-asset',?)", "x".repeat(300));
+
     }
     private static void assertNoTransaction() {
         assertFalse(TransactionSynchronizationManager.isActualTransactionActive(), "Cloudinary must not hold a database transaction");
@@ -85,6 +90,7 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
             assertEquals("https://example.com/new.png", response.data().profilePic());
             assertThrows(TokenAuthenticationException.class, () -> jwt.authenticate(oldToken));
         });
+        imageWorker.processOne();
         verify(cloud).deleteImage("old-asset");
     }
     @Test void uploadCannotReverseConsentWithdrawalOrACurrencyChange() throws Exception {
@@ -118,6 +124,7 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
             firstRelease.countDown(); first.get(10, TimeUnit.SECONDS);
             secondRelease.countDown(); second.get(10, TimeUnit.SECONDS);
             assertEquals("second.png-asset", current().getProfilePicPublicId());
+            imageWorker.processOne(); imageWorker.processOne();
             verify(cloud).deleteImage("old-asset"); verify(cloud).deleteImage("first.png-asset");
             verify(cloud, never()).deleteImage("second.png-asset");
         } finally { firstRelease.countDown(); secondRelease.countDown(); pool.shutdownNow(); assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS)); }
@@ -127,6 +134,7 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
             users.deleteProfilePicture(actor.getId(), auth);
             assertNull(current().getProfilePic());
         }, response -> assertEquals("new-asset", current().getProfilePicPublicId()));
+        imageWorker.processOne();
         verify(cloud, times(1)).deleteImage("old-asset");
         verify(cloud, never()).deleteImage("new-asset");
     }
@@ -140,18 +148,52 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
             return null;
         }).when(cloud).deleteImage("old-asset");
         var response = users.deleteProfilePicture(actor.getId(), auth);
-        assertNull(response.data().profilePic()); verify(cloud).deleteImage("old-asset");
+        assertNull(response.data().profilePic()); imageWorker.processOne(); verify(cloud).deleteImage("old-asset");
     }
     @Test void databaseFailureCleansUpTheNewUploadAndPreservesThePreviousPicture() {
         when(cloud.uploadProfileImage(any(), eq(actor.getId()))).thenAnswer(inv -> {
             assertNoTransaction();
-            return new CloudinaryService.UploadedImage("https://example.com/" + "x".repeat(300), "failed-asset");
+            return new CloudinaryService.UploadedImage("https://example.com/new.png", "x".repeat(300));
         });
         assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
                 () -> users.uploadProfilePicture(actor.getId(), file("failure.png"), auth));
         assertEquals("old-asset", current().getProfilePicPublicId());
-        verify(cloud).deleteImage("failed-asset"); verify(cloud, never()).deleteImage("old-asset");
+        imageWorker.processOne();
+        verify(cloud).deleteImage("x".repeat(300)); verify(cloud, never()).deleteImage("old-asset");
     }
+    @Test void accountDeletionSurvivesAnOutageAndAnAbandonedCleanupLease() {
+        doThrow(new IllegalStateException("Cloud unavailable")).doNothing().when(cloud).deleteImage("old-asset");
+        users.deleteAccount(actor.getId(), auth);
+        assertFalse(userRepository.existsById(actor.getId()));
+        imageWorker.processOne();
+        assertTrue(imageJobs.claimNext().isEmpty());
+        jdbc.update("UPDATE profile_image_cleanup_jobs SET next_attempt_at=NOW() WHERE public_id='old-asset'");
+        var abandoned = imageJobs.claimNext().orElseThrow();
+        assertTrue(imageJobs.claimNext().isEmpty());
+        jdbc.update("UPDATE profile_image_cleanup_jobs SET lease_expires_at=NOW()-INTERVAL '1 second' WHERE public_id='old-asset'");
+        var restarted = new ProfileImageCleanupWorker(imageJobs, cloud, Runnable::run);
+        restarted.processOne();
+        assertFalse(imageJobs.complete(abandoned));
+        restarted.processOne();
+        verify(cloud, times(2)).deleteImage("old-asset");
+    }
+
+    @Test void replacementRemainsActiveWhenCleanupFailsAndDuplicateWorkCoalesces() {
+        when(cloud.uploadProfileImage(any(), eq(actor.getId())))
+                .thenReturn(new CloudinaryService.UploadedImage("https://example.com/new.png", "new-asset"));
+        users.uploadProfilePicture(actor.getId(), file("new.png"), auth);
+        imageJobs.enqueueUnattached("old-asset");
+        imageJobs.enqueueUnattached("new-asset");
+        doThrow(new IllegalStateException("Cloud unavailable")).doNothing().when(cloud).deleteImage("old-asset");
+        imageWorker.processOne();
+        assertEquals("new-asset", current().getProfilePicPublicId());
+        jdbc.update("UPDATE profile_image_cleanup_jobs SET next_attempt_at=NOW() WHERE public_id='old-asset'");
+        imageWorker.processOne();
+        imageWorker.processOne();
+        verify(cloud, times(2)).deleteImage("old-asset");
+        verify(cloud, never()).deleteImage("new-asset");
+    }
+
     @Test void externalUploadFailureLeavesAllAccountFieldsUntouched() {
         long version = current().getUpdateVersion();
         when(cloud.uploadProfileImage(any(), eq(actor.getId()))).thenAnswer(inv -> {
@@ -173,7 +215,9 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
             users.deleteAccount(actor.getId(), auth); release.countDown();
             var failure = assertThrows(ExecutionException.class, () -> upload.get(10, TimeUnit.SECONDS));
             assertEquals(404, ((org.springframework.web.server.ResponseStatusException) failure.getCause()).getStatusCode().value());
-            assertFalse(userRepository.existsById(actor.getId())); verify(cloud).deleteImage("new-asset");
+            assertFalse(userRepository.existsById(actor.getId()));
+            imageWorker.processOne(); imageWorker.processOne();
+            verify(cloud).deleteImage("new-asset");
         } finally { release.countDown(); pool.shutdownNow(); assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS)); }
     }
     @Test void surroundingTransactionsAreSuspendedForCloudOperations() {
@@ -186,6 +230,7 @@ class UserUpdateConcurrencyIntegrationTest extends BaseIntegrationTest {
             users.deleteProfilePicture(actor.getId(), auth);
             return null;
         });
+        imageWorker.processOne(); imageWorker.processOne();
         verify(cloud).deleteImage("old-asset"); verify(cloud).deleteImage("new-asset");
     }
     @Test void aStaleManagedWriterFailsInsteadOfUndoingConsentWithdrawal() throws Exception {

@@ -1,4 +1,4 @@
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
 import { View, Text, Switch, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -50,7 +50,7 @@ export default function NotificationsCard({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: hexToRgba(THEME.primary, 0.12),
+            backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.12)),
             borderWidth: 1,
             borderColor: hexToRgba(THEME.primary, 0.25),
             alignItems: "center",
@@ -113,7 +113,7 @@ export default function NotificationsCard({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: hexToRgba(THEME.primary, 0.12),
+            backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.12)),
             borderWidth: 1,
             borderColor: hexToRgba(THEME.primary, 0.25),
             alignItems: "center",

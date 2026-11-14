@@ -77,31 +77,25 @@ it("uses device appearance without a saved preference and follows subsequent cha
   });
   expect(result.THEME).toBe(THEME_PALETTES.LIGHT);
   renderer.act(() => {
-    store.dispatch(setTheme("Ember"));
+    store.dispatch(setTheme("Light"));
   });
   scheme.mockReturnValue("dark");
   renderer.act(() => {
     tree.update(render());
   });
-  expect(result.THEME).toBe(THEME_PALETTES.EMBER);
+  expect(result.THEME).toBe(THEME_PALETTES.LIGHT);
   renderer.act(() => {
     tree.unmount();
   });
   scheme.mockReturnValue("light");
 });
 
-it("retains saved choices and safely handles unknown or malformed theme selections", () => {
-  for (const name of ["Light", "Dark", "Ember", "Aurora", "System"]) {
-    expect(
-      reducer(undefined, loadThemeFromStorage.fulfilled(name, "", undefined))
-        .selectedTheme,
-    ).toBe(name);
+it("retains saved choices and maps removed or malformed preferences to System", () => {
+  for (const name of ["Light", "Dark", "System"] as const) {
+    expect(reducer(undefined, loadThemeFromStorage.fulfilled(name, "", undefined)).selectedTheme).toBe(name);
   }
-  expect(
-    reducer(undefined, loadThemeFromStorage.fulfilled(null, "", undefined))
-      .selectedTheme,
-  ).toBe("System");
-  for (const value of [null, {}, "Ocean", "Rose", "missing"]) {
-    expect(reducer(undefined, setTheme(value)).selectedTheme).toBe("Light");
+  for (const value of [null, {}, "Ember", "Aurora", "Ocean", "Rose", "missing"]) {
+    expect(reducer(undefined, setTheme(value)).selectedTheme).toBe("System");
+    expect(reducer(undefined, { type: loadThemeFromStorage.fulfilled.type, payload: value }).selectedTheme).toBe("System");
   }
 });

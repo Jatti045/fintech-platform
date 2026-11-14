@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +30,7 @@ import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
 import com.fintechapp.fintech_api.repository.BudgetRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
+import com.fintechapp.fintech_api.repository.TransactionSubmissionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 
@@ -51,6 +53,17 @@ public class TransactionService {
     private final FinancialCacheInvalidator cacheInvalidator;
     private final CurrencyConversionService currencyConversionService;
     private final InternalTransferReconciliationService transferReconciliation;
+    private final TransactionSubmissionRepository submissions;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    private TransactionDataResponse financialWrite(java.util.function.Supplier<TransactionDataResponse> write) {
+        if (transactionManager == null) return write.get();
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        return CurrencyConversionService.withPreparedRates(currencyConversionService,
+                () -> transaction.execute(status -> write.get()));
+    }
 
     /**
      * Used to refresh the in-memory {@link Budget} after an atomic
@@ -67,13 +80,15 @@ public class TransactionService {
             UserRepository userRepository,
             FinancialCacheInvalidator cacheInvalidator,
             CurrencyConversionService currencyConversionService,
-            InternalTransferReconciliationService transferReconciliation) {
+            InternalTransferReconciliationService transferReconciliation,
+            TransactionSubmissionRepository submissions) {
         this.budgetRepository = budgetRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
         this.cacheInvalidator = cacheInvalidator;
         this.currencyConversionService = currencyConversionService;
         this.transferReconciliation = transferReconciliation;
+        this.submissions = submissions;
     }
 
     /**
@@ -168,10 +183,18 @@ public class TransactionService {
     /**
      * Creates a transaction and updates related budget aggregates atomically.
      */
-    @Transactional
     public TransactionDataResponse createTransaction(
-            AuthenticatedUser authenticatedUser,
-            CreateTransactionRequest request) {
+            AuthenticatedUser authenticatedUser, CreateTransactionRequest request) {
+        return createTransaction(authenticatedUser, request, null);
+    }
+
+    public TransactionDataResponse createTransaction(
+            AuthenticatedUser authenticatedUser, CreateTransactionRequest request, UUID submissionId) {
+        return financialWrite(() -> createLocked(authenticatedUser, request, submissionId));
+    }
+
+    private TransactionDataResponse createLocked(AuthenticatedUser authenticatedUser,
+            CreateTransactionRequest request, UUID submissionId) {
         String userId = requireUserId(authenticatedUser);
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
@@ -218,12 +241,40 @@ public class TransactionService {
         // Serialize budget validation with budget month changes and other financial writes.
         transferReconciliation.lockUser(userId);
 
+        String name = request.name().trim();
+        String category = CategoryNormalizer.normalize(request.category());
+        String description = normalizeOptional(request.description());
+        String budgetId = normalizeOptional(request.budgetId());
+        String requestedCurrency = normalizeCurrency(request.originalCurrency());
+        if (requestedCurrency == null) {
+            requestedCurrency = normalizeCurrency(request.baseCurrency());
+        }
+        double originalAmount = request.originalAmount() != null ? request.originalAmount() : request.amount();
+        if (originalAmount <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "originalAmount must be a positive number");
+        }
+
+        // The existing user lock serializes lookup, creation, and replay across instances.
+        String fingerprint = null;
+        if (submissionId != null) {
+            fingerprint = submissions.fingerprint(name, transactionDate, category, type, originalAmount,
+                    requestedCurrency, budgetId, description);
+            var previous = submissions.find(userId, submissionId);
+            if (previous.isPresent()) {
+                if (!previous.get().fingerprint().equals(fingerprint)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "Idempotency-Key was already used for a different transaction");
+                }
+                return submissions.response(previous.get());
+            }
+        }
+
         // Expense transactions must be linked to a budget; income transactions
         // may stand alone (money coming in, not spending against a budget).
         boolean isExpense = type == TransactionType.EXPENSE;
         Budget budget = null;
-        if (StringUtils.hasText(request.budgetId())) {
-            budget = budgetRepository.findByIdAndUser_Id(request.budgetId().trim(), userId)
+        if (budgetId != null) {
+            budget = budgetRepository.findByIdAndUser_Id(budgetId, userId)
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.NOT_FOUND,
                             "Budget not found or doesn't belong to user"));
@@ -243,39 +294,21 @@ public class TransactionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
 
-        String originalCurrency = normalizeCurrency(request.originalCurrency());
-        if (!StringUtils.hasText(originalCurrency)) {
-            originalCurrency = normalizeCurrency(request.baseCurrency());
-        }
-        if (!StringUtils.hasText(originalCurrency)) {
-            originalCurrency = normalizeCurrency(user.getCurrency());
-        }
-        if (!StringUtils.hasText(originalCurrency)) {
-            originalCurrency = DEFAULT_BASE_CURRENCY;
-        }
-
-        Double originalAmount = request.originalAmount();
-        if (originalAmount == null) {
-            originalAmount = request.amount();
-        }
-        if (originalAmount <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "originalAmount must be a positive number");
-        }
-
         String baseCurrency = aggregationCurrency(user);
+        String originalCurrency = requestedCurrency != null ? requestedCurrency : baseCurrency;
         double normalizedAmount = currencyConversionService.convert(originalAmount, originalCurrency, baseCurrency);
 
         Transaction transaction = new Transaction();
         transaction.setUser(user);
-        transaction.setName(request.name().trim());
+        transaction.setName(name);
         transaction.setDate(transactionDate);
-        transaction.setCategory(CategoryNormalizer.normalize(request.category()));
+        transaction.setCategory(category);
         transaction.setType(type);
         transaction.setAmount(normalizedAmount);
         transaction.setBaseCurrency(baseCurrency);
         transaction.setOriginalCurrency(originalCurrency);
         transaction.setOriginalAmount(originalAmount);
-        transaction.setDescription(normalizeOptional(request.description()));
+        transaction.setDescription(description);
         transaction.setBudget(budget);
         transaction.setNameOverride(transaction.getName()); transaction.setCategoryOverride(transaction.getCategory());
         if (budget != null) { transaction.setBudgetOverrideId(budget.getId()); transaction.setBudgetOverrideCategory(budget.getCategory()); }
@@ -292,6 +325,12 @@ public class TransactionService {
             entityManager.refresh(budget);
         }
 
+        TransactionDataResponse response = new TransactionDataResponse(
+                true, "Transaction created successfully", new TransactionDataResponse.Data(toItem(saved)));
+        if (submissionId != null) {
+            submissions.save(userId, submissionId, fingerprint, response);
+        }
+
         // The month aggregate and recurring-payment detection changed —
         // evict after the successful write (a later rollback only causes a
         // harmless extra cache miss on the next read). Eviction is keyed by
@@ -300,10 +339,7 @@ public class TransactionService {
         cacheInvalidator.evictFinancialSummaryForDate(userId, saved.getDate());
         cacheInvalidator.evictRecurringPayments(userId);
 
-        return new TransactionDataResponse(
-                true,
-                "Transaction created successfully",
-                new TransactionDataResponse.Data(toItem(saved)));
+        return response;
     }
 
     /**
@@ -358,10 +394,14 @@ public class TransactionService {
      * Updates a transaction and synchronizes related budget aggregates
      * atomically.
      */
-    @Transactional
     public TransactionDataResponse updateTransaction(
             AuthenticatedUser authenticatedUser,
             String transactionId,
+            UpdateTransactionRequest request) {
+        return financialWrite(() -> updateLocked(authenticatedUser, transactionId, request));
+    }
+
+    private TransactionDataResponse updateLocked(AuthenticatedUser authenticatedUser, String transactionId,
             UpdateTransactionRequest request) {
         String userId = requireUserId(authenticatedUser);
         if (!StringUtils.hasText(transactionId)) {

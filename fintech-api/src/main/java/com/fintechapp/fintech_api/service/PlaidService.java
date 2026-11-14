@@ -173,37 +173,10 @@ public class PlaidService {
         return linkToken.asString();
     }
 
-    /**
-     * Exchanges a {@code public_token} (returned by the mobile Plaid Link flow)
-     * for a durable {@code access_token} + {@code item_id}, persists the item
-     * with the access token encrypted at rest, and returns the saved item.
-     */
-    @Transactional
-    public PlaidItem exchangePublicToken(AuthenticatedUser authenticatedUser, String publicToken) {
-        String userId = requireUserId(authenticatedUser);
-        if (!StringUtils.hasText(publicToken)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "publicToken is required");
-        }
-
-        // Serialize registration with account deletion, before issuing a remote credential.
-        User user = userRepository.findByIdForUpdate(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated"));
-
+    JsonNode exchangePublicToken(String publicToken) {
         Map<String, Object> body = baseBody();
-        body.put("public_token", publicToken.trim());
-
-        JsonNode response = post("/item/public_token/exchange", body);
-        JsonNode accessTokenNode = response.get("access_token");
-        JsonNode itemIdNode = response.get("item_id");
-        if (accessTokenNode == null || itemIdNode == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid token exchange failed.");
-        }
-
-        PlaidItem item = new PlaidItem();
-        item.setUser(user);
-        item.setItemId(itemIdNode.asString());
-        item.setAccessTokenEncrypted(encryptionService.encrypt(accessTokenNode.asString()));
-        return plaidItemRepository.save(item);
+        body.put("public_token", publicToken);
+        return post("/item/public_token/exchange", body);
     }
 
     /**
@@ -260,8 +233,18 @@ public class PlaidService {
             return new SyncPageResult(attempt.progressCursor, true);
         }
 
+        // Warm distinct currency pairs before acquiring the writer and item row locks.
+        // The write still resolves currency from the locked user and checks quote expiry.
+        User snapshot = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        for (JsonNode page : attempt.pages) {
+            ingestService.prepareRates(snapshot, java.util.stream.Stream.concat(
+                    nodes(page, "added").stream(), nodes(page, "modified").stream())
+                    .map(node -> toPlaidTransaction(node, itemId)).toList());
+        }
+
         // Step 3: Fence and persist the COMPLETE sequence in one transaction.
-        return inTransaction(status -> {
+        return CurrencyConversionService.withPreparedRates(ingestService.currencyConversion(), () -> inTransaction(status -> {
             transferReconciliation.lockUser(userId);
             PlaidItem managedItem = plaidItemRepository.findByItemIdForUpdate(itemId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
@@ -319,7 +302,7 @@ public class PlaidService {
             registerCursorCommitMilestone(itemId, userId, attempt.startCursor, managedItem.getCursor());
 
             return new SyncPageResult(managedItem.getCursor(), hasMore);
-        });
+        }));
     }
 
     /**
@@ -471,18 +454,15 @@ public class PlaidService {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Empty response from Plaid.");
             }
             if (response.has("error_type")) {
-                throw plaidError(HttpStatus.BAD_GATEWAY, response);
+                throw plaidError(200, response);
             }
             return response;
         } catch (RestClientResponseException ex) {
-            // Plaid returned a non-2xx status (e.g. INVALID_API_KEYS, INVALID_INPUT,
-            // ITEM_LOGIN_REQUIRED). The Plaid error payload is carried on the
-            // exception; log the full body and surface the actual error code and
-            // message instead of a generic "unavailable" 502 that hides the cause.
+            // Preserve the upstream status for retry classification.
             String errorBody = ex.getResponseBodyAsString();
             logger.error("Plaid request '{}' failed with HTTP {}",
                     path, ex.getStatusCode().value());
-            throw plaidError(HttpStatus.BAD_GATEWAY, errorBody);
+            throw plaidError(ex.getStatusCode().value(), errorBody);
         } catch (RestClientException ex) {
             // Network-level failure (connect timeout, DNS, connection refused) —
             // not a Plaid error response.
@@ -493,26 +473,37 @@ public class PlaidService {
     }
 
     /** 502 that surfaces the error payload from a parsed Plaid error body. */
-    private static ResponseStatusException plaidError(HttpStatus status, JsonNode body) {
+    private static ResponseStatusException plaidError(int upstreamStatus, JsonNode body) {
         String code = body.path("error_code").asString("unknown");
         String message = body.path("error_message").asString("Plaid reported an error.");
         if ("TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION".equals(code)) {
             return new PlaidPaginationMutationException();
         }
-        return new ResponseStatusException(status, "Plaid error " + code + ": " + message);
+        return new PlaidProviderException(upstreamStatus, code, "Plaid error " + code + ": " + message);
     }
 
     /** 502 that surfaces Plaid's raw error body (parsed when possible). */
-    private static ResponseStatusException plaidError(HttpStatus status, String errorBody) {
+    private static ResponseStatusException plaidError(int upstreamStatus, String errorBody) {
         if (StringUtils.hasText(errorBody)) {
             try {
-                return plaidError(status, ERROR_BODY_MAPPER.readTree(errorBody));
+                return plaidError(upstreamStatus, ERROR_BODY_MAPPER.readTree(errorBody));
             } catch (JacksonException ignored) {
                 // Body was not JSON (e.g. an intermediary HTML error page) — show it raw.
-                return new ResponseStatusException(status, "Plaid request failed: " + errorBody);
+                return new PlaidProviderException(upstreamStatus, null, "Plaid request failed: " + errorBody);
             }
         }
-        return new ResponseStatusException(status, "Plaid request failed.");
+        return new PlaidProviderException(upstreamStatus, null, "Plaid request failed.");
+    }
+
+    static final class PlaidProviderException extends ResponseStatusException {
+        final int upstreamStatus;
+        final String code;
+
+        PlaidProviderException(int upstreamStatus, String code, String reason) {
+            super(HttpStatus.BAD_GATEWAY, reason);
+            this.upstreamStatus = upstreamStatus;
+            this.code = code;
+        }
     }
 
     private static List<JsonNode> nodes(JsonNode root, String field) {

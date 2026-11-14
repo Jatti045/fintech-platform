@@ -1,0 +1,127 @@
+# .pre-commit-config.yaml
+# Generated for: Fundleaf Fintech Platform
+# Stacks detected: React Native / Expo (TypeScript), Spring Boot / Java 17 (Maven), Docker
+# Run `pre-commit install` once after cloning, then every commit is guarded automatically.
+
+# ---------------------------------------------------------------------------
+# Global excludes — never lint auto-generated / vendored / build artefacts
+# ---------------------------------------------------------------------------
+exclude: |
+  (?x)^(
+    client/node_modules/|
+    client/\.expo/|
+    client/dist/|
+    fintech-api/target/|
+    fintech-api/\.mvn/|
+    fintech-api/mvnw(\.cmd)?|
+    sites/fundleaf-budget/dist/|
+    .*package-lock\.json$|
+    .*\.iml$
+  )
+
+# ---------------------------------------------------------------------------
+# 1. Core hygiene & security (always present)
+# ---------------------------------------------------------------------------
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Secret scanning — staged changes only (fast; full history scan available
+  # via `gitleaks detect --source .` separately)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # ---------------------------------------------------------------------------
+  # 2a. TypeScript / React Native (client/)
+  #     Uses eslint-config-expo (flat config in client/eslint.config.js).
+  #     Runs `expo lint` which resolves the project's own eslint install —
+  #     no separate eslint binary needed in the hook environment.
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: expo-eslint
+        name: ESLint (Expo / React Native)
+        # Use `system` so pre-commit invokes the shell's `npx`, which resolves
+        # expo and eslint from client/node_modules without needing a separate
+        # pre-commit-managed node environment.
+        language: system
+        entry: bash
+        args:
+          - -c
+          - cd client && npx expo lint -- --max-warnings 0
+        # Only run when TypeScript/JavaScript client files change
+        files: ^client/.*\.[jt]sx?$
+        # Exclude test snapshots, generated Expo types, and mocks
+        exclude: |
+          (?x)^(
+            client/\.expo/|
+            client/dist/|
+            client/node_modules/
+          )
+        pass_filenames: false
+
+      # TypeScript type-check (tsc --noEmit) — catches type errors that ESLint
+      # misses. Runs only when .ts/.tsx files change.
+      - id: tsc-client
+        name: TypeScript type-check (client)
+        # Same reasoning: use system shell + project-local npx/tsc.
+        language: system
+        entry: bash
+        args:
+          - -c
+          - cd client && npx tsc --noEmit --project tsconfig.json
+        files: ^client/.*\.tsx?$
+        exclude: ^client/(node_modules|\.expo|dist)/
+        pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # 2b. Java / Spring Boot (fintech-api/)
+  #     pom.xml has no Spotless/Checkstyle plugin, so we use google-java-format
+  #     as a lightweight standalone formatter check. `--dry-run --set-exit-if-changed`
+  #     makes it fail (without modifying files) if formatting is needed.
+  #     Install: `brew install google-java-format`  or download the jar once.
+  #     See: https://github.com/google/google-java-format
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: google-java-format
+        name: google-java-format (Java)
+        language: system
+        entry: google-java-format
+        args:
+          - --dry-run
+          - --set-exit-if-changed
+          # Match the Java version used in pom.xml (java.version = 17)
+          - --java-17-plus
+        files: ^fintech-api/src/.*\.java$
+        types: [java]
+
+  # ---------------------------------------------------------------------------
+  # 2c. Docker — lint the fintech-api Dockerfile
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.15.1
+    hooks:
+      - id: hadolint-docker
+        name: Hadolint (Dockerfile)
+        args:
+          # Relax rules that conflict with the multi-stage Maven build pattern:
+          # DL3006 – always tag base image versions (already done: maven:3.9-…)
+          # DL3008 – apt pin versions (N/A; Alpine/apk used)
+          - --ignore
+          - DL3018   # apk --no-cache (Alpine specific, benign to ignore)
+        files: ^fintech-api/Dockerfile$

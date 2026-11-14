@@ -81,32 +81,46 @@ public class CategorizationRuleService {
         String userId=userId(auth); classification.lock(userId); CategorizationRule rule=owned(userId,id);
         if(revision!=rule.getRevision()) throw error(HttpStatus.CONFLICT,"Rule changed. Reload before deleting"); rules.delete(rule);
     }
-    @Transactional public Preview preview(AuthenticatedUser auth, String id) {
-        String userId=userId(auth); classification.lock(userId); return previewLocked(userId,owned(userId,id));
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public Preview preview(AuthenticatedUser auth, String id) {
+        String userId = userId(auth);
+        return computePreview(userId, owned(userId, id));
     }
-    private Preview previewLocked(String userId, CategorizationRule target) {
+
+    private Preview computePreview(String userId, CategorizationRule target) {
         List<Match> matches=new ArrayList<>(); List<String> fingerprints=new ArrayList<>();
         var allRules=rules.findByUser_IdOrderByPriorityAscCreatedAtAscIdAsc(userId);
-        var history=transactions.findByUser_IdOrderByDateDesc(userId).stream().sorted(Comparator.comparing(Transaction::getDate).reversed().thenComparing(Transaction::getId)).toList();
-        for(Transaction tx:history) {
-            if(!classification.matches(target,tx)) continue;
-            if(matches.size()>=500) throw error(HttpStatus.BAD_REQUEST,"More than 500 matches. Narrow the rule before historical application");
-            List<CategorizationRule> candidates=classification.matching(tx,allRules);
-            String winner=candidates.isEmpty()?null:candidates.get(0).getId();
-            boolean protectedOverride=tx.isRulesDisabled() || tx.getNameOverride()!=null || tx.getCategoryOverride()!=null || tx.getBudgetOverrideCategory()!=null;
-            var decision = !tx.isRulesDisabled() && target.getId().equals(winner)
-                    ? classification.decision(tx,target.getDisplayName(),target.getCategory(),target.getBudgetCategory())
-                    : new TransactionClassificationService.Decision(tx.getName(),tx.getCategory(),tx.getBudget()==null?null:tx.getBudget().getCategory());
-            matches.add(new Match(tx.getId(),tx.getName(),tx.getCategory(),tx.getBudget()==null?null:tx.getBudget().getCategory(),decision.name(),decision.category(),decision.budgetCategory(),protectedOverride,
-                    candidates.stream().map(CategorizationRule::getId).toList(),winner));
-            fingerprints.add(fingerprint(tx));
+        var page = org.springframework.data.domain.PageRequest.ofSize(256);
+        var batch = target.isEnabled() ? transactions.previewFirst(userId, page) : List.<Transaction>of();
+        while (!batch.isEmpty()) {
+            for (Transaction tx : batch) {
+                if (classification.matches(target, tx)) {
+                    if(matches.size()>=500) throw error(HttpStatus.BAD_REQUEST,"More than 500 matches. Narrow the rule before historical application");
+                    List<CategorizationRule> candidates=classification.matching(tx,allRules);
+                    String winner=candidates.isEmpty()?null:candidates.get(0).getId();
+                    boolean protectedOverride=tx.isRulesDisabled() || tx.getNameOverride()!=null || tx.getCategoryOverride()!=null || tx.getBudgetOverrideCategory()!=null;
+                    var decision = !tx.isRulesDisabled() && target.getId().equals(winner)
+                            ? classification.decision(tx,target.getDisplayName(),target.getCategory(),target.getBudgetCategory())
+                            : new TransactionClassificationService.Decision(tx.getName(),tx.getCategory(),tx.getBudget()==null?null:tx.getBudget().getCategory());
+                    matches.add(new Match(tx.getId(),tx.getName(),tx.getCategory(),tx.getBudget()==null?null:tx.getBudget().getCategory(),decision.name(),decision.category(),decision.budgetCategory(),protectedOverride,
+                            candidates.stream().map(CategorizationRule::getId).toList(),winner));
+                    fingerprints.add(fingerprint(tx));
+                }
+                entityManager.detach(tx);
+            }
+            if (batch.size() < page.getPageSize()) break;
+            Transaction last = batch.get(batch.size() - 1);
+            batch = transactions.previewAfter(userId, last.getDate(), last.getId(), page);
         }
-        String token=hash(json(List.of(userId,view(target),listRules(userId),matches,fingerprints)));
+        String token=hash(json(List.of(userId,view(target),allRules.stream().map(this::view).toList(),matches,fingerprints)));
         return new Preview(token,List.copyOf(matches),false);
     }
     @Transactional public ApplicationResult apply(AuthenticatedUser auth,String id,String token) {
         String userId=userId(auth); classification.lock(userId); CategorizationRule rule=owned(userId,id);
-        Preview preview=previewLocked(userId,rule);
+        Preview preview=computePreview(userId,rule);
         if(!Objects.equals(token,preview.token())) throw error(HttpStatus.CONFLICT,"History or rules changed. Preview again before applying");
         List<Change> changes=new ArrayList<>();
         for(Match match:preview.matches()) {
@@ -149,7 +163,6 @@ public class CategorizationRuleService {
         if (automatic) classification.matching(tx).stream().findFirst().ifPresent(rule -> classification.snapshot(tx,rule));
         classification.classify(tx); return state(tx);
     }
-    private List<RuleView> listRules(String id) { return rules.findByUser_IdOrderByPriorityAscCreatedAtAscIdAsc(id).stream().map(this::view).toList(); }
     private CategorizationRule owned(String userId,String id) { return rules.findByIdAndUser_Id(id,userId).orElseThrow(() -> error(HttpStatus.NOT_FOUND,"Rule not found")); }
     private RuleView view(CategorizationRule r) { return new RuleView(r.getId(),r.getTitle(),r.getField(),r.getMatchMode(),r.getMatchText(),r.getDirection(),r.getAccountId(),r.getProviderCategoryCondition(),r.getCategory(),r.getBudgetCategory(),r.getDisplayName(),r.getPriority(),r.isEnabled(),r.getRevision(),r.getCreatedAt(),r.getEffectiveAt()); }
     private State state(Transaction t) { return new State(t.getName(),t.getCategory(),t.getBudget()==null?null:t.getBudget().getId(),t.getBudget()==null?null:t.getBudget().getCategory(),t.isLegacyClassification(),t.getLegacyBudgetCategory(),t.getAppliedRuleId(),t.getAppliedRuleVersion(),t.getRuleTitle(),t.getRuleDisplayName(),t.getRuleCategory(),t.getRuleBudgetCategory(),t.getNameOverride(),t.getCategoryOverride(),t.getBudgetOverrideId(),t.getBudgetOverrideCategory(),t.isRulesDisabled()); }

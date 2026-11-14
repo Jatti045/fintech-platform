@@ -8,6 +8,7 @@ import insightAPI from "@/api/insight";
 import aiPrivacyAPI, { type AiPrivacyPreference } from "@/api/aiPrivacy";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import type {
+  CreateTransactionInput,
   ITransaction,
   ITransactionPagination,
   ITransactionResponse,
@@ -43,6 +44,7 @@ export interface GetTransactionsArgs extends MonthArgs {
   startDate?: string | null;
   endDate?: string | null;
   budgetId?: string | null;
+  category?: string | null;
   minAmount?: number | null;
   maxAmount?: number | null;
   page?: number;
@@ -69,7 +71,7 @@ const argsMonth = (a: MonthArgs) => ({
 });
 
 const monthTags = <
-  T extends "Transactions" | "Budgets" | "Summary" | "Suggestions",
+  T extends "Transactions" | "Budgets" | "Summary" | "Suggestions" | "Categories",
 >(
   type: T,
   months: (MonthKey | undefined | null)[],
@@ -144,6 +146,7 @@ function mergeTransactions(
 
 async function refreshClassificationQueries(_arg: unknown, { dispatch, getState, queryFulfilled }: any): Promise<void> {
   try { await queryFulfilled; } catch { return; }
+  dispatch(api.util.invalidateTags(["Categories"]));
   const entries = Object.values(getState().api.queries ?? {}) as any[];
   for (const entry of entries) {
     if (entry?.endpointName !== "getTransactions" || !entry.originalArgs) continue;
@@ -162,6 +165,7 @@ export const api = createApi({
   baseQuery: fakeBaseQuery(),
   tagTypes: [
     "Transactions",
+    "Categories",
     "Budgets",
     "Summary",
     "Suggestions",
@@ -188,6 +192,7 @@ export const api = createApi({
             startDate: args.startDate ?? null,
             endDate: args.endDate ?? null,
             budgetId: args.budgetId ?? null,
+            category: args.category ?? null,
             minAmount: args.minAmount ?? null,
             maxAmount: args.maxAmount ?? null,
             page: args.page ?? 1,
@@ -216,6 +221,7 @@ export const api = createApi({
           a.currentMonth,
           (a.searchQuery ?? "").trim(),
           a.budgetId ?? null,
+          a.category?.trim().toLowerCase() || null,
           a.minAmount ?? null,
           a.maxAmount ?? null,
           a.startDate ?? null,
@@ -233,6 +239,7 @@ export const api = createApi({
         const hasActiveFilters =
           Boolean((currentArg?.searchQuery ?? "").trim()) ||
           Boolean(currentArg?.budgetId) ||
+          Boolean(currentArg?.category) ||
           currentArg?.minAmount != null ||
           currentArg?.maxAmount != null;
         return hasActiveFilters;
@@ -240,6 +247,34 @@ export const api = createApi({
       providesTags: (_result, _error, arg) => [
         { type: "Transactions", id: monthTagId(argsMonth(arg)) },
       ],
+    }),
+
+    // The existing transaction API is the category authority (including bank
+    // and custom income categories). Read every unfiltered page so the catalog
+    // never depends on the search, amount range, or currently loaded feed page.
+    getTransactionCategories: build.query<string[], MonthArgs>({
+      queryFn: async (args, { signal }) => {
+        try {
+          const categories = new Map<string, string>();
+          let page = 1;
+          while (true) {
+            if (signal.aborted) throw new Error("Category request cancelled");
+            const response = await transactionAPI.fetchAll({
+              ...args, searchQuery: "", page, limit: 100,
+            });
+            for (const tx of response.data.transaction) {
+              const label = tx.category?.trim();
+              if (label) categories.set(label.toLowerCase(), label);
+            }
+            if (!response.data.pagination?.hasNextPage) break;
+            page += 1;
+          }
+          return { data: [...categories.values()].sort((a, b) => a.localeCompare(b)) };
+        } catch (e) {
+          return { error: toError(e) };
+        }
+      },
+      providesTags: (_r, _e, args) => monthTags("Categories", [argsMonth(args)]),
     }),
 
     getBudgets: build.query<IBudget[], MonthArgs>({
@@ -430,13 +465,11 @@ export const api = createApi({
 
     createTransaction: build.mutation<
       ITransactionResponse<ITransaction>,
-      Partial<ITransaction>
+      CreateTransactionInput
     >({
       queryFn: async (transaction) => {
         try {
-          const response = await transactionAPI.create(
-            transaction as ITransaction,
-          );
+          const response = await transactionAPI.create(transaction);
           if (response?.data?.transaction) {
             const t = response.data.transaction as any;
             t.budgetId = t.budgetId ?? t.budget?.id ?? null;
@@ -462,6 +495,7 @@ export const api = createApi({
             ? [{ year: tx.year, month: tx.month }]
             : [];
         return [
+          ...monthTags("Categories", [...fromArgs, monthOfDate(tx.date)]),
           ...monthTags("Budgets", [...fromArgs, monthOfDate(tx.date)]),
           ...monthTags("Summary", [...fromArgs, monthOfDate(tx.date)]),
           { type: "Summary", id: "reports" },
@@ -497,6 +531,7 @@ export const api = createApi({
         return [
           // Reconciliation can change a counterpart in another month. The
           // API does not expose all affected months, so refresh derived totals.
+          { type: "Categories" },
           { type: "Budgets" },
           { type: "Summary" },
           { type: "Recurring", id: "all" },
@@ -520,6 +555,7 @@ export const api = createApi({
         // See createTransaction — Transactions refresh is handled by the
         // page-1 reset, not tag invalidation (ghost-row prevention).
         return [
+          { type: "Categories" },
           { type: "Budgets" },
           { type: "Summary" },
           { type: "Recurring", id: "all" },
@@ -586,6 +622,7 @@ export const api = createApi({
 
 export const {
   useGetTransactionsQuery,
+  useGetTransactionCategoriesQuery,
   useGetBudgetsQuery,
   useGetFinancialSummaryQuery,
   useGetFinancialReportQuery,

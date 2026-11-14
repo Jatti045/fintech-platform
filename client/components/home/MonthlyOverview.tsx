@@ -1,3 +1,4 @@
+import { isDarkPalette } from "@/constants/ThemePalettes";
 import React, { useState } from "react";
 import {
   View,
@@ -77,17 +78,17 @@ export default function MonthlyOverview({
               <Svg width="100%" height="100%" viewBox="0 0 185 155">
                 <Path
                   d="M78 155C60 55 111 4 185 0C193 83 153 139 78 155Z"
-                  fill={THEME.primary}
+                  fill={isDarkPalette(THEME) ? THEME.textSecondary : THEME.primary}
                   opacity={0.19}
                 />
                 <Path
                   d="M58 155C64 99 117 60 185 53C178 109 131 150 58 155Z"
-                  fill={THEME.primary}
+                  fill={isDarkPalette(THEME) ? THEME.textSecondary : THEME.primary}
                   opacity={0.15}
                 />
                 <Path
                   d="M0 155C-9 99 12 58 47 50C90 40 117 86 105 155Z"
-                  fill={THEME.primary}
+                  fill={isDarkPalette(THEME) ? THEME.textSecondary : THEME.primary}
                   opacity={0.06}
                 />
               </Svg>

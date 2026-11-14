@@ -27,11 +27,12 @@ public record MonthlyFinancialContext(
                 double expectedIncome,
                 double actualIncome,
                 double expenses,
+                double grossExpenses,
+                double expenseCredits,
                 double net,
                 double spentPercentageOfIncome,
                 List<CategorySpend> categories,
-                List<BudgetStatus> budgets,
-                List<RecurringChange> recurringChanges) {
+                List<BudgetStatus> budgets) {
 
         /** One category's current-month spending vs the previous month. */
         public record CategorySpend(
@@ -47,13 +48,7 @@ public record MonthlyFinancialContext(
                         String category,
                         double limit,
                         double spent,
-                        double percentUsed) {
+                        Double percentUsed) {
         }
 
-        /** A recurring payment whose amount meaningfully changed recently. */
-        public record RecurringChange(
-                        String name,
-                        double previousAmount,
-                        double currentAmount) {
-        }
 }

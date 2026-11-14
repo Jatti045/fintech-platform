@@ -1,4 +1,4 @@
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, sheetSurface } from "@/constants/ThemePalettes";
 import React from "react";
 import { Modal, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
@@ -43,7 +43,7 @@ export default function PostConnectionDialog({
         <View
           style={{
             width: "100%",
-            backgroundColor: THEME.surface,
+            backgroundColor: sheetSurface(THEME),
             borderRadius: 20,
             paddingHorizontal: 24,
             paddingVertical: 28,

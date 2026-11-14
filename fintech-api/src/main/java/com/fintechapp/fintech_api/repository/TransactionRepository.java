@@ -21,6 +21,20 @@ public interface TransactionRepository
 
         List<Transaction> findByUser_IdOrderByDateDesc(String userId);
 
+        @Query("""
+                SELECT t FROM Transaction t WHERE t.user.id = :userId
+                ORDER BY t.date DESC, t.id ASC
+                """)
+        List<Transaction> previewFirst(@Param("userId") String userId, org.springframework.data.domain.Pageable page);
+
+        @Query("""
+                SELECT t FROM Transaction t WHERE t.user.id = :userId
+                  AND t.date <= :date AND (t.date < :date OR t.id > :id)
+                ORDER BY t.date DESC, t.id ASC
+                """)
+        List<Transaction> previewAfter(@Param("userId") String userId, @Param("date") Instant date,
+                @Param("id") String id, org.springframework.data.domain.Pageable page);
+
         List<Transaction> findByUser_IdAndTypeOrderByDateDesc(String userId, TransactionType type);
 
         List<Transaction> findByBudget_IdOrderByDateDesc(String budgetId);

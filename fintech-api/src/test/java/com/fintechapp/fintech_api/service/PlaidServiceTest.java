@@ -134,7 +134,6 @@ class PlaidServiceTest {
                 {"added":[{"transaction_id":"ghost","amount":99,"date":"2026-10-01"}],
                  "modified":[],"removed":[],"next_cursor":"C1","has_more":false}
                 """));
-        org.mockito.Mockito.reset(userRepository);
         PlaidItem current = new PlaidItem();
         current.setCursor("C2");
         current.setSyncLockToken("lease-1");
@@ -144,7 +143,9 @@ class PlaidServiceTest {
         assertThrows(StalePlaidSyncPageException.class,
                 () -> service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
 
-        org.mockito.Mockito.verifyNoInteractions(ingestService, cacheInvalidator, userRepository);
+        verify(ingestService, org.mockito.Mockito.never()).upsertAddedBatch(any(), any());
+        verify(ingestService, org.mockito.Mockito.never()).upsertTransaction(any(), any());
+        org.mockito.Mockito.verifyNoInteractions(cacheInvalidator);
         verify(transferReconciliation, org.mockito.Mockito.never()).reconcile(any());
         verify(plaidItemRepository, org.mockito.Mockito.never()).save(any());
         assertEquals("C2", current.getCursor());

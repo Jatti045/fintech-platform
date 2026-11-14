@@ -42,7 +42,7 @@ export async function pickProfileImage(): Promise<PickedImage | null> {
 /**
  * Persists the selected theme name to AsyncStorage.
  */
-export async function persistTheme(themeName: string): Promise<void> {
+export async function persistTheme(themeName: import("@/types/theme/types").ThemePreference): Promise<void> {
   await AsyncStorage.setItem("selectedTheme", themeName);
 }
 
@@ -56,6 +56,4 @@ export const THEME_OPTIONS: ThemeOption[] = [
   { name: "System", color: "", icon: "phone-portrait-outline" },
   { name: "Light", color: THEME_PALETTES.LIGHT.primary, icon: "sunny-outline" },
   { name: "Dark", color: THEME_PALETTES.DARK.primary, icon: "moon-outline" },
-  { name: "Ember", color: THEME_PALETTES.EMBER.primary, icon: "flame-outline" },
-  { name: "Aurora", color: THEME_PALETTES.AURORA.primary, icon: "sparkles-outline" },
 ];

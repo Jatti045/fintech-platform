@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { sheetSurface, accentSurface } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 import { hexToRgba } from "@/utils/helper";
 
@@ -41,7 +42,7 @@ export default function PlaidLinkConnectedDialog({
         <View
           style={[
             styles.sheet,
-            { backgroundColor: THEME.surface, borderColor: THEME.border },
+            { backgroundColor: sheetSurface(THEME), borderColor: THEME.border },
           ]}
         >
           <View
@@ -50,7 +51,7 @@ export default function PlaidLinkConnectedDialog({
               width: 56,
               height: 56,
               borderRadius: 28,
-              backgroundColor: hexToRgba(THEME.primary, 0.16),
+              backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.16)),
               alignItems: "center",
               justifyContent: "center",
             }}
@@ -76,7 +77,7 @@ export default function PlaidLinkConnectedDialog({
               { backgroundColor: THEME.primary, borderColor: THEME.primary },
             ]}
           >
-            <Text style={[styles.buttonText, { color: "#FFFFFF" }]}>Got it</Text>
+            <Text style={[styles.buttonText, { color: THEME.onPrimary }]}>Got it</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -1,134 +1,83 @@
-/**
- * Theme system tests:
- * - Light and Dark remain available; Ocean and Rose are fully removed.
- * - The two new themes (Ember, Aurora) are registered palettes.
- * - themeSlice resolves each theme by name and safely falls back to Light
- *   for persisted themes that no longer exist (e.g. "Ocean", "Rose").
- */
-
-/// <reference types="jest" />
-
-// profileService imports expo-image-picker (untranspiled ESM) at module load;
-// stub it so the THEME_OPTIONS import stays testable.
-jest.mock("expo-image-picker", () => ({
-  requestMediaLibraryPermissionsAsync: jest.fn(),
-  launchImageLibraryAsync: jest.fn(),
-}));
-
-import { THEME_PALETTES } from "@/constants/ThemePalettes";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { configureStore } from "@reduxjs/toolkit";
+import { THEME_PALETTES, sheetSurface } from "@/constants/ThemePalettes";
 import { THEME_OPTIONS } from "@/utils/profile/profileService";
-import reducer, {
-  loadThemeFromStorage,
-  setTheme,
-} from "@/store/slices/themeSlice";
-import type { ITheme } from "@/types/theme/types";
+import reducer, { loadThemeFromStorage, setTheme } from "@/store/slices/themeSlice";
 
-const REQUIRED_TOKENS: (keyof ITheme)[] = [
-  "background",
-  "surface",
-  "surfaceHover",
-  "primary",
-  "primaryHover",
-  "onPrimary",
-  "onDanger",
-  "disabledBackground",
-  "subtleSurface",
-  "errorSurface",
-  "secondary",
-  "textPrimary",
-  "textSecondary",
-  "textDisabled",
-  "success",
-  "danger",
-  "warning",
-  "border",
-  "inputBackground",
-  "placeholderText",
-  "chart1",
-  "chart2",
-  "chart3",
-  "chart4",
-];
+jest.mock("expo-image-picker", () => ({ requestMediaLibraryPermissionsAsync: jest.fn(), launchImageLibraryAsync: jest.fn() }));
 
-function expectCompletePalette(palette: ITheme) {
-  for (const token of REQUIRED_TOKENS) {
-    expect(typeof palette[token]).toBe("string");
-    expect((palette[token] as string).length).toBeGreaterThan(0);
+it("supports exactly System, Light, and Dark", () => {
+  expect(Object.keys(THEME_PALETTES).sort()).toEqual(["DARK", "LIGHT"]);
+  expect(THEME_OPTIONS.map((option) => option.name)).toEqual(["System", "Light", "Dark"]);
+  for (const name of ["Light", "Dark"] as const) {
+    expect(reducer(undefined, setTheme(name)).THEME).toEqual(THEME_PALETTES[name === "Dark" ? "DARK" : "LIGHT"]);
   }
-}
-
-describe("ThemePalettes", () => {
-  it("keeps Light and Dark available", () => {
-    expect(THEME_PALETTES.LIGHT).toBeDefined();
-    expect(THEME_PALETTES.DARK).toBeDefined();
-  });
-
-  it("provides the two new themes", () => {
-    expect(THEME_PALETTES.EMBER).toBeDefined();
-    expect(THEME_PALETTES.AURORA).toBeDefined();
-  });
-
-  it("completely removes Ocean and Rose", () => {
-    expect(THEME_PALETTES).not.toHaveProperty("OCEAN");
-    expect(THEME_PALETTES).not.toHaveProperty("ROSE");
-  });
-
-  it("exposes exactly four themes", () => {
-    expect(Object.keys(THEME_PALETTES).sort()).toEqual([
-      "AURORA",
-      "DARK",
-      "EMBER",
-      "LIGHT",
-    ]);
-  });
-
-  it("gives every palette the full token set", () => {
-    for (const key of Object.keys(THEME_PALETTES)) {
-      expectCompletePalette(THEME_PALETTES[key as keyof typeof THEME_PALETTES]);
-    }
-  });
-
-  it("does not expose product/company names in theme options", () => {
-    const names = THEME_OPTIONS.map((o) => o.name);
-    expect(names).toEqual(["System", "Light", "Dark", "Ember", "Aurora"]);
-    for (const name of names) {
-      expect(name.toLowerCase()).not.toContain("anthropic");
-      expect(name.toLowerCase()).not.toContain("chatgpt");
-      expect(name.toLowerCase()).not.toContain("claude");
-    }
-  });
 });
 
-describe("themeSlice", () => {
-  const initial = { selectedTheme: "Light", THEME: THEME_PALETTES.LIGHT };
+it("preserves every light palette token exactly", () => {
+  expect(THEME_PALETTES.LIGHT).toEqual({
+  sheetHandle: "#B8C9BE",
+  sheetBackdrop: "#071D17",
+  background: "#F7FAF8",
+  surface: "#FFFFFF",
+  surfaceHover: "#E7F4EC",
+  primary: "#0C8057",
+  primaryHover: "#096647",
+  secondary: "#0C8057",
+  onPrimary: "#FFFFFF",
+  onDanger: "#FFFFFF",
+  textPrimary: "#122A22",
+  textSecondary: "#587166",
+  textDisabled: "#587166",
+  disabledBackground: "#D8E7DE",
+  success: "#08734D",
+  danger: "#B42318",
+  warning: "#805600",
+  border: "#D8E7DE",
+  inputBackground: "#FFFFFF",
+  placeholderText: "#587166",
+  subtleSurface: "#E7F4EC",
+  errorSurface: "#FFF0ED",
+  chart1: "#0C8057",
+  chart2: "#597C20",
+  chart3: "#276E9D",
+  chart4: "#8057A6",
+});
+  expect(sheetSurface(THEME_PALETTES.LIGHT)).toBe(THEME_PALETTES.LIGHT.surface);
+});
 
-  it("selects each of the four themes by display name", () => {
-    for (const name of ["Light", "Dark", "Ember", "Aurora"]) {
-      const state = reducer(initial, setTheme(name));
-      expect(state.selectedTheme).toBe(name);
-      expect(state.THEME).toBe(
-        THEME_PALETTES[name.toUpperCase() as keyof typeof THEME_PALETTES],
-      );
-    }
-  });
+it("uses neutral dark surfaces and preserves the selected dock accent", () => {
+  const dark = THEME_PALETTES.DARK;
+  expect(dark.primary).toBe("#6CE0A0");
+  expect(dark.background).toBe("#121212");
+  expect(dark.surface).toBe("#1E1E1E");
+  expect(sheetSurface(dark)).toBe("#282828");
+  for (const key of ["background", "surface", "surfaceHover", "subtleSurface", "inputBackground", "border", "disabledBackground", "sheetHandle"] as const) {
+    const hex = dark[key].slice(1);
+    expect(hex.slice(0, 2)).toBe(hex.slice(2, 4));
+    expect(hex.slice(2, 4)).toBe(hex.slice(4, 6));
+  }
+});
 
-  it("falls back to Light for removed legacy themes loaded from storage", () => {
-    for (const legacy of ["Ocean", "Rose"]) {
-      const state = reducer(
-        initial,
-        loadThemeFromStorage.fulfilled(legacy, "", undefined as never),
-      );
-      expect(state.selectedTheme).toBe("Light");
-      expect(state.THEME).toBe(THEME_PALETTES.LIGHT);
-    }
-  });
+it.each(["Ember", "Aurora"])("migrates saved %s to System and persists the migration", async (legacy) => {
+  await AsyncStorage.setItem("selectedTheme", legacy);
+  const store = configureStore({ reducer: { theme: reducer } });
+  await store.dispatch(loadThemeFromStorage());
+  expect(store.getState().theme.selectedTheme).toBe("System");
+  expect(await AsyncStorage.getItem("selectedTheme")).toBe("System");
+});
 
-  it("loads each valid theme from storage by name", () => {
-    const state = reducer(
-      initial,
-      loadThemeFromStorage.fulfilled("Ember", "", undefined as never),
-    );
-    expect(state.selectedTheme).toBe("Ember");
-    expect(state.THEME).toBe(THEME_PALETTES.EMBER);
-  });
+it.each(["Light", "Dark", "System"] as const)("retains saved %s", async (preference) => {
+  await AsyncStorage.setItem("selectedTheme", preference);
+  const store = configureStore({ reducer: { theme: reducer } });
+  await store.dispatch(loadThemeFromStorage());
+  expect(store.getState().theme.selectedTheme).toBe(preference);
+  expect(await AsyncStorage.getItem("selectedTheme")).toBe(preference);
+});
+
+it("starts safely when storage cannot be read", async () => {
+  jest.spyOn(AsyncStorage, "getItem").mockRejectedValueOnce(new Error("Unavailable"));
+  const store = configureStore({ reducer: { theme: reducer } });
+  await store.dispatch(loadThemeFromStorage());
+  expect(store.getState().theme.selectedTheme).toBe("System");
 });

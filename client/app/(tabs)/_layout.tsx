@@ -1,3 +1,4 @@
+import React from "react";
 import { Tabs } from "expo-router";
 import FundleafTabBar from "@/components/navigation/FundleafTabBar";
 import "@/global.css";
@@ -34,8 +35,7 @@ export default function TabsLayout() {
         />
       </Tabs>
 
-      {/* Persistent, non-dismissible banners for re-auth + sync errors. */}
-      <PlaidStatusBanner />
+      <PlaidStatusBanner preview={__DEV__} />
     </View>
   );
 }

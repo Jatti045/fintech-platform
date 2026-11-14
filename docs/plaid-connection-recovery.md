@@ -1,0 +1,9 @@
+# Plaid connection recovery
+
+The connection endpoint reserves the digest of the single-use Link token before calling Plaid. Retrying with that token returns the committed connection when it still exists. The server never resends a reserved token to Plaid. An in-progress exchange can return a conflict until the first request finishes.
+
+Local registration and the initial sync job commit together. If Plaid returns an access credential and local registration fails, the API attempts to save encrypted revocation work in a separate transaction. A committed Item takes precedence over compensation if the database acknowledgement was lost.
+
+For an unresolved connection, use the UUID shown to the user to look up the attempt in `plaid_connection_attempts` and search API logs for `attempt_id`. Check the authenticated user's bank list first. A `CONNECTED` attempt with a current Item needs no repair. For `CLEANUP_QUEUED`, check the revocation worker and its backlog. For a stranded `EXCHANGING` or `UNCONFIRMED` attempt, correlate the timestamp and any available Plaid request or Item ID in the Plaid Dashboard or with Plaid support. Resolve any orphan with Plaid before starting a fresh Link session. If the process died before recording the provider response, the request or Item ID may be unavailable locally. Never ask a user to share either token or clear a reservation to replay an old exchange.
+
+Exhausted transient sync jobs receive a recovery time six hours in the future with up to fifteen minutes of jitter. The existing sweeper reopens due active Items in batches of up to 100, subject to the normal job and Item leases. Existing failed rows have no automatic recovery eligibility because their failure classification was not recorded. Manual and webhook requests retain their existing reopening behavior.

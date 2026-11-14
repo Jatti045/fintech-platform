@@ -1,4 +1,4 @@
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
 import { Switch, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -55,7 +55,7 @@ export default function NotificationPreference({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: hexToRgba(theme.primary, 0.12),
+            backgroundColor: accentSurface(theme, hexToRgba(theme.primary, 0.12)),
             borderWidth: 1,
             borderColor: hexToRgba(theme.primary, 0.25),
             alignItems: "center",

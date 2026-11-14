@@ -31,7 +31,7 @@ docker compose -f fintech-api/docker-compose.yml up -d
 
 The Compose file supplies local development database defaults matching `application.properties`. Configure the backend through environment variables or an untracked `fintech-api/.env` properties file. See `fintech-api/src/main/resources/application.properties` for supported variables and defaults. Set `JWT_SECRET_KEY` before starting authentication. Configure `PLAID_CLIENT_ID`, `PLAID_SECRET`, and a stable `PLAID_ACCESS_TOKEN_SECRET` for bank connections; use Plaid sandbox credentials for development. Mail delivery requires the `MAIL_HOST`, `EMAIL_USER`, and `EMAIL_PASSWORD` settings. Cloudinary and AI settings are optional integrations described in that configuration file.
 
-Use a fresh local database for initial development. The current configuration uses `spring.jpa.hibernate.ddl-auto=create-only`; existing database upgrades require the project's migration process, not recreating tables. Never point local setup at production financial data.
+Use a fresh local database for initial development. Apply the versioned migrations before starting the API. See [database migration instructions](docs/database-migrations.md) for local setup and the separate legacy upgrade procedure.
 
 Start the API:
 

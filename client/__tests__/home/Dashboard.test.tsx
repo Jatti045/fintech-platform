@@ -53,9 +53,7 @@ it.each(["Light", "Dark"])(
     expect(texts(tree)).toContain(
       `${formatCurrency(617.75, "CAD")} of ${formatCurrency(850, "CAD")} spent`,
     );
-    act(() => {
-      button(tree, "Budget category details").props.onPress();
-    });
+    expect(button(tree, "Budget category details").props.accessibilityState.expanded).toBe(true);
     expect(texts(tree)).toContain(formatCurrency(-20, "CAD"));
     expect(texts(tree)).toContain("Over budget");
     const over = tree.root
@@ -75,6 +73,11 @@ it.each(["Light", "Dark"])(
             THEME_PALETTES[theme === "Light" ? "LIGHT" : "DARK"].danger,
         ),
     ).toBe(true);
+    act(() => {
+      button(tree, "Budget category details").props.onPress();
+    });
+    expect(button(tree, "Budget category details").props.accessibilityState.expanded).toBe(false);
+    expect(texts(tree)).not.toContain("Over budget");
     act(() => {
       button(tree, "View budgets").props.onPress();
     });
