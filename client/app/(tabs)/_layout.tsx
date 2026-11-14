@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Tabs } from "expo-router";
 import FundleafTabBar from "@/components/navigation/FundleafTabBar";
 import "@/global.css";
@@ -10,15 +10,13 @@ import PlaidStatusBanner from "@/components/plaid/PlaidStatusBanner";
 
 export default function TabsLayout() {
   const { THEME } = useTheme();
-  const [attentionHeight, setAttentionHeight] = useState(0);
   const notificationOnboarding = useNotificationOnboarding();
 
   return (
     <View style={{ flex: 1, backgroundColor: THEME.background }}>
       <Tabs
         tabBar={(props) => <FundleafTabBar {...props} />}
-        screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true,
-          sceneStyle: { paddingBottom: attentionHeight } }}
+        screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}
       >
         <Tabs.Screen name="index" options={{ title: "Home", tabBarAccessibilityLabel: "Home" }} />
         <Tabs.Screen name="transaction" options={{ title: "Transactions", tabBarAccessibilityLabel: "Transactions" }} />
@@ -37,8 +35,7 @@ export default function TabsLayout() {
         />
       </Tabs>
 
-      {/* Persistent, non-dismissible banners for re-auth + sync errors. */}
-      <PlaidStatusBanner onHeightChange={setAttentionHeight} />
+      <PlaidStatusBanner preview={__DEV__} />
     </View>
   );
 }

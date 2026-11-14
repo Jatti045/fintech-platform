@@ -242,31 +242,41 @@ export default function BankConnections({
                     disabled={isDisconnecting}
                     accessibilityRole="button"
                     accessibilityLabel={`Disconnect ${name}`}
+                    accessibilityState={{ busy: isDisconnecting, disabled: isDisconnecting }}
                     activeOpacity={0.7}
                     style={{
-                      backgroundColor: hexToRgba(theme.danger, 0.12),
-                      borderWidth: 1,
-                      borderColor: hexToRgba(theme.danger, 0.25),
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 12,
                       minHeight: 48,
+                      justifyContent: "center",
                       marginLeft: 8,
                     }}
                   >
-                    {isDisconnecting ? (
-                      <ActivityIndicator size="small" color={theme.danger} />
-                    ) : (
-                      <Text
-                        style={{
-                          color: theme.danger,
-                          fontSize: 12,
-                          fontWeight: "700",
-                        }}
-                      >
+                    <View
+                      style={{
+                        backgroundColor: hexToRgba(theme.danger, 0.1),
+                        borderRadius: 8,
+                        minHeight: 28,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{
+                        color: theme.danger,
+                        fontSize: 12,
+                        fontWeight: "700",
+                        opacity: isDisconnecting ? 0 : 1,
+                      }}>
                         Disconnect
                       </Text>
-                    )}
+                      {isDisconnecting && (
+                        <ActivityIndicator
+                          size="small"
+                          color={theme.danger}
+                          style={{ position: "absolute" }}
+                        />
+                      )}
+                    </View>
                   </TouchableOpacity>
                 </View>
 

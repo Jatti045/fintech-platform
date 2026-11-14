@@ -18,7 +18,7 @@ export default function BudgetOverview({
   onOpenBudgets: () => void;
 }) {
   const { THEME } = useTheme();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   // Sum server-normalized category amounts; do not substitute all spending
   // (which can include categories without a budget) for budget utilization.
   const totals = report.budgets.reduce(
@@ -37,9 +37,9 @@ export default function BudgetOverview({
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Budget category details"
-          accessibilityHint="Show spending and remaining amounts for each budget category"
+          accessibilityHint={expanded ? "Hides the category breakdown" : "Shows the category breakdown"}
           accessibilityState={{ expanded }}
-          onPress={() => setExpanded(!expanded)}
+          onPress={() => setExpanded((visible) => !visible)}
           style={{
             width: 48,
             minHeight: 48,
@@ -57,14 +57,8 @@ export default function BudgetOverview({
               justifyContent: "center",
             }}
           >
-            <Feather name="star" size={23} color={THEME.primary} />
+            <Feather name="pie-chart" size={20} color={THEME.primary} />
           </View>
-          <Feather
-            name={expanded ? "chevron-up" : "chevron-down"}
-            size={10}
-            color={THEME.primary}
-            style={{ position: "absolute", right: 0, bottom: 3 }}
-          />
         </TouchableOpacity>
         <TouchableOpacity
           accessibilityRole="button"
@@ -175,10 +169,12 @@ export default function BudgetOverview({
         </>
       ) : (
         expanded && (
-          <BudgetCategoryDetails
-            report={report}
-            onOpenBudgets={onOpenBudgets}
-          />
+          <View style={{ marginTop: BRAND.spacing.md }}>
+            <BudgetCategoryDetails
+              report={report}
+              onOpenBudgets={onOpenBudgets}
+            />
+          </View>
         )
       )}
     </DashboardCard>
