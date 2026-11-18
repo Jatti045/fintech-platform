@@ -108,6 +108,7 @@ export interface UseProfileReturn {
   settingsItems: SettingsItem[];
 
   /** Bank connection (Plaid Link) state + handler */
+  canConnectBank: boolean;
   linking: boolean;
   handleLinkBank: () => Promise<void>;
 
@@ -164,6 +165,10 @@ export function useProfile(): UseProfileReturn {
   const selectedMonthLabel = `${calendar.year}-${String(calendar.month + 1).padStart(2, "0")}`;
 
   // ── bank connection (Plaid Link) state ────────────────────────────────────
+  const userId = user?.id;
+  const [bankLinkAllowedUserId, setBankLinkAllowedUserId] = useState<string>();
+  const capabilityRequest = useRef(0);
+  const canConnectBank = !!userId && bankLinkAllowedUserId === userId;
   const [linking, setLinking] = useState(false);
   const [plaidItems, setPlaidItems] = useState<IPlaidItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -172,6 +177,26 @@ export function useProfile(): UseProfileReturn {
   // The item linked in the most recent Plaid Link flow; drives the
   // post-connection "your transactions are now syncing" dialog.
   const [connectedItem, setConnectedItem] = useState<IPlaidItem | null>(null);
+
+  const loadBankConnectionCapability = useCallback(async () => {
+    const request = ++capabilityRequest.current;
+    const generation = sessionGeneration();
+    setBankLinkAllowedUserId(undefined);
+    if (!userId) return;
+    try {
+      const capability = await plaidAPI.fetchConnectionCapability();
+      if (request === capabilityRequest.current && generation === sessionGeneration()
+          && capability.canConnectBank === true) {
+        setBankLinkAllowedUserId(userId);
+      }
+    } catch {
+      // Keep new linking unavailable if the capability cannot be loaded.
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void loadBankConnectionCapability();
+  }, [loadBankConnectionCapability]);
 
   // Load the connected-banks list once on mount (and on pull-to-refresh).
   const loadPlaidItems = useCallback(async () => {
@@ -325,15 +350,27 @@ export function useProfile(): UseProfileReturn {
       // navigator for the splash screen — remounting the tab stack
       // lands the user back on Home. The stored session is already in
       // Redux; a refresh only re-fetches data that can go stale.
-      await loadMonthlyIncomeForSelectedMonth();
-      await loadPlaidItems();
+      await Promise.all([
+        loadMonthlyIncomeForSelectedMonth(),
+        loadPlaidItems(),
+        loadBankConnectionCapability(),
+      ]);
     } finally {
       setRefreshing(false);
     }
-  }, [loadMonthlyIncomeForSelectedMonth, loadPlaidItems]);
+  }, [loadMonthlyIncomeForSelectedMonth, loadPlaidItems, loadBankConnectionCapability]);
 
   // ── bank connection (Plaid Link) flow ─────────────────────────────────────
+  const showPrivateBankLinking = (error: unknown) => {
+    if ((error as { status?: number } | null)?.status !== 403) return false;
+    capabilityRequest.current++;
+    setBankLinkAllowedUserId(undefined);
+    showAlert({ title: "Bank linking is currently private." });
+    return true;
+  };
+
   const handleLinkBank = async () => {
+    if (!canConnectBank || linking) return;
     const generation = sessionGeneration();
     setLinking(true);
     try {
@@ -408,6 +445,7 @@ export function useProfile(): UseProfileReturn {
           );
         } catch (e) {
           if (generation !== sessionGeneration()) return;
+          if (showPrivateBankLinking(e)) return;
           void loadPlaidItems();
           showAlert({
             title: "Bank connection could not be confirmed",
@@ -430,6 +468,7 @@ export function useProfile(): UseProfileReturn {
       await handler.open();
     } catch (e) {
       setLinking(false);
+      if (generation !== sessionGeneration() || showPrivateBankLinking(e)) return;
       showAlert({
         title: "Connection Failed",
         message: extractErrorMessage(e, "Failed to start bank connection."),
@@ -863,6 +902,7 @@ export function useProfile(): UseProfileReturn {
     handleTogglePurchaseReminders,
     handleToggleBillReminders,
     openNotificationSettings,
+    canConnectBank,
     linking,
     handleLinkBank,
     plaidItems,

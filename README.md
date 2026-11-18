@@ -61,6 +61,14 @@ npx expo start
 
 Plaid and Google sign-in require a native development build with their native modules configured; use `npm run android` or `npm run ios` with the corresponding platform toolchain. Do not expect those integrations to work in Expo Go.
 
+### Owner-only live bank linking
+
+On the hosted Spring Boot backend, set `PLAID_ENVIRONMENT=production` and `PLAID_LIVE_OWNER_USER_ID` to the UUID of your Fundleaf account. To find it, sign in as the intended owner and read `data.id` from the authenticated `GET /api/auth/me` response. An operator with database access can also look up `users.id` by the account's email in that deployment's database.
+
+Set these variables in the backend's hosting environment, or in the untracked `fintech-api/.env` for a local backend. Self-hosters use their own `PLAID_CLIENT_ID`, `PLAID_SECRET`, and owner account. Keep the existing `PLAID_ACCESS_TOKEN_SECRET` stable so saved Items remain usable.
+
+An unset, blank, invalid, or unmatched owner UUID blocks new links in Production and in the legacy Development environment. Users can still manage their existing Items, and public signup and manual tracking remain available. Local Sandbox linking continues to work with Sandbox credentials and no owner UUID.
+
 ## Verification
 
 From `client/`:

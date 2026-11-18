@@ -1,11 +1,14 @@
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 import { handleApiError } from "./apiErrorHandler";
 import { API_TIMEOUT_MS } from "@/constants/appConfig";
 import { getSessionIdentity, invalidateSession, sessionGeneration, type SessionIdentity } from "@/utils/session";
 
 import { logger } from "@/utils/logger";
 
-type SessionConfig = { sessionIdentity?: SessionIdentity };
+export type SessionRequestConfig = AxiosRequestConfig & {
+  expectedSessionGeneration?: number;
+};
+type SessionConfig = SessionRequestConfig & { sessionIdentity?: SessionIdentity };
 
 const SCOPE = "apiClient";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -58,6 +61,10 @@ apiClient.interceptors.request.use(
       }
     }
 
+    const { expectedSessionGeneration, sessionIdentity } = config as SessionConfig;
+    if (expectedSessionGeneration !== undefined && sessionIdentity?.generation !== expectedSessionGeneration) {
+      throw new Error("Your session changed. Please sign in again.");
+    }
     return config;
   },
   (error) => {

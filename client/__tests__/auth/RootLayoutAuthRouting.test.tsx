@@ -22,14 +22,14 @@ import React from "react";
 import renderer, { act } from "react-test-renderer";
 import { ActivityIndicator } from "react-native";
 import { Stack } from "expo-router";
-import RootLayout, { AppRoutes } from "@/app/_layout";
+import RootLayout from "@/app/_layout";
 import { userAPI } from "@/api/user";
 import { store as appStore } from "@/store/store";
-import { loginUser, logoutUser, loadUserFromStorage } from "@/store/slices/userSlice";
+import { completeAccountSetup, googleAuth, loginUser, logoutUser } from "@/store/slices/userSlice";
 import apiClient from "@/config/apiClient";
 import { AxiosError } from "axios";
 import * as SecureStore from "expo-secure-store";
-import { establishSession, invalidateSession, getSessionIdentity } from "@/utils/session";
+import { establishSession, invalidateSession } from "@/utils/session";
 import { hydrateApiCache } from "@/store/api/cachePersistence";
 import type { IUser } from "@/types/user/types";
 
@@ -77,6 +77,8 @@ jest.mock("@/api/user", () => ({
     forgotPassword: jest.fn(),
     resetPassword: jest.fn(),
     googleAuth: jest.fn(),
+    refreshAccountProfile: jest.fn(),
+    completeAccountSetup: jest.fn(),
   },
 }));
 
@@ -88,6 +90,7 @@ const testUser: IUser = {
   id: "prod-user-1",
   username: "Production User",
   email: "prod@fundleaf.app",
+  setupComplete: true,
 };
 
 const lastScreenProps = (name: string) => {
@@ -317,6 +320,75 @@ describe("RootLayout & AppRoutes Production Authentication and Routing", () => {
     expect(lastScreenProps("(tabs)")?.redirect).toBe(false);
     expect(lastScreenProps("(auth)")?.redirect).toBe(true);
 
+    act(() => tree.unmount());
+  });
+
+  it.each(["email", "Google"])("routes new %s sessions to setup before allowing Home", async (method) => {
+    mockedGetStoredToken.mockResolvedValue(null);
+    mockedGetStoredUser.mockResolvedValue(null);
+    const pendingUser = { ...testUser, setupComplete: false };
+    const completedUser = { ...testUser, setupComplete: true, monthlyIncome: 3500, currency: "CAD" };
+    jest.mocked(userAPI.completeAccountSetup).mockResolvedValueOnce(completedUser);
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<RootLayout />); });
+    await until(() => lastScreenProps("(auth)")?.redirect === false);
+
+    await act(async () => {
+      const token = "setup-token";
+      await establishSession(token, pendingUser);
+      if (method === "email") {
+        appStore.dispatch(loginUser.fulfilled(
+          { user: pendingUser, token }, "email", { email: pendingUser.email, password: "password" },
+        ));
+      } else {
+        appStore.dispatch(googleAuth.fulfilled(
+          { data: { user: pendingUser, token }, success: true, message: "" }, "google", "id-token",
+        ));
+      }
+    });
+
+    expect(lastScreenProps("(tabs)")?.redirect).toBe(true);
+    expect(lastScreenProps("dock-preview")?.redirect).toBe(true);
+    expect(lastScreenProps("(auth)")?.redirect).toBe(true);
+    expect(lastScreenProps("account-setup")?.redirect).toBe(false);
+
+    await act(async () => {
+      await appStore.dispatch(completeAccountSetup({ monthlyIncome: 3500, currency: "CAD" })).unwrap();
+    });
+    expect(appStore.getState().user.user).toEqual(completedUser);
+    expect(lastScreenProps("account-setup")?.redirect).toBe(true);
+    expect(lastScreenProps("(tabs)")?.redirect).toBe(false);
+    act(() => tree.unmount());
+  });
+
+  it("restores unfinished setup without hydrating the Home cache", async () => {
+    mockedGetStoredToken.mockResolvedValue("pending-token");
+    mockedGetStoredUser.mockResolvedValue({ ...testUser, setupComplete: false });
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<RootLayout />); });
+    await until(() => lastScreenProps("account-setup")?.redirect === false);
+
+    expect(lastScreenProps("(tabs)")?.redirect).toBe(true);
+    expect(mockedHydrateApiCache).not.toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it("does not mount Home from a legacy cached profile before its setup state is fetched", async () => {
+    mockedGetStoredToken.mockResolvedValue("legacy-token");
+    mockedGetStoredUser.mockResolvedValue({ ...testUser, setupComplete: undefined });
+    let resolveProfile!: (user: IUser) => void;
+    jest.mocked(userAPI.refreshAccountProfile).mockReturnValueOnce(new Promise((resolve) => {
+      resolveProfile = resolve;
+    }));
+    let tree!: renderer.ReactTestRenderer;
+    await act(async () => { tree = renderer.create(<RootLayout />); });
+    expect(lastScreenProps("(tabs)")).toBeUndefined();
+    expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+
+    await act(async () => { resolveProfile({ ...testUser, currency: "GBP", monthlyIncome: 123 }); });
+    expect(lastScreenProps("(tabs)")?.redirect).toBe(false);
+    expect(lastScreenProps("account-setup")?.redirect).toBe(true);
+    expect(appStore.getState().user.user?.currency).toBe("GBP");
     act(() => tree.unmount());
   });
 

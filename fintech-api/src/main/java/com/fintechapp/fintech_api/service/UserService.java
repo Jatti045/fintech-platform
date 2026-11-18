@@ -1,20 +1,9 @@
 package com.fintechapp.fintech_api.service;
 
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.util.Locale;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
-
+import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.common.ApiMessageResponse;
 import com.fintechapp.fintech_api.dto.user.ChangePasswordRequest;
+import com.fintechapp.fintech_api.dto.user.CompleteSetupRequest;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUploadResponse;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUserResponse;
 import com.fintechapp.fintech_api.dto.user.UpdateCurrencyRequest;
@@ -27,307 +16,374 @@ import com.fintechapp.fintech_api.repository.PasswordResetTokenRepository;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
-import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.Currency;
+import java.util.Locale;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class UserService {
-    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UserService.class);
+  private static final org.slf4j.Logger logger =
+      org.slf4j.LoggerFactory.getLogger(UserService.class);
 
-    @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.CategorizationRuleRepository categorizationRules;
-    @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.RuleApplicationRepository ruleApplications;
-    @org.springframework.beans.factory.annotation.Autowired private com.fintechapp.fintech_api.repository.PendingClassificationHandoffRepository pendingChoices;
-    private final UserRepository userRepository;
-    private final TransactionRepository transactionRepository;
-    private final BudgetRepository budgetRepository;
-    private final PlaidItemRepository plaidItemRepository;
-    private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final MonthlyIncomeService monthlyIncomeService;
-    private final IncomeCalculationService incomeCalculationService;
-    private final PasswordEncoder passwordEncoder;
-    private final CloudinaryService cloudinaryService;
-    private final UploadValidationService uploadValidationService;
-    private final ProfilePictureStore profilePictures;
-    private final ProfileImageCleanupJobs imageCleanup;
-    private final FinancialCacheInvalidator cacheInvalidator;
-    private final PlaidRevocationJobService revocations;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.fintechapp.fintech_api.repository.CategorizationRuleRepository categorizationRules;
 
-    public UserService(
-            UserRepository userRepository,
-            TransactionRepository transactionRepository,
-            BudgetRepository budgetRepository,
-            PlaidItemRepository plaidItemRepository,
-            PasswordResetTokenRepository passwordResetTokenRepository,
-            MonthlyIncomeService monthlyIncomeService,
-            IncomeCalculationService incomeCalculationService,
-            PasswordEncoder passwordEncoder,
-            CloudinaryService cloudinaryService,
-            UploadValidationService uploadValidationService,
-            FinancialCacheInvalidator cacheInvalidator,
-            ProfilePictureStore profilePictures,
-            PlaidRevocationJobService revocations, ProfileImageCleanupJobs imageCleanup) {
-        this.userRepository = userRepository;
-        this.transactionRepository = transactionRepository;
-        this.budgetRepository = budgetRepository;
-        this.plaidItemRepository = plaidItemRepository;
-        this.passwordResetTokenRepository = passwordResetTokenRepository;
-        this.monthlyIncomeService = monthlyIncomeService;
-        this.incomeCalculationService = incomeCalculationService;
-        this.passwordEncoder = passwordEncoder;
-        this.cloudinaryService = cloudinaryService;
-        this.uploadValidationService = uploadValidationService;
-        this.cacheInvalidator = cacheInvalidator;
-        this.profilePictures = profilePictures;
-        this.revocations = revocations;
-        this.imageCleanup = imageCleanup;
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.fintechapp.fintech_api.repository.RuleApplicationRepository ruleApplications;
+
+  @org.springframework.beans.factory.annotation.Autowired
+  private com.fintechapp.fintech_api.repository.PendingClassificationHandoffRepository
+      pendingChoices;
+
+  private final UserRepository userRepository;
+  private final TransactionRepository transactionRepository;
+  private final BudgetRepository budgetRepository;
+  private final PlaidItemRepository plaidItemRepository;
+  private final PasswordResetTokenRepository passwordResetTokenRepository;
+  private final MonthlyIncomeService monthlyIncomeService;
+  private final IncomeCalculationService incomeCalculationService;
+  private final PasswordEncoder passwordEncoder;
+  private final CloudinaryService cloudinaryService;
+  private final UploadValidationService uploadValidationService;
+  private final ProfilePictureStore profilePictures;
+  private final ProfileImageCleanupJobs imageCleanup;
+  private final FinancialCacheInvalidator cacheInvalidator;
+  private final PlaidRevocationJobService revocations;
+
+  public UserService(
+      UserRepository userRepository,
+      TransactionRepository transactionRepository,
+      BudgetRepository budgetRepository,
+      PlaidItemRepository plaidItemRepository,
+      PasswordResetTokenRepository passwordResetTokenRepository,
+      MonthlyIncomeService monthlyIncomeService,
+      IncomeCalculationService incomeCalculationService,
+      PasswordEncoder passwordEncoder,
+      CloudinaryService cloudinaryService,
+      UploadValidationService uploadValidationService,
+      FinancialCacheInvalidator cacheInvalidator,
+      ProfilePictureStore profilePictures,
+      PlaidRevocationJobService revocations,
+      ProfileImageCleanupJobs imageCleanup) {
+    this.userRepository = userRepository;
+    this.transactionRepository = transactionRepository;
+    this.budgetRepository = budgetRepository;
+    this.plaidItemRepository = plaidItemRepository;
+    this.passwordResetTokenRepository = passwordResetTokenRepository;
+    this.monthlyIncomeService = monthlyIncomeService;
+    this.incomeCalculationService = incomeCalculationService;
+    this.passwordEncoder = passwordEncoder;
+    this.cloudinaryService = cloudinaryService;
+    this.uploadValidationService = uploadValidationService;
+    this.cacheInvalidator = cacheInvalidator;
+    this.profilePictures = profilePictures;
+    this.revocations = revocations;
+    this.imageCleanup = imageCleanup;
+  }
+
+  public UserDataResponse getCurrentUser(AuthenticatedUser authenticatedUser) {
+    User user = requireCurrentUser(authenticatedUser);
+    return new UserDataResponse(true, "Current user fetched successfully.", toUserSummary(user));
+  }
+
+  @Transactional(
+      readOnly = true,
+      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+  public UserDataResponse getMonthlyIncomeForMonth(
+      AuthenticatedUser authenticatedUser, String monthRaw, String yearRaw) {
+    User user = requireCurrentUser(authenticatedUser);
+
+    Integer month = parseInteger(monthRaw);
+    Integer year = parseInteger(yearRaw);
+    if (month == null || year == null || month < 0 || month > 11 || year <= 0) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Month and year query parameters are required");
     }
 
-    public UserDataResponse getCurrentUser(AuthenticatedUser authenticatedUser) {
-        User user = requireCurrentUser(authenticatedUser);
-        return new UserDataResponse(true, "Current user fetched successfully.", toUserSummary(user));
+    return new UserDataResponse(
+        true, "Monthly income fetched successfully.", toUserSummary(user, year, month));
+  }
+
+  @Transactional
+  public ApiMessageResponse deleteAccount(String userId, AuthenticatedUser authenticatedUser) {
+    requireSameUser(userId, authenticatedUser);
+    User existingUser =
+        userRepository
+            .findByIdForUpdate(userId)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+
+    // The outbox and local deletion commit together; never discard cleanup credentials.
+    plaidItemRepository.flush();
+    revocations.enqueueForUser(userId);
+    imageCleanup.enqueue(existingUser.getProfilePicPublicId());
+
+    if (pendingChoices != null) pendingChoices.deleteByUser_Id(userId);
+    if (ruleApplications != null) ruleApplications.deleteByUser_Id(userId);
+    if (categorizationRules != null) categorizationRules.deleteByUser_Id(userId);
+    transactionRepository.deleteByUser_Id(userId);
+    budgetRepository.deleteByUser_Id(userId);
+    passwordResetTokenRepository.deleteByUser_Id(userId);
+    plaidItemRepository.deleteByUser_Id(userId);
+    monthlyIncomeService.deleteByUserId(userId);
+    userRepository.delete(existingUser);
+
+    // Drop the deleted user's cached aggregates (hygiene; entries would
+    // otherwise only expire via TTL).
+    cacheInvalidator.evictFinancialSummaryRegion(userId);
+    cacheInvalidator.evictRecurringPayments(userId);
+
+    return new ApiMessageResponse(
+        true,
+        "User account deleted. Any pending bank revocations will continue in the background.");
+  }
+
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public ProfilePictureUploadResponse uploadProfilePicture(
+      String userId, MultipartFile file, AuthenticatedUser authenticatedUser) {
+    requireSameUser(userId, authenticatedUser);
+    uploadValidationService.validateProfilePicture(file);
+    if (!userRepository.existsById(userId)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.");
     }
 
-    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    public UserDataResponse getMonthlyIncomeForMonth(
-            AuthenticatedUser authenticatedUser,
-            String monthRaw,
-            String yearRaw) {
-        User user = requireCurrentUser(authenticatedUser);
+    CloudinaryService.UploadedImage uploaded = cloudinaryService.uploadProfileImage(file, userId);
+    User updated;
+    try {
+      // Reload and lock after upload; no pre-upload User snapshot is written back.
+      updated = profilePictures.replace(userId, uploaded.url(), uploaded.publicId());
+    } catch (RuntimeException failure) {
+      try {
+        imageCleanup.enqueueUnattached(uploaded.publicId());
+      } catch (RuntimeException cleanupFailure) {
+        failure.addSuppressed(cleanupFailure);
+        logger.error("Could not persist cleanup for a failed profile image attachment");
+      }
+      throw failure;
+    }
+    return new ProfilePictureUploadResponse(
+        true, "Profile picture uploaded successfully.", toProfilePictureUser(updated));
+  }
 
-        Integer month = parseInteger(monthRaw);
-        Integer year = parseInteger(yearRaw);
-        if (month == null || year == null || month < 0 || month > 11 || year <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month and year query parameters are required");
-        }
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  public UserDataResponse deleteProfilePicture(String userId, AuthenticatedUser authenticatedUser) {
+    requireSameUser(userId, authenticatedUser);
+    User updated = profilePictures.replace(userId, null, null);
+    return new UserDataResponse(true, "Profile picture deleted.", toUserSummary(updated));
+  }
 
-        return new UserDataResponse(
-                true,
-                "Monthly income fetched successfully.",
-                toUserSummary(user, year, month));
+  @Transactional
+  public ApiMessageResponse changePassword(
+      AuthenticatedUser authenticatedUser, ChangePasswordRequest request) {
+    // Serialize with recovery and login; recheck a token admitted before another password change.
+    User user = requireLockedCurrentUser(authenticatedUser);
+    if (authenticatedUser.sessionVersion() != user.getSessionVersion()) {
+      throw new com.fintechapp.fintech_api.security.TokenAuthenticationException(
+          HttpStatus.UNAUTHORIZED, "Session has been revoked. Please sign in again.");
     }
 
-    @Transactional
-    public ApiMessageResponse deleteAccount(String userId, AuthenticatedUser authenticatedUser) {
-        requireSameUser(userId, authenticatedUser);
-        User existingUser = userRepository.findByIdForUpdate(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
-
-        // The outbox and local deletion commit together; never discard cleanup credentials.
-        plaidItemRepository.flush();
-        revocations.enqueueForUser(userId);
-        imageCleanup.enqueue(existingUser.getProfilePicPublicId());
-
-        if (pendingChoices != null) pendingChoices.deleteByUser_Id(userId);
-        if (ruleApplications != null) ruleApplications.deleteByUser_Id(userId);
-        if (categorizationRules != null) categorizationRules.deleteByUser_Id(userId);
-        transactionRepository.deleteByUser_Id(userId);
-        budgetRepository.deleteByUser_Id(userId);
-        passwordResetTokenRepository.deleteByUser_Id(userId);
-        plaidItemRepository.deleteByUser_Id(userId);
-        monthlyIncomeService.deleteByUserId(userId);
-        userRepository.delete(existingUser);
-
-        // Drop the deleted user's cached aggregates (hygiene; entries would
-        // otherwise only expire via TTL).
-        cacheInvalidator.evictFinancialSummaryRegion(userId);
-        cacheInvalidator.evictRecurringPayments(userId);
-
-        return new ApiMessageResponse(true,
-                "User account deleted. Any pending bank revocations will continue in the background.");
+    if (request == null
+        || !StringUtils.hasText(request.currentPassword())
+        || !StringUtils.hasText(request.newPassword())
+        || !StringUtils.hasText(request.confirmPassword())) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "All password fields are required.");
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public ProfilePictureUploadResponse uploadProfilePicture(String userId, MultipartFile file,
-            AuthenticatedUser authenticatedUser) {
-        requireSameUser(userId, authenticatedUser);
-        uploadValidationService.validateProfilePicture(file);
-        if (!userRepository.existsById(userId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.");
-        }
-
-        CloudinaryService.UploadedImage uploaded = cloudinaryService.uploadProfileImage(file, userId);
-        User updated;
-        try {
-            // Reload and lock after upload; no pre-upload User snapshot is written back.
-            updated = profilePictures.replace(userId, uploaded.url(), uploaded.publicId());
-        } catch (RuntimeException failure) {
-            try {
-                imageCleanup.enqueueUnattached(uploaded.publicId());
-            } catch (RuntimeException cleanupFailure) {
-                failure.addSuppressed(cleanupFailure);
-                logger.error("Could not persist cleanup for a failed profile image attachment");
-            }
-            throw failure;
-        }
-        return new ProfilePictureUploadResponse(true, "Profile picture uploaded successfully.",
-                toProfilePictureUser(updated));
+    if (!request.newPassword().equals(request.confirmPassword())) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New passwords do not match.");
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public UserDataResponse deleteProfilePicture(String userId, AuthenticatedUser authenticatedUser) {
-        requireSameUser(userId, authenticatedUser);
-        User updated = profilePictures.replace(userId, null, null);
-        return new UserDataResponse(true, "Profile picture deleted.", toUserSummary(updated));
+    if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect.");
     }
 
-    @Transactional
-    public ApiMessageResponse changePassword(AuthenticatedUser authenticatedUser, ChangePasswordRequest request) {
-        // Serialize with recovery and login; recheck a token admitted before another password change.
-        User user = requireLockedCurrentUser(authenticatedUser);
-        if (authenticatedUser.sessionVersion() != user.getSessionVersion()) {
-            throw new com.fintechapp.fintech_api.security.TokenAuthenticationException(
-                    HttpStatus.UNAUTHORIZED, "Session has been revoked. Please sign in again.");
-        }
+    userRepository.replacePasswordAndRevokeSessions(
+        user.getId(), passwordEncoder.encode(request.newPassword()));
+    passwordResetTokenRepository.deleteByUser_Id(user.getId());
+    return new ApiMessageResponse(true, "Password changed successfully.");
+  }
 
-        if (request == null
-                || !StringUtils.hasText(request.currentPassword())
-                || !StringUtils.hasText(request.newPassword())
-                || !StringUtils.hasText(request.confirmPassword())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "All password fields are required.");
-        }
-
-        if (!request.newPassword().equals(request.confirmPassword())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New passwords do not match.");
-        }
-
-        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect.");
-        }
-
-        userRepository.replacePasswordAndRevokeSessions(user.getId(), passwordEncoder.encode(request.newPassword()));
-        passwordResetTokenRepository.deleteByUser_Id(user.getId());
-        return new ApiMessageResponse(true, "Password changed successfully.");
+  @Transactional
+  public UserDataResponse updateCurrency(
+      AuthenticatedUser authenticatedUser, UpdateCurrencyRequest request) {
+    // Share the financial writers' user-row lock before reading currency or checking state.
+    User user = requireLockedCurrentUser(authenticatedUser);
+    if (request == null || !StringUtils.hasText(request.currency())) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency code is required.");
     }
 
-    @Transactional
-    public UserDataResponse updateCurrency(AuthenticatedUser authenticatedUser, UpdateCurrencyRequest request) {
-        // Share the financial writers' user-row lock before reading currency or checking state.
-        User user = requireLockedCurrentUser(authenticatedUser);
-        if (request == null || !StringUtils.hasText(request.currency())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency code is required.");
-        }
-
-        String normalizedCurrency = request.currency().trim().toUpperCase(Locale.ROOT);
-        if (!normalizedCurrency.matches("^[A-Z]{3}$")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid currency code");
-        }
-
-        if (!normalizedCurrency.equals(user.getCurrency())) {
-            if (transactionRepository.existsByUser_Id(user.getId())
-                    || budgetRepository.existsByUser_Id(user.getId())
-                    || monthlyIncomeService.existsForUser(user.getId())) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Cannot change currency after financial data exists (transactions, budgets, or monthly income).");
-            }
-
-            user.setCurrency(normalizedCurrency);
-            User updatedUser = userRepository.save(user);
-
-            cacheInvalidator.evictFinancialSummaryRegion(user.getId());
-            cacheInvalidator.evictRecurringPayments(user.getId());
-
-            return new UserDataResponse(true, "Currency updated successfully.", toUserSummary(updatedUser));
-        }
-
-        return new UserDataResponse(true, "Currency updated successfully.", toUserSummary(user));
+    String normalizedCurrency = request.currency().trim().toUpperCase(Locale.ROOT);
+    if (!normalizedCurrency.matches("^[A-Z]{3}$")) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid currency code");
     }
 
-    @Transactional
-    public UserDataResponse updateMonthlyIncome(
-            AuthenticatedUser authenticatedUser,
-            UpdateMonthlyIncomeRequest request) {
-        User user = requireLockedCurrentUser(authenticatedUser);
-        if (request == null || request.monthlyIncome() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Monthly income is required.");
-        }
-
-        if (request.monthlyIncome() < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Monthly income must be a non-negative number.");
-        }
-
-        Integer month = request.month();
-        Integer year = request.year();
-        if (month == null || year == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month and year are required");
-        }
-
-        monthlyIncomeService.upsertForMonth(user, year, month, request.monthlyIncome());
-
-        // The income baseline feeds the summary of the target month and every
-        // later month ("latest monthStart <= target"), so evict the whole
-        // user's summary region rather than guessing the affected months.
-        cacheInvalidator.evictFinancialSummaryRegion(user.getId());
-
-        return new UserDataResponse(true, "Monthly income updated successfully.", toUserSummary(user, year, month));
+    if (applyCurrency(user, normalizedCurrency)) {
+      User updatedUser = userRepository.save(user);
+      cacheInvalidator.evictFinancialSummaryRegion(user.getId());
+      cacheInvalidator.evictRecurringPayments(user.getId());
+      return new UserDataResponse(
+          true, "Currency updated successfully.", toUserSummary(updatedUser));
     }
 
-    private User requireLockedCurrentUser(AuthenticatedUser authenticatedUser) {
-        if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
-        }
-        return userRepository.findByIdForUpdate(authenticatedUser.userId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+    return new UserDataResponse(true, "Currency updated successfully.", toUserSummary(user));
+  }
+
+  @Transactional
+  public UserDataResponse completeSetup(
+      AuthenticatedUser authenticatedUser, CompleteSetupRequest request) {
+    User user = requireLockedCurrentUser(authenticatedUser);
+    if (user.isSetupComplete()) {
+      // A retry after a committed request or on a second device returns the saved profile.
+      return new UserDataResponse(true, "Account setup is complete.", toUserSummary(user));
     }
 
-    private User requireCurrentUser(AuthenticatedUser authenticatedUser) {
-        if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
-        }
-
-        return userRepository.findById(authenticatedUser.userId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+    double income = request.monthlyIncome().doubleValue();
+    if (!Double.isFinite(income) || income < 0) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Monthly income must be a non-negative number.");
     }
 
-    private void requireSameUser(String userId, AuthenticatedUser authenticatedUser) {
-        if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
-        }
-
-        if (!authenticatedUser.userId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
-        }
+    String currency = request.currency().toUpperCase(Locale.ROOT);
+    try {
+      Currency.getInstance(currency);
+    } catch (IllegalArgumentException ex) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid currency code");
     }
 
-    private UserSummaryResponse toUserSummary(User user) {
-        LocalDate utcNow = LocalDate.now(ZoneOffset.UTC);
-        return toUserSummary(user, utcNow.getYear(), utcNow.getMonthValue() - 1);
+    applyCurrency(user, currency);
+    LocalDate utcNow = LocalDate.now(ZoneOffset.UTC);
+    int year = utcNow.getYear();
+    int month = utcNow.getMonthValue() - 1;
+    monthlyIncomeService.upsertForMonth(user, year, month, income);
+    user.setSetupComplete(true);
+    cacheInvalidator.evictFinancialDataAfterCommit(user.getId());
+    return new UserDataResponse(
+        true, "Account setup is complete.", toUserSummary(user, year, month));
+  }
+
+  private boolean applyCurrency(User user, String currency) {
+    if (currency.equals(user.getCurrency())) return false;
+    if (transactionRepository.existsByUser_Id(user.getId())
+        || budgetRepository.existsByUser_Id(user.getId())
+        || monthlyIncomeService.existsForUser(user.getId())) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Cannot change currency after financial data exists (transactions, budgets, or monthly"
+              + " income).");
+    }
+    user.setCurrency(currency);
+    return true;
+  }
+
+  @Transactional
+  public UserDataResponse updateMonthlyIncome(
+      AuthenticatedUser authenticatedUser, UpdateMonthlyIncomeRequest request) {
+    User user = requireLockedCurrentUser(authenticatedUser);
+    if (request == null || request.monthlyIncome() == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Monthly income is required.");
     }
 
-    private UserSummaryResponse toUserSummary(User user, int year, int month) {
-        double expectedIncome = incomeCalculationService.resolveExpectedForMonth(user, year, month);
-        double actualIncome = incomeCalculationService.resolveActualForMonth(user, year, month);
-        return new UserSummaryResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getProfilePic(),
-                user.getCurrency(),
-                expectedIncome,
-                actualIncome,
-                user.getCreatedAt(),
-                user.getUpdatedAt());
+    if (request.monthlyIncome() < 0) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Monthly income must be a non-negative number.");
     }
 
-    private Integer parseInteger(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return null;
-        }
-
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
+    Integer month = request.month();
+    Integer year = request.year();
+    if (month == null || year == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month and year are required");
     }
 
-    private ProfilePictureUserResponse toProfilePictureUser(User user) {
-        return new ProfilePictureUserResponse(
-                user.getId(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getProfilePic(),
-                user.getCreatedAt(),
-                user.getUpdatedAt());
+    monthlyIncomeService.upsertForMonth(user, year, month, request.monthlyIncome());
+
+    // The income baseline feeds the summary of the target month and every
+    // later month ("latest monthStart <= target"), so evict the whole
+    // user's summary region rather than guessing the affected months.
+    cacheInvalidator.evictFinancialSummaryRegion(user.getId());
+
+    return new UserDataResponse(
+        true, "Monthly income updated successfully.", toUserSummary(user, year, month));
+  }
+
+  private User requireLockedCurrentUser(AuthenticatedUser authenticatedUser) {
+    if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+    }
+    return userRepository
+        .findByIdForUpdate(authenticatedUser.userId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+  }
+
+  private User requireCurrentUser(AuthenticatedUser authenticatedUser) {
+    if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
     }
 
+    return userRepository
+        .findById(authenticatedUser.userId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+  }
+
+  private void requireSameUser(String userId, AuthenticatedUser authenticatedUser) {
+    if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+    }
+
+    if (!authenticatedUser.userId().equals(userId)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
+    }
+  }
+
+  private UserSummaryResponse toUserSummary(User user) {
+    LocalDate utcNow = LocalDate.now(ZoneOffset.UTC);
+    return toUserSummary(user, utcNow.getYear(), utcNow.getMonthValue() - 1);
+  }
+
+  private UserSummaryResponse toUserSummary(User user, int year, int month) {
+    double expectedIncome = incomeCalculationService.resolveExpectedForMonth(user, year, month);
+    double actualIncome = incomeCalculationService.resolveActualForMonth(user, year, month);
+    return new UserSummaryResponse(
+        user.getId(),
+        user.getUsername(),
+        user.getEmail(),
+        user.getProfilePic(),
+        user.getCurrency(),
+        user.isSetupComplete(),
+        expectedIncome,
+        actualIncome,
+        user.getCreatedAt(),
+        user.getUpdatedAt());
+  }
+
+  private Integer parseInteger(String raw) {
+    if (!StringUtils.hasText(raw)) {
+      return null;
+    }
+
+    try {
+      return Integer.parseInt(raw.trim());
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
+  }
+
+  private ProfilePictureUserResponse toProfilePictureUser(User user) {
+    return new ProfilePictureUserResponse(
+        user.getId(),
+        user.getUsername(),
+        user.getEmail(),
+        user.getProfilePic(),
+        user.getCreatedAt(),
+        user.getUpdatedAt());
+  }
 }

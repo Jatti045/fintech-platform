@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fundleaf",
     "slug": "budgee-app",
-    "version": "4.1",
+    "version": "4.2",
     "description": "Open-source personal finance and budgeting application",
     "orientation": "portrait",
     "privacy": "public",
@@ -37,7 +37,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.budgee.finance",
-      "versionCode": 73,
+      "versionCode": 74,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",

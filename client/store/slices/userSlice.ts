@@ -1,7 +1,11 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import { userAPI } from "@/api/user";
+import { api } from "@/store/api/apiSlice";
+import { clearRatesCache } from "@/utils/currencyConverter";
+import { sessionGeneration } from "@/utils/session";
 import { extractErrorMessage } from "@/utils/extractErrorMessage";
 import type {
+  AccountSetupInput,
   ILoginData,
   ISignupData,
   IUser,
@@ -90,6 +94,30 @@ export const loadUserFromStorage = createAsyncThunk(
       return rejectWithValue(
         extractErrorMessage(error, "Failed to load user data"),
       );
+    }
+  },
+);
+
+export const refreshAccountProfile = createAsyncThunk(
+  "user/refreshAccountProfile",
+  async () => userAPI.refreshAccountProfile(),
+);
+
+export const completeAccountSetup = createAsyncThunk(
+  "user/completeAccountSetup",
+  async (payload: AccountSetupInput, { dispatch, rejectWithValue }) => {
+    const generation = sessionGeneration();
+    try {
+      const user = await userAPI.completeAccountSetup(payload, generation);
+      if (generation !== sessionGeneration()) {
+        return rejectWithValue("Your session changed. Please sign in again.");
+      }
+
+      clearRatesCache();
+      dispatch(api.util.resetApiState());
+      return user;
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error, "Could not save setup. Please try again."));
     }
   },
 );
@@ -340,6 +368,12 @@ const userSlice = createSlice({
         state.error = action.payload as string;
       })
 
+      .addCase(refreshAccountProfile.fulfilled, (state, action) => {
+        if (state.user?.id === action.payload.id) state.user = action.payload;
+      })
+      .addCase(completeAccountSetup.fulfilled, (state, action) => {
+        if (state.user?.id === action.payload.id) state.user = action.payload;
+      })
       .addCase(deleteUserAccount.pending, (state) => {
         state.isLoading = true;
       })

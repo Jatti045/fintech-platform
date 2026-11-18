@@ -64,6 +64,7 @@ export default function ProfileScreen() {
     handleToggleBillReminders,
     openNotificationSettings,
     linking,
+    canConnectBank,
     handleLinkBank,
     plaidItems,
     loadingItems,
@@ -148,6 +149,7 @@ export default function ProfileScreen() {
           <BankConnections
             THEME={THEME}
             linking={linking}
+            canConnectBank={canConnectBank}
             onLinkBank={handleLinkBank}
             items={plaidItems}
             loadingItems={loadingItems}

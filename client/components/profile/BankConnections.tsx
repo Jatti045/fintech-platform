@@ -14,6 +14,7 @@ import type { IPlaidItem } from "@/types/plaid/types";
 
 export default function BankConnections({
   THEME: propTheme,
+  canConnectBank,
   linking,
   onLinkBank,
   items,
@@ -25,6 +26,7 @@ export default function BankConnections({
 }: BankConnectionsProps) {
   const { THEME: reduxTheme } = useTheme();
   const theme = propTheme || reduxTheme;
+  const Header = canConnectBank ? TouchableOpacity : View;
   const displayName = (name: string | null) => name || "Bank account";
   const { syncingItemIds, retrySync } =
     usePlaidHealth();
@@ -89,12 +91,14 @@ export default function BankConnections({
       }}
     >
       {/* ── Row 1: Bank Connections Header ────────────────────────────── */}
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={onLinkBank}
-        disabled={linking}
-        accessibilityRole="button"
-        accessibilityLabel="Connect a bank account"
+      <Header
+        {...(canConnectBank ? {
+          activeOpacity: 0.7,
+          onPress: onLinkBank,
+          disabled: linking,
+          accessibilityRole: "button" as const,
+          accessibilityLabel: "Connect a bank account",
+        } : {})}
         style={{ flexDirection: "row", alignItems: "center", minHeight: 48 }}
       >
         <View
@@ -123,14 +127,16 @@ export default function BankConnections({
           >
             Bank Connections
           </Text>
-          <Text
-            style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}
-          >
-            Auto-sync your transactions securely
-          </Text>
+          {canConnectBank && (
+            <Text
+              style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}
+            >
+              Auto-sync your transactions securely
+            </Text>
+          )}
         </View>
 
-        {linking ? (
+        {canConnectBank && (linking ? (
           <ActivityIndicator size="small" color={theme.primary} />
         ) : (
           <Ionicons
@@ -138,8 +144,8 @@ export default function BankConnections({
             size={18}
             color={theme.textSecondary}
           />
-        )}
-      </TouchableOpacity>
+        ))}
+      </Header>
 
       {itemsError ? <View style={{ marginTop: 16, gap: 8 }}>
         <Text accessibilityLiveRegion="polite" style={{ color: theme.danger }}>Could not refresh bank connections. Existing connections may be out of date.</Text>
@@ -301,7 +307,9 @@ export default function BankConnections({
               lineHeight: 16,
             }}
           >
-            No banks connected yet — tap above to link your first account.
+            {canConnectBank
+              ? "No banks connected yet — tap above to link your first account."
+              : "No banks connected."}
           </Text>
         </View>
       )}

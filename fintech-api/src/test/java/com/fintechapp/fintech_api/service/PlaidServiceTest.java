@@ -11,11 +11,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fintechapp.fintech_api.config.PlaidConfig.PlaidSettings;
+import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
+import com.fintechapp.fintech_api.model.PlaidItem;
+import com.fintechapp.fintech_api.model.User;
+import com.fintechapp.fintech_api.repository.PlaidItemRepository;
+import com.fintechapp.fintech_api.repository.UserRepository;
+import com.fintechapp.fintech_api.service.PlaidTransactionIngestService.PlaidTransaction;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,556 +34,583 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
-
-import com.fintechapp.fintech_api.config.PlaidConfig.PlaidSettings;
-import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
-import com.fintechapp.fintech_api.model.PlaidItem;
-import com.fintechapp.fintech_api.model.User;
-import com.fintechapp.fintech_api.service.FinancialCacheInvalidator;
-import com.fintechapp.fintech_api.repository.PlaidItemRepository;
-import com.fintechapp.fintech_api.repository.UserRepository;
-import com.fintechapp.fintech_api.service.PlaidTransactionIngestService.PlaidTransaction;
-
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Verifies the production classification wiring: a raw Plaid
- * /transactions/sync payload is mapped by {@link PlaidService} through
- * {@link PlaidTransferDetector} into {@link PlaidTransaction} records whose
- * {@code transfer} flag is correct before it reaches the persistence layer.
+ * Verifies the production classification wiring: a raw Plaid /transactions/sync payload is mapped
+ * by {@link PlaidService} through {@link PlaidTransferDetector} into {@link PlaidTransaction}
+ * records whose {@code transfer} flag is correct before it reaches the persistence layer.
  *
- * <p>This is the layer the payroll bug lived in: the detector result must flow
- * into the stored {@code is_transfer} value unchanged.</p>
+ * <p>This is the layer the payroll bug lived in: the detector result must flow into the stored
+ * {@code is_transfer} value unchanged.
  */
 @ExtendWith(MockitoExtension.class)
 class PlaidServiceTest {
 
-    private static final String ACCESS_TOKEN = "access-token-1";
+  private static final String ACCESS_TOKEN = "access-token-1";
 
-    private final ObjectMapper mapper = new ObjectMapper();
+  private final ObjectMapper mapper = new ObjectMapper();
 
-    @Mock
-    private RestClient plaidRestClient;
+  @Mock private RestClient plaidRestClient;
 
-    @Mock
-    private EncryptionService encryptionService;
+  @Mock private EncryptionService encryptionService;
 
-    @Mock
-    private PlaidItemRepository plaidItemRepository;
+  @Mock private PlaidItemRepository plaidItemRepository;
 
-    @Mock
-    private UserRepository userRepository;
+  @Mock private UserRepository userRepository;
 
-    @Mock
-    private PlaidTransactionIngestService ingestService;
+  @Mock private PlaidTransactionIngestService ingestService;
 
-    @Mock
-    private FinancialCacheInvalidator cacheInvalidator;
+  @Mock private FinancialCacheInvalidator cacheInvalidator;
 
-    @Mock
-    private InternalTransferReconciliationService transferReconciliation;
+  @Mock private InternalTransferReconciliationService transferReconciliation;
 
-    private PlaidService service;
-    private User user;
-    private PlaidItem item;
+  private PlaidService service;
+  private User user;
+  private PlaidItem item;
 
-    @BeforeEach
-    void setUp() {
-        PlaidSettings settings = new PlaidSettings(
-                "client-id", "secret", "https://sandbox.plaid.com", "https://example.com/webhook",
-                List.of("US"), "en");
-        service = new PlaidService(
-                plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService,
-                cacheInvalidator, transferReconciliation, mock(PlaidRevocationJobService.class));
+  @BeforeEach
+  void setUp() {
+    PlaidSettings settings =
+        new PlaidSettings(
+            "client-id",
+            "secret",
+            "https://sandbox.plaid.com",
+            "https://example.com/webhook",
+            List.of("US"),
+            "en",
+            null);
+    service =
+        new PlaidService(
+            plaidRestClient,
+            settings,
+            encryptionService,
+            plaidItemRepository,
+            userRepository,
+            ingestService,
+            cacheInvalidator,
+            transferReconciliation,
+            mock(PlaidRevocationJobService.class));
 
-        user = new User();
-        user.setId("user-1");
-        user.setCurrency("USD");
+    user = new User();
+    user.setId("user-1");
+    user.setCurrency("USD");
 
-        item = new PlaidItem();
-        item.setItemId("item-1");
-        item.setSyncLockToken("lease-1");
-        item.setSyncLockExpiresAt(java.time.Instant.now().plusSeconds(300));
-        item.setAccessTokenEncrypted("encrypted");
-        item.setCursor(null);
-        item.setUser(user);
-    }
+    item = new PlaidItem();
+    item.setItemId("item-1");
+    item.setSyncLockToken("lease-1");
+    item.setSyncLockExpiresAt(java.time.Instant.now().plusSeconds(300));
+    item.setAccessTokenEncrypted("encrypted");
+    item.setCursor(null);
+    item.setUser(user);
+  }
 
-    @Test
-    void syncPageReconcilesOnceAfterAllMutations_andRetainsPendingMetadata() throws Exception {
-        stubSyncPage(mapper.readTree("""
+  @Test
+  void syncPageReconcilesOnceAfterAllMutations_andRetainsPendingMetadata() throws Exception {
+    stubSyncPage(
+        mapper.readTree(
+            """
             {"added":[{"transaction_id":"posted","account_id":"a","amount":5,"date":"2026-03-15",
               "pending":false,"pending_transaction_id":"pending"}],
              "modified":[{"transaction_id":"changed","amount":6,"date":"2026-03-16","pending":true}],
              "removed":[{"transaction_id":"pending"}],"next_cursor":"next","has_more":false}
             """));
-        service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
-        var order = org.mockito.Mockito.inOrder(transferReconciliation, ingestService);
-        order.verify(transferReconciliation).lockUser("user-1");
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<PlaidTransaction>> added = ArgumentCaptor.forClass(List.class);
-        order.verify(ingestService).upsertAddedBatch(any(User.class), added.capture());
-        order.verify(ingestService).upsertTransaction(any(User.class), any(PlaidTransaction.class));
-        order.verify(ingestService).removeByPlaidIds(List.of("pending"), "user-1");
-        order.verify(transferReconciliation).reconcile("user-1");
-        verify(transferReconciliation, org.mockito.Mockito.times(1)).reconcile("user-1");
-        assertEquals(false, added.getValue().get(0).pending());
-        assertEquals("pending", added.getValue().get(0).pendingTransactionId());
-        assertEquals(java.time.LocalDate.of(2026, 3, 15), added.getValue().get(0).postedDate());
-        verify(cacheInvalidator).evictFinancialDataAfterCommit("user-1");
-    }
+    service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
+    var order = org.mockito.Mockito.inOrder(transferReconciliation, ingestService);
+    order.verify(transferReconciliation).lockUser("user-1");
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<PlaidTransaction>> added = ArgumentCaptor.forClass(List.class);
+    order.verify(ingestService).upsertAddedBatch(any(User.class), added.capture());
+    order.verify(ingestService).upsertTransaction(any(User.class), any(PlaidTransaction.class));
+    order.verify(ingestService).removeByPlaidIds(List.of("pending"), "user-1");
+    order.verify(transferReconciliation).reconcile("user-1");
+    verify(transferReconciliation, org.mockito.Mockito.times(1)).reconcile("user-1");
+    assertEquals(false, added.getValue().get(0).pending());
+    assertEquals("pending", added.getValue().get(0).pendingTransactionId());
+    assertEquals(java.time.LocalDate.of(2026, 3, 15), added.getValue().get(0).postedDate());
+    verify(cacheInvalidator).evictFinancialDataAfterCommit("user-1");
+  }
 
-    @Test
-    void staleCursorIsRejectedBeforeAnyMutationOrCacheInvalidation() throws Exception {
-        stubSyncPage(mapper.readTree("""
-                {"added":[{"transaction_id":"ghost","amount":99,"date":"2026-10-01"}],
-                 "modified":[],"removed":[],"next_cursor":"C1","has_more":false}
-                """));
-        PlaidItem current = new PlaidItem();
-        current.setCursor("C2");
-        current.setSyncLockToken("lease-1");
-        current.setSyncLockExpiresAt(java.time.Instant.now().plusSeconds(300));
-        when(plaidItemRepository.findByItemIdForUpdate("item-1")).thenReturn(Optional.of(current));
+  @Test
+  void staleCursorIsRejectedBeforeAnyMutationOrCacheInvalidation() throws Exception {
+    stubSyncPage(
+        mapper.readTree(
+            """
+            {"added":[{"transaction_id":"ghost","amount":99,"date":"2026-10-01"}],
+             "modified":[],"removed":[],"next_cursor":"C1","has_more":false}
+            """));
+    PlaidItem current = new PlaidItem();
+    current.setCursor("C2");
+    current.setSyncLockToken("lease-1");
+    current.setSyncLockExpiresAt(java.time.Instant.now().plusSeconds(300));
+    when(plaidItemRepository.findByItemIdForUpdate("item-1")).thenReturn(Optional.of(current));
 
-        assertThrows(StalePlaidSyncPageException.class,
-                () -> service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
+    assertThrows(
+        StalePlaidSyncPageException.class,
+        () -> service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
 
-        verify(ingestService, org.mockito.Mockito.never()).upsertAddedBatch(any(), any());
-        verify(ingestService, org.mockito.Mockito.never()).upsertTransaction(any(), any());
-        org.mockito.Mockito.verifyNoInteractions(cacheInvalidator);
-        verify(transferReconciliation, org.mockito.Mockito.never()).reconcile(any());
-        verify(plaidItemRepository, org.mockito.Mockito.never()).save(any());
-        assertEquals("C2", current.getCursor());
-    }
+    verify(ingestService, org.mockito.Mockito.never()).upsertAddedBatch(any(), any());
+    verify(ingestService, org.mockito.Mockito.never()).upsertTransaction(any(), any());
+    org.mockito.Mockito.verifyNoInteractions(cacheInvalidator);
+    verify(transferReconciliation, org.mockito.Mockito.never()).reconcile(any());
+    verify(plaidItemRepository, org.mockito.Mockito.never()).save(any());
+    assertEquals("C2", current.getCursor());
+  }
 
-    @Test
-    void refundCodeSurvivesMappingAndFinancialCachesAreInvalidated() throws Exception {
-        stubSyncPage(mapper.readTree("""
-                {"added":[{"transaction_id":"refund","merchant_name":"Merchant","name":"Card credit",
-                  "amount":-40,"date":"2026-10-15","transaction_code":"refund"}],
-                 "modified":[],"removed":[],"next_cursor":"C1","has_more":false}
-                """));
-        service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<PlaidTransaction>> captured = ArgumentCaptor.forClass(List.class);
-        verify(ingestService).upsertAddedBatch(any(), captured.capture());
-        assertEquals("refund", captured.getValue().get(0).transactionCode());
-        assertTrue(PlaidRefundDetector.isRefund(captured.getValue().get(0)));
-        verify(cacheInvalidator).evictFinancialDataAfterCommit("user-1");
-    }
+  @Test
+  void refundCodeSurvivesMappingAndFinancialCachesAreInvalidated() throws Exception {
+    stubSyncPage(
+        mapper.readTree(
+            """
+            {"added":[{"transaction_id":"refund","merchant_name":"Merchant","name":"Card credit",
+              "amount":-40,"date":"2026-10-15","transaction_code":"refund"}],
+             "modified":[],"removed":[],"next_cursor":"C1","has_more":false}
+            """));
+    service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<PlaidTransaction>> captured = ArgumentCaptor.forClass(List.class);
+    verify(ingestService).upsertAddedBatch(any(), captured.capture());
+    assertEquals("refund", captured.getValue().get(0).transactionCode());
+    assertTrue(PlaidRefundDetector.isRefund(captured.getValue().get(0)));
+    verify(cacheInvalidator).evictFinancialDataAfterCommit("user-1");
+  }
 
-    private void stubSyncPage(JsonNode payload) {
-        RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
-        RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);
-        RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
+  private void stubSyncPage(JsonNode payload) {
+    RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
+    RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);
+    RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
 
-        when(plaidRestClient.post()).thenReturn(postSpec);
-        when(postSpec.uri(anyString())).thenReturn(bodySpec);
-        when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
-        // `body(Object)` is overloaded with `body(StreamingHttpOutputMessage.Body)`;
-        // typing the matcher as Object targets the plain Map overload used here.
-        when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
-        when(bodySpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(JsonNode.class)).thenReturn(payload);
+    when(plaidRestClient.post()).thenReturn(postSpec);
+    when(postSpec.uri(anyString())).thenReturn(bodySpec);
+    when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
+    // `body(Object)` is overloaded with `body(StreamingHttpOutputMessage.Body)`;
+    // typing the matcher as Object targets the plain Map overload used here.
+    when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
+    when(bodySpec.retrieve()).thenReturn(responseSpec);
+    when(responseSpec.body(JsonNode.class)).thenReturn(payload);
 
-        when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
-        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
-        when(plaidItemRepository.findByItemIdForUpdate("item-1")).thenReturn(Optional.of(item));
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
-    }
+    when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
+    when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
+    when(plaidItemRepository.findByItemIdForUpdate("item-1")).thenReturn(Optional.of(item));
+    when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+  }
 
-    /** Stubs the Plaid HTTP call to throw a Plaid error response (non-2xx status). */
-    private void stubSyncPageError(String errorBody) {
-        RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
-        RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);
-        RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
+  /** Stubs the Plaid HTTP call to throw a Plaid error response (non-2xx status). */
+  private void stubSyncPageError(String errorBody) {
+    RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
+    RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);
+    RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
 
-        when(plaidRestClient.post()).thenReturn(postSpec);
-        when(postSpec.uri(anyString())).thenReturn(bodySpec);
-        when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
-        when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
-        when(bodySpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(JsonNode.class)).thenThrow(new RestClientResponseException(
-                "400 Bad Request", 400, "Bad Request", HttpHeaders.EMPTY,
-                errorBody.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
+    when(plaidRestClient.post()).thenReturn(postSpec);
+    when(postSpec.uri(anyString())).thenReturn(bodySpec);
+    when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
+    when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
+    when(bodySpec.retrieve()).thenReturn(responseSpec);
+    when(responseSpec.body(JsonNode.class))
+        .thenThrow(
+            new RestClientResponseException(
+                "400 Bad Request",
+                400,
+                "Bad Request",
+                HttpHeaders.EMPTY,
+                errorBody.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8));
 
-        when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
-        when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
-        // userRepository.findById is intentionally NOT stubbed: the post() call
-        // throws before the user lookup runs on the error path.
-    }
+    when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
+    when(plaidItemRepository.findByItemId("item-1")).thenReturn(Optional.of(item));
+    // userRepository.findById is intentionally NOT stubbed: the post() call
+    // throws before the user lookup runs on the error path.
+  }
 
-    private JsonNode json(String raw) throws Exception {
-        return mapper.readTree(raw);
-    }
+  private JsonNode json(String raw) throws Exception {
+    return mapper.readTree(raw);
+  }
 
-    @Test
-    void syncPage_categorySignalsDoNotProveTransfer_forAnyTransaction() throws Exception {
-        JsonNode payload = json("""
+  @Test
+  void syncPage_categorySignalsDoNotProveTransfer_forAnyTransaction() throws Exception {
+    JsonNode payload =
+        json(
+            """
+            {
+              "added": [
                 {
-                  "added": [
-                    {
-                      "transaction_id": "pay-1",
-                      "name": "ACME CORP PAYROLL",
-                      "amount": -2500.0,
-                      "date": "2026-01-10",
-                      "account_id": "account-123",
-                      "personal_finance_category": {
-                        "primary": "INCOME",
-                        "detailed": "INCOME_PAYROLL",
-                        "subcategory": "INCOME_PAYROLL" },
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "pay-2",
-                      "name": "ACME CORP",
-                      "description": "PAYROLL DEPOSIT",
-                      "amount": -2000.0,
-                      "date": "2026-01-11",
-                      "personal_finance_category": { "primary": "TRANSFER_IN" },
-                      "category": ["Transfer", "Deposit"],
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "tr-1",
-                      "name": "Checking to Savings",
-                      "amount": 1000.0,
-                      "date": "2026-01-12",
-                      "account_id": "checking-123",
-                      "personal_finance_category": { "primary": "TRANSFER_OUT" },
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "tr-2",
-                      "name": "Transfer from Checking",
-                      "amount": -1000.0,
-                      "date": "2026-01-12",
-                      "account_id": "savings-123",
-                      "personal_finance_category": { "primary": "TRANSFER_IN" },
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "cc-1",
-                      "name": "PAYMENT THANK YOU / PAIEMENT T MERCI",
-                      "amount": -500.0,
-                      "date": "2026-01-13",
-                      "personal_finance_category": {
-                        "primary": "LOAN_PAYMENTS",
-                        "detailed": "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT" },
-                      "category": ["Payment", "Credit Card"],
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "buy-1",
-                      "name": "STARBUCKS",
-                      "amount": 5.0,
-                      "date": "2026-01-14",
-                      "personal_finance_category": {
-                        "primary": "FOOD_AND_DRINK",
-                        "detailed": "FOOD_AND_DRINK_COFFEE" },
-                      "iso_currency_code": "USD"
-                    }
-                  ],
-                  "modified": [],
-                  "removed": [],
-                  "next_cursor": "cursor-1",
-                  "has_more": false
-                }
-                """);
-        stubSyncPage(payload);
-
-        service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
-        verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
-        List<PlaidTransaction> added = addedCaptor.getValue();
-        assertEquals(6, added.size());
-
-        // TEST 1 — PAYROLL: PFC detailed contains PAYROLL → never a transfer.
-        assertFalse(txById(added, "pay-1").transfer());
-
-        // TEST 2 — PAYROLL DEPOSIT DESCRIPTION → never a transfer, even when
-        // Plaid categorized the deposit as TRANSFER_IN / legacy Transfer.
-        assertFalse(txById(added, "pay-2").transfer());
-
-        // TEST 3 — TRANSFER_OUT/IN pair: the strict rule requires proving both
-        // accounts belong to the same user at the same institution, which the
-        // app cannot do from category data → safe default (not a transfer).
-        assertFalse(txById(added, "tr-1").transfer());
-        assertFalse(txById(added, "tr-2").transfer());
-
-        // TEST 4 — CREDIT CARD PAYMENT: same-institution ownership cannot be
-        // proven → never classified as a transfer by the detector.
-        assertFalse(txById(added, "cc-1").transfer());
-
-        // TEST 5 — REAL EXPENSE (ordinary purchase) → not a transfer.
-        assertFalse(txById(added, "buy-1").transfer());
-
-        // The Plaid account_id and item_id are captured from the raw payload and
-        // threaded into the ingest record (item-1 comes from the synced item).
-        assertEquals("account-123", txById(added, "pay-1").plaidAccountId());
-        assertEquals("item-1", txById(added, "pay-1").plaidItemId());
-        assertEquals("checking-123", txById(added, "tr-1").plaidAccountId());
-        assertEquals("savings-123", txById(added, "tr-2").plaidAccountId());
-        assertNotEquals(txById(added, "tr-1").plaidAccountId(), txById(added, "tr-2").plaidAccountId());
-        assertEquals("item-1", txById(added, "tr-1").plaidItemId());
-
-        // The next_cursor is committed.
-        assertEquals("cursor-1", item.getCursor());
-    }
-
-    @Test
-    void syncPage_refundIsNeverATransfer() throws Exception {
-        JsonNode payload = json("""
+                  "transaction_id": "pay-1",
+                  "name": "ACME CORP PAYROLL",
+                  "amount": -2500.0,
+                  "date": "2026-01-10",
+                  "account_id": "account-123",
+                  "personal_finance_category": {
+                    "primary": "INCOME",
+                    "detailed": "INCOME_PAYROLL",
+                    "subcategory": "INCOME_PAYROLL" },
+                  "iso_currency_code": "USD"
+                },
                 {
-                  "added": [
-                    {
-                      "transaction_id": "ref-1",
-                      "name": "REFUND STARBUCKS",
-                      "amount": -12.0,
-                      "date": "2026-01-14",
-                      "personal_finance_category": { "primary": "TRANSFER_IN" },
-                      "category": ["Transfer", "Deposit", "Refund"],
-                      "iso_currency_code": "USD"
-                    }
-                  ],
-                  "modified": [],
-                  "removed": [],
-                  "next_cursor": "cursor-2",
-                  "has_more": false
-                }
-                """);
-        stubSyncPage(payload);
-
-        service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
-        verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
-        // TEST 6 — REFUND → not a transfer.
-        assertFalse(txById(addedCaptor.getValue(), "ref-1").transfer());
-    }
-
-    @Test
-    void syncPage_ppdIdPayrollTransferPayrollCashDepositAndCardPurchase() throws Exception {
-        // Production patterns from the confirmed bugs, run through the real
-        // PlaidService mapping path.
-        JsonNode payload = json("""
+                  "transaction_id": "pay-2",
+                  "name": "ACME CORP",
+                  "description": "PAYROLL DEPOSIT",
+                  "amount": -2000.0,
+                  "date": "2026-01-11",
+                  "personal_finance_category": { "primary": "TRANSFER_IN" },
+                  "category": ["Transfer", "Deposit"],
+                  "iso_currency_code": "USD"
+                },
                 {
-                  "added": [
-                    {
-                      "transaction_id": "pay-ppd",
-                      "name": "Sweetgreen",
-                      "description": "SWEETGREEN INC PAYROLL PPD ID",
-                      "amount": -800.0,
-                      "date": "2026-02-01",
-                      "personal_finance_category": { "primary": "TRANSFER_IN" },
-                      "category": ["Transfer", "Deposit"],
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "pay-transfer",
-                      "name": "ACME PAYROLL",
-                      "description": "ACME CORP",
-                      "amount": -2000.0,
-                      "date": "2026-02-01",
-                      "personal_finance_category": {
-                        "primary": "TRANSFER_IN",
-                        "detailed": "TRANSFER_PAYROLL",
-                        "subcategory": "TRANSFER_PAYROLL" },
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "cash-1",
-                      "name": "CASH DEPOSIT",
-                      "description": "CASH DEPOSIT ATM 1234",
-                      "amount": -500.0,
-                      "date": "2026-02-02",
-                      "personal_finance_category": { "primary": "TRANSFER_IN" },
-                      "category": ["Transfer", "Deposit"],
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "netflix-1",
-                      "name": "Netflix",
-                      "amount": 15.99,
-                      "date": "2026-02-03",
-                      "personal_finance_category": {
-                        "primary": "ENTERTAINMENT",
-                        "detailed": "ENTERTAINMENT_MEDIA_AND_STREAMING" },
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "cc-mobile",
-                      "name": "VISA PAYMENT",
-                      "description": "Payment Thank You-Mobile",
-                      "amount": 350.0,
-                      "date": "2026-02-04",
-                      "personal_finance_category": {
-                        "primary": "LOAN_PAYMENTS",
-                        "detailed": "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT" },
-                      "iso_currency_code": "USD"
-                    }
-                  ],
-                  "modified": [],
-                  "removed": [],
-                  "next_cursor": "cursor-3",
-                  "has_more": false
-                }
-                """);
-        stubSyncPage(payload);
-
-        service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
-        verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
-        List<PlaidTransaction> added = addedCaptor.getValue();
-        assertEquals(5, added.size());
-
-        // TEST 3 — PAYROLL BY PPD ID → income, never a transfer.
-        assertFalse(txById(added, "pay-ppd").transfer());
-        // TEST 1 — PAYROLL BY DETAILED TRANSFER_PAYROLL → income, never a transfer.
-        assertFalse(txById(added, "pay-transfer").transfer());
-        // BUG 4 — CASH DEPOSIT under a TRANSFER_IN umbrella → not a transfer.
-        assertFalse(txById(added, "cash-1").transfer());
-        // TEST 6 / BUG 3 — Netflix subscription → a real expense, not a transfer.
-        assertFalse(txById(added, "netflix-1").transfer());
-        // CREDIT CARD PAYMENT by detailed + mobile descriptor → NOT a transfer:
-        // same-institution ownership cannot be proven from category data.
-        assertFalse(txById(added, "cc-mobile").transfer());
-    }
-
-    @Test
-    void syncPage_plaidIncPayrollRegSalary_isIncomeNotTransfer() throws Exception {
-        // Exact confirmed production case: the word PAYROLL in the description
-        // must force is_transfer = false through the real mapping path.
-        JsonNode payload = json("""
+                  "transaction_id": "tr-1",
+                  "name": "Checking to Savings",
+                  "amount": 1000.0,
+                  "date": "2026-01-12",
+                  "account_id": "checking-123",
+                  "personal_finance_category": { "primary": "TRANSFER_OUT" },
+                  "iso_currency_code": "USD"
+                },
                 {
-                  "added": [
-                    {
-                      "transaction_id": "pay-plaid",
-                      "name": "PLAID INC",
-                      "description": "PLAID INC PAYROLL REG SALARY",
-                      "amount": -1750.0,
-                      "date": "2026-03-01",
-                      "personal_finance_category": { "primary": "TRANSFER_IN" },
-                      "category": ["Transfer", "Deposit"],
-                      "iso_currency_code": "USD"
-                    },
-                    {
-                      "transaction_id": "pay-wages",
-                      "name": "ACME WAGES",
-                      "description": "ACME WAGES",
-                      "amount": -2000.0,
-                      "date": "2026-03-02",
-                      "personal_finance_category": {
-                        "primary": "INCOME",
-                        "detailed": "INCOME_WAGES" },
-                      "category": ["Transfer", "Deposit"],
-                      "iso_currency_code": "USD"
-                    }
-                  ],
-                  "modified": [],
-                  "removed": [],
-                  "next_cursor": "cursor-4",
-                  "has_more": false
+                  "transaction_id": "tr-2",
+                  "name": "Transfer from Checking",
+                  "amount": -1000.0,
+                  "date": "2026-01-12",
+                  "account_id": "savings-123",
+                  "personal_finance_category": { "primary": "TRANSFER_IN" },
+                  "iso_currency_code": "USD"
+                },
+                {
+                  "transaction_id": "cc-1",
+                  "name": "PAYMENT THANK YOU / PAIEMENT T MERCI",
+                  "amount": -500.0,
+                  "date": "2026-01-13",
+                  "personal_finance_category": {
+                    "primary": "LOAN_PAYMENTS",
+                    "detailed": "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT" },
+                  "category": ["Payment", "Credit Card"],
+                  "iso_currency_code": "USD"
+                },
+                {
+                  "transaction_id": "buy-1",
+                  "name": "STARBUCKS",
+                  "amount": 5.0,
+                  "date": "2026-01-14",
+                  "personal_finance_category": {
+                    "primary": "FOOD_AND_DRINK",
+                    "detailed": "FOOD_AND_DRINK_COFFEE" },
+                  "iso_currency_code": "USD"
                 }
-                """);
-        stubSyncPage(payload);
+              ],
+              "modified": [],
+              "removed": [],
+              "next_cursor": "cursor-1",
+              "has_more": false
+            }
+            """);
+    stubSyncPage(payload);
 
-        service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
+    service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
-        verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
-        List<PlaidTransaction> added = addedCaptor.getValue();
-        assertEquals(2, added.size());
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
+    verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
+    List<PlaidTransaction> added = addedCaptor.getValue();
+    assertEquals(6, added.size());
 
-        // "PLAID INC PAYROLL REG SALARY" → income, never a transfer.
-        assertFalse(txById(added, "pay-plaid").transfer());
-        // primary == INCOME → income, never a transfer (even with legacy Transfer).
-        assertFalse(txById(added, "pay-wages").transfer());
-    }
+    // TEST 1 — PAYROLL: PFC detailed contains PAYROLL → never a transfer.
+    assertFalse(txById(added, "pay-1").transfer());
 
-    @Test
-    void syncPage_plaidErrorResponse_surfacesActualPlaidError() {
-        // Plaid rejects the request (e.g. INVALID_API_KEYS). The error payload
-        // must be surfaced in the 502 message and the full body logged — not
-        // swallowed into a generic "unavailable" message.
-        String errorBody = """
-                {"display_message":null,"error_code":"INVALID_API_KEYS",
-                 "error_message":"invalid client_id or secret provided",
-                 "error_type":"INVALID_INPUT","request_id":"abc123"}
-                """;
-        stubSyncPageError(errorBody);
+    // TEST 2 — PAYROLL DEPOSIT DESCRIPTION → never a transfer, even when
+    // Plaid categorized the deposit as TRANSFER_IN / legacy Transfer.
+    assertFalse(txById(added, "pay-2").transfer());
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
+    // TEST 3 — TRANSFER_OUT/IN pair: the strict rule requires proving both
+    // accounts belong to the same user at the same institution, which the
+    // app cannot do from category data → safe default (not a transfer).
+    assertFalse(txById(added, "tr-1").transfer());
+    assertFalse(txById(added, "tr-2").transfer());
 
-        assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("INVALID_API_KEYS"));
-        assertTrue(ex.getReason().contains("invalid client_id or secret provided"));
-    }
+    // TEST 4 — CREDIT CARD PAYMENT: same-institution ownership cannot be
+    // proven → never classified as a transfer by the detector.
+    assertFalse(txById(added, "cc-1").transfer());
 
-    @Test
-    void syncPage_plaidErrorResponse_nonJsonBody_isSurfacedRaw() {
-        // An intermediary (e.g. a proxy error page) returning non-JSON must not
-        // be lost either.
-        stubSyncPageError("<html>502 Bad Gateway</html>");
+    // TEST 5 — REAL EXPENSE (ordinary purchase) → not a transfer.
+    assertFalse(txById(added, "buy-1").transfer());
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
+    // The Plaid account_id and item_id are captured from the raw payload and
+    // threaded into the ingest record (item-1 comes from the synced item).
+    assertEquals("account-123", txById(added, "pay-1").plaidAccountId());
+    assertEquals("item-1", txById(added, "pay-1").plaidItemId());
+    assertEquals("checking-123", txById(added, "tr-1").plaidAccountId());
+    assertEquals("savings-123", txById(added, "tr-2").plaidAccountId());
+    assertNotEquals(txById(added, "tr-1").plaidAccountId(), txById(added, "tr-2").plaidAccountId());
+    assertEquals("item-1", txById(added, "tr-1").plaidItemId());
 
-        assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("<html>502 Bad Gateway</html>"));
-    }
+    // The next_cursor is committed.
+    assertEquals("cursor-1", item.getCursor());
+  }
 
-    @Test
-    void createUpdateLinkToken_buildsUpdateModeBodyWithoutProducts() throws Exception {
-        // owned item with an encrypted access token, resolved by internal id
-        PlaidItem owned = new PlaidItem();
-        owned.setItemId("plaid-item-1");
-        owned.setAccessTokenEncrypted("encrypted");
-        owned.setUser(user);
-        when(plaidItemRepository.findByIdAndUser_Id("internal-id", "user-1")).thenReturn(Optional.of(owned));
-        when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
+  @Test
+  void syncPage_refundIsNeverATransfer() throws Exception {
+    JsonNode payload =
+        json(
+            """
+            {
+              "added": [
+                {
+                  "transaction_id": "ref-1",
+                  "name": "REFUND STARBUCKS",
+                  "amount": -12.0,
+                  "date": "2026-01-14",
+                  "personal_finance_category": { "primary": "TRANSFER_IN" },
+                  "category": ["Transfer", "Deposit", "Refund"],
+                  "iso_currency_code": "USD"
+                }
+              ],
+              "modified": [],
+              "removed": [],
+              "next_cursor": "cursor-2",
+              "has_more": false
+            }
+            """);
+    stubSyncPage(payload);
 
-        RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
-        RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);
-        RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
-        when(plaidRestClient.post()).thenReturn(postSpec);
-        when(postSpec.uri(anyString())).thenReturn(bodySpec);
-        when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
-        when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
-        when(bodySpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(JsonNode.class)).thenReturn(json("{\"link_token\":\"link-update-123\"}"));
+    service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
 
-        String linkToken = service.createUpdateLinkToken(
-                new AuthenticatedUser("user-1", "user@example.com", 1L), "internal-id");
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
+    verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
+    // TEST 6 — REFUND → not a transfer.
+    assertFalse(txById(addedCaptor.getValue(), "ref-1").transfer());
+  }
 
-        assertEquals("link-update-123", linkToken);
+  @Test
+  void syncPage_ppdIdPayrollTransferPayrollCashDepositAndCardPurchase() throws Exception {
+    // Production patterns from the confirmed bugs, run through the real
+    // PlaidService mapping path.
+    JsonNode payload =
+        json(
+            """
+            {
+              "added": [
+                {
+                  "transaction_id": "pay-ppd",
+                  "name": "Sweetgreen",
+                  "description": "SWEETGREEN INC PAYROLL PPD ID",
+                  "amount": -800.0,
+                  "date": "2026-02-01",
+                  "personal_finance_category": { "primary": "TRANSFER_IN" },
+                  "category": ["Transfer", "Deposit"],
+                  "iso_currency_code": "USD"
+                },
+                {
+                  "transaction_id": "pay-transfer",
+                  "name": "ACME PAYROLL",
+                  "description": "ACME CORP",
+                  "amount": -2000.0,
+                  "date": "2026-02-01",
+                  "personal_finance_category": {
+                    "primary": "TRANSFER_IN",
+                    "detailed": "TRANSFER_PAYROLL",
+                    "subcategory": "TRANSFER_PAYROLL" },
+                  "iso_currency_code": "USD"
+                },
+                {
+                  "transaction_id": "cash-1",
+                  "name": "CASH DEPOSIT",
+                  "description": "CASH DEPOSIT ATM 1234",
+                  "amount": -500.0,
+                  "date": "2026-02-02",
+                  "personal_finance_category": { "primary": "TRANSFER_IN" },
+                  "category": ["Transfer", "Deposit"],
+                  "iso_currency_code": "USD"
+                },
+                {
+                  "transaction_id": "netflix-1",
+                  "name": "Netflix",
+                  "amount": 15.99,
+                  "date": "2026-02-03",
+                  "personal_finance_category": {
+                    "primary": "ENTERTAINMENT",
+                    "detailed": "ENTERTAINMENT_MEDIA_AND_STREAMING" },
+                  "iso_currency_code": "USD"
+                },
+                {
+                  "transaction_id": "cc-mobile",
+                  "name": "VISA PAYMENT",
+                  "description": "Payment Thank You-Mobile",
+                  "amount": 350.0,
+                  "date": "2026-02-04",
+                  "personal_finance_category": {
+                    "primary": "LOAN_PAYMENTS",
+                    "detailed": "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT" },
+                  "iso_currency_code": "USD"
+                }
+              ],
+              "modified": [],
+              "removed": [],
+              "next_cursor": "cursor-3",
+              "has_more": false
+            }
+            """);
+    stubSyncPage(payload);
 
-        // The update-mode body MUST reuse the access_token and MUST NOT include
-        // a products array (which would create a new authorization/connection).
-        ArgumentCaptor<Object> bodyCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(bodySpec).body(bodyCaptor.capture());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) bodyCaptor.getValue();
-        assertEquals(ACCESS_TOKEN, body.get("access_token"));
-        assertFalse(body.containsKey("products"));
-        assertEquals("Fundleaf", body.get("client_name"));
-        assertEquals(List.of("US"), body.get("country_codes"));
-        assertEquals("en", body.get("language"));
-        assertEquals("https://example.com/webhook", body.get("webhook"));
-    }
+    service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
 
-    private PlaidTransaction txById(List<PlaidTransaction> transactions, String id) {
-        return transactions.stream()
-                .filter(tx -> id.equals(tx.transactionId()))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("missing transaction " + id));
-    }
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
+    verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
+    List<PlaidTransaction> added = addedCaptor.getValue();
+    assertEquals(5, added.size());
+
+    // TEST 3 — PAYROLL BY PPD ID → income, never a transfer.
+    assertFalse(txById(added, "pay-ppd").transfer());
+    // TEST 1 — PAYROLL BY DETAILED TRANSFER_PAYROLL → income, never a transfer.
+    assertFalse(txById(added, "pay-transfer").transfer());
+    // BUG 4 — CASH DEPOSIT under a TRANSFER_IN umbrella → not a transfer.
+    assertFalse(txById(added, "cash-1").transfer());
+    // TEST 6 / BUG 3 — Netflix subscription → a real expense, not a transfer.
+    assertFalse(txById(added, "netflix-1").transfer());
+    // CREDIT CARD PAYMENT by detailed + mobile descriptor → NOT a transfer:
+    // same-institution ownership cannot be proven from category data.
+    assertFalse(txById(added, "cc-mobile").transfer());
+  }
+
+  @Test
+  void syncPage_plaidIncPayrollRegSalary_isIncomeNotTransfer() throws Exception {
+    // Exact confirmed production case: the word PAYROLL in the description
+    // must force is_transfer = false through the real mapping path.
+    JsonNode payload =
+        json(
+            """
+            {
+              "added": [
+                {
+                  "transaction_id": "pay-plaid",
+                  "name": "PLAID INC",
+                  "description": "PLAID INC PAYROLL REG SALARY",
+                  "amount": -1750.0,
+                  "date": "2026-03-01",
+                  "personal_finance_category": { "primary": "TRANSFER_IN" },
+                  "category": ["Transfer", "Deposit"],
+                  "iso_currency_code": "USD"
+                },
+                {
+                  "transaction_id": "pay-wages",
+                  "name": "ACME WAGES",
+                  "description": "ACME WAGES",
+                  "amount": -2000.0,
+                  "date": "2026-03-02",
+                  "personal_finance_category": {
+                    "primary": "INCOME",
+                    "detailed": "INCOME_WAGES" },
+                  "category": ["Transfer", "Deposit"],
+                  "iso_currency_code": "USD"
+                }
+              ],
+              "modified": [],
+              "removed": [],
+              "next_cursor": "cursor-4",
+              "has_more": false
+            }
+            """);
+    stubSyncPage(payload);
+
+    service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt());
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<PlaidTransaction>> addedCaptor = ArgumentCaptor.forClass(List.class);
+    verify(ingestService).upsertAddedBatch(any(User.class), addedCaptor.capture());
+    List<PlaidTransaction> added = addedCaptor.getValue();
+    assertEquals(2, added.size());
+
+    // "PLAID INC PAYROLL REG SALARY" → income, never a transfer.
+    assertFalse(txById(added, "pay-plaid").transfer());
+    // primary == INCOME → income, never a transfer (even with legacy Transfer).
+    assertFalse(txById(added, "pay-wages").transfer());
+  }
+
+  @Test
+  void syncPage_plaidErrorResponse_surfacesActualPlaidError() {
+    // Plaid rejects the request (e.g. INVALID_API_KEYS). The error payload
+    // must be surfaced in the 502 message and the full body logged — not
+    // swallowed into a generic "unavailable" message.
+    String errorBody =
+        """
+        {"display_message":null,"error_code":"INVALID_API_KEYS",
+         "error_message":"invalid client_id or secret provided",
+         "error_type":"INVALID_INPUT","request_id":"abc123"}
+        """;
+    stubSyncPageError(errorBody);
+
+    ResponseStatusException ex =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
+
+    assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
+    assertTrue(ex.getReason().contains("INVALID_API_KEYS"));
+    assertTrue(ex.getReason().contains("invalid client_id or secret provided"));
+  }
+
+  @Test
+  void syncPage_plaidErrorResponse_nonJsonBody_isSurfacedRaw() {
+    // An intermediary (e.g. a proxy error page) returning non-JSON must not
+    // be lost either.
+    stubSyncPageError("<html>502 Bad Gateway</html>");
+
+    ResponseStatusException ex =
+        assertThrows(
+            ResponseStatusException.class,
+            () ->
+                service.fetchAndApplySyncPage("item-1", "lease-1", new PlaidService.SyncAttempt()));
+
+    assertEquals(HttpStatus.BAD_GATEWAY, ex.getStatusCode());
+    assertTrue(ex.getReason().contains("<html>502 Bad Gateway</html>"));
+  }
+
+  @Test
+  void createUpdateLinkToken_buildsUpdateModeBodyWithoutProducts() throws Exception {
+    // owned item with an encrypted access token, resolved by internal id
+    PlaidItem owned = new PlaidItem();
+    owned.setItemId("plaid-item-1");
+    owned.setAccessTokenEncrypted("encrypted");
+    owned.setUser(user);
+    when(plaidItemRepository.findByIdAndUser_Id("internal-id", "user-1"))
+        .thenReturn(Optional.of(owned));
+    when(encryptionService.decrypt("encrypted")).thenReturn(ACCESS_TOKEN);
+
+    RestClient.RequestBodyUriSpec postSpec = mock(RestClient.RequestBodyUriSpec.class);
+    RestClient.RequestBodySpec bodySpec = mock(RestClient.RequestBodySpec.class);
+    RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
+    when(plaidRestClient.post()).thenReturn(postSpec);
+    when(postSpec.uri(anyString())).thenReturn(bodySpec);
+    when(bodySpec.contentType(any(MediaType.class))).thenReturn(bodySpec);
+    when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
+    when(bodySpec.retrieve()).thenReturn(responseSpec);
+    when(responseSpec.body(JsonNode.class))
+        .thenReturn(json("{\"link_token\":\"link-update-123\"}"));
+
+    String linkToken =
+        service.createUpdateLinkToken(
+            new AuthenticatedUser("user-1", "user@example.com", 1L), "internal-id");
+
+    assertEquals("link-update-123", linkToken);
+
+    // The update-mode body MUST reuse the access_token and MUST NOT include
+    // a products array (which would create a new authorization/connection).
+    ArgumentCaptor<Object> bodyCaptor = ArgumentCaptor.forClass(Object.class);
+    verify(bodySpec).body(bodyCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> body = (Map<String, Object>) bodyCaptor.getValue();
+    assertEquals(ACCESS_TOKEN, body.get("access_token"));
+    assertFalse(body.containsKey("products"));
+    assertEquals("Fundleaf", body.get("client_name"));
+    assertEquals(List.of("US"), body.get("country_codes"));
+    assertEquals("en", body.get("language"));
+    assertEquals("https://example.com/webhook", body.get("webhook"));
+  }
+
+  private PlaidTransaction txById(List<PlaidTransaction> transactions, String id) {
+    return transactions.stream()
+        .filter(tx -> id.equals(tx.transactionId()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("missing transaction " + id));
+  }
 }

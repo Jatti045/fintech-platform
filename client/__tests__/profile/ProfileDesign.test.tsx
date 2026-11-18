@@ -177,7 +177,7 @@ it("income states identify the selected month and retain the original save callb
   expect(save).toHaveBeenCalled();
   act(() => tree.unmount());
 });
-it("bank status, refresh, disconnect and link retain their item without duplicate reconnect", () => {
+it.each([true, false])("bank management remains available with new links set to %s", (canConnectBank) => {
   const link = jest.fn(),
     disconnect = jest.fn();
   const item = {
@@ -192,6 +192,7 @@ it("bank status, refresh, disconnect and link retain their item without duplicat
     <BankConnections
       THEME={theme}
       linking={false}
+      canConnectBank={canConnectBank}
       onLinkBank={link}
       items={[item]}
       loadingItems={false}
@@ -208,8 +209,13 @@ it("bank status, refresh, disconnect and link retain their item without duplicat
   expect(retrySync).toHaveBeenCalledWith(item);
   act(() => button(tree, `Disconnect ${item.institutionName}`).props.onPress());
   expect(disconnect).toHaveBeenCalledWith(item);
-  act(() => button(tree, "Connect a bank account").props.onPress());
-  expect(link).toHaveBeenCalled();
+  if (canConnectBank) {
+    act(() => button(tree, "Connect a bank account").props.onPress());
+    expect(link).toHaveBeenCalled();
+  } else {
+    expect(button(tree, "Connect a bank account")).toBeUndefined();
+    expect(link).not.toHaveBeenCalled();
+  }
   act(() => tree.unmount());
 });
 
@@ -219,6 +225,7 @@ it("failed bank loading offers retry without claiming no banks are connected", (
     <BankConnections
       THEME={theme}
       linking={false}
+      canConnectBank={false}
       onLinkBank={jest.fn()}
       items={[]}
       loadingItems={false}

@@ -2,7 +2,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import AuthScreen from "@/components/auth/AuthScreen";
 import { BRAND } from "@/constants/ThemePalettes";
-import { Link, router } from "expo-router";
+import { Link } from "expo-router";
 import { useTheme } from "@/hooks/useRedux";
 import { useLogin } from "@/hooks/auth/useLogin";
 import { usePasswordRecovery } from "@/hooks/auth/usePasswordRecovery";
@@ -19,21 +19,13 @@ import ResetPasswordModal from "@/components/auth/PasswordRecovery/ResetPassword
  *  - `usePasswordRecovery` owns the forgot-password state machine
  *  - `LoginForm` / `GoogleAuthButton` / the recovery modals are presentational
  *
- * The screen connects them, uses the shared responsive AuthScreen layout,
- * and performs navigation after successful authentication.
+ * The root layout chooses the next screen after authentication.
  */
 const LoginScreen = () => {
   const { THEME } = useTheme();
 
   const login = useLogin();
   const passwordRecovery = usePasswordRecovery();
-
-  const handleLogin = async () => {
-    const success = await login.handleLogin();
-    if (success) {
-      router.replace("/(tabs)");
-    }
-  };
 
   return (
     <AuthScreen
@@ -48,7 +40,7 @@ const LoginScreen = () => {
         error={login.loginError}
         onEmailChange={login.setEmail}
         onPasswordChange={login.setPassword}
-        onSubmit={handleLogin}
+        onSubmit={login.handleLogin}
         onForgotPassword={passwordRecovery.open}
       />
 

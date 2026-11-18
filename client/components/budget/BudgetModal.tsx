@@ -45,14 +45,14 @@ export default function BudgetModal({
       if (onClose) onClose();
     }
     prevOpenRef.current = openSheet;
-  }, [openSheet]);
+  }, [openSheet, onClose, setCategory, setLimit]);
 
   useEffect(() => {
     if (editingBudget) {
       setCategory(String(editingBudget.category ?? ""));
       setLimit(String(editingBudget.displayLimit ?? editingBudget.limit ?? ""));
     }
-  }, [editingBudget]);
+  }, [editingBudget, setCategory, setLimit]);
 
   const dirty = editingBudget
     ? category !== String(editingBudget.category ?? "") ||

@@ -6,7 +6,7 @@ import { store } from "@/store/store";
 import api from "@/store/api/apiSlice";
 import { userAPI } from "@/api/user";
 import { loadUserFromStorage, loginUser, selectIsAuthenticated } from "@/store/slices/userSlice";
-import { establishSession, invalidateSession, getSessionIdentity, withSessionGeneration } from "@/utils/session";
+import { establishSession, invalidateSession, getSessionIdentity, sessionGeneration, withSessionGeneration } from "@/utils/session";
 import { readEncryptedCache } from "@/utils/encryptedStorage";
 import { FINANCIAL_CACHE_KEY, writeEncryptedCache } from "@/utils/encryptedStorage";
 
@@ -46,6 +46,39 @@ test("key loss refetches the authoritative profile while retaining the valid tok
     expect(await userAPI.getStoredUser()).toEqual(user);
     expect(calls).toEqual(["/auth/me"]);
     expect(token).toBe("A");
+  } finally { apiClient.defaults.adapter = previous; }
+});
+
+test("restoring pending setup sees completion saved on another device", async () => {
+  const setup = { ...user, setupComplete: true, currency: "CAD", monthlyIncome: 3500 };
+  await establishSession("pending", { ...user, setupComplete: false });
+  const previous = apiClient.defaults.adapter;
+  const calls: string[] = [];
+  apiClient.defaults.adapter = async config => {
+    calls.push(config.url!);
+    expect(config.headers.Authorization).toBe("Bearer pending");
+    return { status: 200, statusText: "OK", headers: {}, config, data: { success: true, data: setup } };
+  };
+  try {
+    await store.dispatch(loadUserFromStorage());
+    expect(store.getState().user.user).toEqual(setup);
+    expect(await userAPI.getStoredUser()).toEqual(setup);
+    expect(calls).toEqual(["/auth/me"]);
+  } finally { apiClient.defaults.adapter = previous; }
+});
+
+test("an old setup request cannot submit preferences for the next signed-in account", async () => {
+  await authenticate("A");
+  const oldGeneration = sessionGeneration();
+  await establishSession("B", { id: "user-B" });
+  const previous = apiClient.defaults.adapter;
+  const adapter = jest.fn();
+  apiClient.defaults.adapter = adapter;
+  try {
+    await expect(userAPI.completeAccountSetup({ monthlyIncome: 0, currency: "CAD" }, oldGeneration))
+      .rejects.toMatchObject({ message: "Your session changed. Please sign in again." });
+    expect(adapter).not.toHaveBeenCalled();
+    expect(token).toBe("B");
   } finally { apiClient.defaults.adapter = previous; }
 });
 
