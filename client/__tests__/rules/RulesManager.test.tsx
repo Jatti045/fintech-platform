@@ -1,7 +1,7 @@
 import React from "react";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import { TouchableOpacity, TextInput, Text } from "react-native";
 import RulesManager from "@/components/rules/RulesManager";
 import rulesAPI from "@/api/categorizationRules";

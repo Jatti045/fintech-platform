@@ -1,7 +1,7 @@
 import React from "react";
 import renderer, { act } from "react-test-renderer";
 import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import { BackHandler, TextInput, TouchableOpacity } from "react-native";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { AlertProvider } from "@/utils/themedAlert";

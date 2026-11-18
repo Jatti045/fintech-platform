@@ -12,7 +12,7 @@
 import React from "react";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import { AlertProvider } from "@/utils/themedAlert";
 import api from "@/store/api/apiSlice";
 import { useMonthSetup } from "@/hooks/budget/useMonthSetup";
