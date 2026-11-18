@@ -105,8 +105,8 @@ repos:
         args:
           - --dry-run
           - --set-exit-if-changed
-          # Match the Java version used in pom.xml (java.version = 17)
-          - --java-17-plus
+          # google-java-format parses Java 17 syntax without a language-level flag.
+          # Its launcher selects its own supported JDK; Maven targets Java 17.
         files: ^fintech-api/src/.*\.java$
         types: [java]
 
