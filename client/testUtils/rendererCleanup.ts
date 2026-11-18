@@ -2,7 +2,7 @@ import renderer from "react-test-renderer";
 import { api } from "@/store/api/apiSlice";
 
 /** Release resources owned by each test, including trees a failing assertion leaves mounted. */
-export function useRendererCleanup() {
+export function registerRendererCleanup() {
   const trees = new Set<renderer.ReactTestRenderer>();
   const stores = new Set<{ dispatch: (action: any) => any }>();
   const create = renderer.create;

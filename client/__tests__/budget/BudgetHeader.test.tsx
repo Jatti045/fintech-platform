@@ -7,7 +7,7 @@
 
 /// <reference types="jest" />
 
-import { useRendererCleanup } from "@/testUtils/rendererCleanup";
+import { registerRendererCleanup } from "@/testUtils/rendererCleanup";
 import React from "react";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
@@ -16,7 +16,7 @@ import BudgetHeader from "@/components/budget/BudgetHeader";
 import themeReducer from "@/store/slices/themeSlice";
 import { Text, TextInput } from "react-native";
 
-useRendererCleanup();
+registerRendererCleanup();
 
 const textMock = Text as unknown as jest.Mock;
 const textInputMock = TextInput as unknown as jest.Mock;
