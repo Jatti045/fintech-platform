@@ -1,6 +1,18 @@
 # Fundleaf: Clean Architecture audit and incremental refactoring proposal
 
-Date: November 17, 2026 (America/Toronto). Status: **Proposed; implementation not authorized.**
+Date: November 17, 2026 (America/Toronto). Status: **Increment 1 enforcement implemented locally; all business-feature migrations remain proposed.**
+
+## Increment 1 update — boundary enforcement complete
+
+Increment 1 is implemented in local enforcement commit `b06454261d5e227a8d2dbb055b6adab068035aff`; it is **not pushed**. [Architectural conventions](clean-architecture-conventions.md) now define the layer matrix, contract/package ownership, DI/transaction/cache/security boundaries, exceptions, completion criteria and execution commands. No runtime/frontend source, route, schema or business workflow was changed.
+
+ArchUnit 1.4.1 is a test-only core dependency using the existing JUnit engine. Production bytecode checks enforce new core dependencies, cross-feature access, controller/persistence separation, adapter contracts, injection and relevant component cycles. Exact inventories of 239 legacy classes and 2,327 member-level exceptions replace broad legacy exclusions. New violations and stale fixed entries fail; no runtime baseline expansion is supported. A feature registry reports zero migrated features and rejects empty/missing/package-marker completion claims. Adapter-to-DAO access and inward compatibility facades are deliberately permitted.
+
+Twenty-six architecture tests pass, including isolated counterexamples and valid collaboration fixtures. Full Java 17 clean verify passes **809 tests, 0 failures/errors, 11 unchanged skips**, including all 783 previously passing tests; compilation/packaging and applicable actual hooks pass. The new CI workflow runs the same architecture-only command, but no hosted execution is claimed before an approved push. [The updated baseline](clean-architecture-baseline-2026-11-17.md) records the exact checks and initial compiler-output snapshot correction.
+
+Decisions relative to the proposed Increment 1 card: frontend restricted-import enforcement and F10's unused-import cleanup are deferred to Increment 12; no frontend configuration or source is modified. Endpoint/transaction characterization remains required before each owning migration, rather than adding a global HTTP inventory here. Component cycles collapse adapters/infrastructure into one outer component and exclude composition as a cycle source, with a separate rule preventing new imports into configuration. This preserves the course's adapter→DAO collaboration instead of imposing an incompatible onion-layer restriction. F12 now has local CI configuration; its ambiguous PATCH/PUT route behavior remains unchanged and unresolved.
+
+Next proposed increment: recurring-payment read pilot (Increment 2), only after separate approval, with output/HTTP characterization first and healthy Redis verification before declaring the cached flow complete. All original findings below remain historical audit evidence; no business feature is declared clean merely because its future packages are absent.
 
 ## Prerequisite checkpoint update
 
@@ -443,6 +455,8 @@ The detailed increment cards in the roadmap below specify objective, findings, f
 
 ### Increment 1 — establish a real boundary check and contract ledger
 
+**Status:** Enforcement complete locally; see the update above and conventions document. Frontend import cleanup and global endpoint inventory are deferred as described above. The original planning card below is preserved for traceability.
+
 1. **Objective:** enforce new boundaries without relocating the legacy tree.
 2. **Problems:** F6/F10/F12; lack of executable dependency policy.
 3. **Files/features:** new architecture check/tests, backend test configuration only if required, `client/config/apiErrorHandler.ts`, architecture docs and endpoint/transaction contract fixtures.
@@ -699,7 +713,7 @@ Highest-risk invariants: monetary sign/rounding and explicit-zero income; user/b
 | Cache class moves | Keep names stable or deliberately version disposable cache namespace | Typed Redis payloads can encode class names; cold cache is preferable to broken deserialization, but preserve TTL/failure behavior. |
 | CI dependency checker | Existing tools first; ArchUnit if justified by enforcement quality | One useful test dependency can be justified; a large framework stack or empty architecture packages cannot. |
 
-**Updated recommendation:** 0A is complete and the measured executable baseline is green, subject to documented Redis/native skips. Implement only Increment 1 with separate approval; the first business-feature migration should be the recurring-payment pilot in Increment 2. Review the pilot before authorizing reporting or write-path migrations.
+**Updated recommendation:** 0A and Increment 1 are complete, subject to documented Redis/native limits. Increment 1 commits remain local. The next business-feature migration should be the recurring-payment pilot in Increment 2, with separate approval. Review the pilot before authorizing reporting or write-path migrations.
 
 ## 13. Clickable source evidence index
 

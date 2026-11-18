@@ -2,7 +2,32 @@
 
 Updated November 17, 2026 (America/Toronto). **Prerequisite repairs complete; no architectural migration implemented.** The initial audit baseline is retained below as historical evidence.
 
-## Current results and comparison
+## Increment 1 — architecture enforcement baseline
+
+Starting checkpoint: `f66fed1d8529eeade5d7fc27e664ef6207c9da58`, verified on `dev` with no new tracked changes. Increment 1 adds test infrastructure and conventions only. Enforcement commit `b06454261d5e227a8d2dbb055b6adab068035aff` is local and **not pushed**; the documentation successor is identified in the completion report.
+
+| Check | Verified prerequisite | Increment 1 |
+|---|---|---|
+| Backend Java 17 | 783 passed, 0 failed/errors, 11 skipped | **809 passed, 0 failed/errors, 11 skipped** (820 total) |
+| Added architecture tests | None | **26 passed**, no skips: 4 production guards + 22 policy/counterexample checks |
+| Compilation and executable packaging | Passed | Passed as part of full `clean verify` |
+| Runtime dependency/artifact inspection | Prior baseline | ArchUnit is test-only and absent from the runtime JAR; no test fixture classes packaged |
+| Changed Java formatting | Passed | Passed |
+| Applicable actual commit hooks | Passed | Passed, including YAML, secret scanning, size/hygiene and Java formatter; frontend/Docker hooks skip because those files were not changed |
+| Frontend tests / Expo lint / broader ESLint / TypeScript / exports | 573 passed / 0 warnings / 98 existing warnings and 0 errors / passed / passed | Prior results retained; frontend source and configuration are byte-for-byte unchanged and were not revalidated in this backend-only increment |
+
+All original 783 passing backend tests remain passing, and 26 added tests account for the increase. No original regression test was weakened, disabled or edited. The 11 existing RBAC/upload/healthy-Redis skips are unchanged. Existing compile deprecation/unchecked notes and expected negative-test/Redis-outage logs remain; no new warning was introduced to accommodate the enforcement.
+
+The independent architecture-only Java 17 command also passes: `./mvnw -Dtest=ArchitectureTest,ArchitecturePolicyTest clean test` from `fintech-api`. It requires no database/provider credentials. `.github/workflows/architecture.yml` uses the same clean command on Java 17; no hosted run has occurred because the commits are deliberately unpushed.
+
+The full suite used the existing sanitized test recipe with `TEST_DB_URL=jdbc:postgresql://127.0.0.1:55439/fundleaf_increment1`, a new disposable loopback PostgreSQL database, disabled dotenv import, no inherited live provider credentials, and unavailable loopback Redis. The database was stopped afterward. Logs: `/private/tmp/fundleaf-increment1-final-java17.log` and `/private/tmp/fundleaf-architecture-tests.log`. Counts were checked against XML testcase records; runtime JAR contents were inspected directly.
+
+A first full run exposed differences between stale IDE-compiler synthetic enum/lambda metadata and clean Java 17 javac output in the initial, uncommitted architecture snapshot. Array dependencies were also normalized to their element types. The corrected fixed snapshot was then tested with independent clean builds and the final full suite. This was checker/bootstrap correction, not a runtime regression or automatic baseline refresh. Ordinary test runs have no snapshot-update path.
+
+See [the conventions and rule reference](clean-architecture-conventions.md) for 239 exact legacy classes, 2,327 visible member-level exceptions with reasons/removal stages, counterexample evidence and no-empty-feature guards. There are **zero declared migrated features**. The recurring workflow and all other business operations remain unmigrated. Healthy Redis and native-device behavior are still unverified, with the same environmental limitations recorded below.
+
+## Prerequisite checkpoint results and comparison (historical)
+
 
 | Check | Initial audit | Verified prerequisite checkpoint |
 |---|---|---|
