@@ -750,3 +750,7 @@ These links point at the audited workspace; later changes can shift line numbers
 | Strength: after-commit cache | [fintech-api/src/main/java/com/fintechapp/fintech_api/service/FinancialCacheInvalidator.java:60](/Users/jamesattia/Desktop/Projects/fintech-platform/fintech-api/src/main/java/com/fintechapp/fintech_api/service/FinancialCacheInvalidator.java:60) |
 | Strength: serialized session | [client/utils/session.ts:75](/Users/jamesattia/Desktop/Projects/fintech-platform/client/utils/session.ts:75) |
 | Strength: provider interface | [fintech-api/src/main/java/com/fintechapp/fintech_api/ai/AiCompletionClient.java:10](/Users/jamesattia/Desktop/Projects/fintech-platform/fintech-api/src/main/java/com/fintechapp/fintech_api/ai/AiCompletionClient.java:10) |
+
+## Increment 3 pilot validation
+
+Increment 3 is limited to recurring-read validation and standardization. The next separately approved migration should be the authoritative report read, with current and previous-period facts held in one repeatable-read snapshot. Characterize reconciliation, signed credits and exact output before extracting the facts reader and calculator. The risk is higher than recurring reads because splitting queries can lose snapshot consistency and moving rounding can change totals. Keep legacy Redis summary compatibility and client contracts in scope only where they interact with that report. [Pilot evaluation](recurring-read-pilot.md)

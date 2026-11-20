@@ -1,6 +1,6 @@
 # Clean Architecture conventions and enforcement
 
-Status: Increment 1. Applies to the Java 17 modular monolith. No workflow is migrated yet. The starting checkpoint is `f66fed1d8529eeade5d7fc27e664ef6207c9da58`. The [audit](clean-architecture-audit-2026-11-17.md) remains the migration roadmap; the [baseline](clean-architecture-baseline-2026-11-17.md) records regression results and infrastructure limits.
+Status: Increment 3. Applies to the Java 17 modular monolith. The recurring-payment read workflow is the first completed pilot. The starting checkpoint is `f66fed1d8529eeade5d7fc27e664ef6207c9da58`. The [audit](clean-architecture-audit-2026-11-17.md) remains the migration roadmap; the [baseline](clean-architecture-baseline-2026-11-17.md) records regression results and infrastructure limits.
 
 ## Organization and responsibilities
 
@@ -146,3 +146,11 @@ References: [ArchUnit core and bytecode checks](https://www.archunit.org/usergui
 | `docs/architecture/clean-architecture-conventions.md` | New conventions, rules, trade-offs, execution and verification reference |
 | `docs/architecture/clean-architecture-audit-2026-11-17.md` | Synchronize Increment 1 status/decisions and proposed next pilot |
 | `docs/architecture/clean-architecture-baseline-2026-11-17.md` | Add new results while retaining historical prerequisite measurements |
+
+## Reusing the recurring read pattern
+
+Start by pinning the existing output, ownership, ordering, error behavior, query count and technical boundaries. Place business inputs, values and policy in the feature domain, and use a concrete application operation with constructor-injected collaborators. Introduce an input interface when an actual caller or decorator needs substitutability. The domain owns contracts such as ExpenseHistory that express a business capability. An adapter implements the contract with the existing DAO and maps only fields the policy needs.
+
+Keep actor extraction and HTTP envelopes at the web boundary. Wire the operation, adapter and Clock in infrastructure configuration. When Redis serializes the existing response DTO, keep its class names, collection representation, key and TTL at the cache boundary. Capture the transaction requirements of each operation independently. A recurring read needs no new transaction, while authoritative reporting needs a single stable snapshot. Keep commit-coupled invalidation outside the core and test rollback with real persistence.
+
+A feature is complete at the scoped workflow level when ArchUnit, HTTP parity, pure policy, query/ownership, and relevant integration checks pass. Verify both healthy and degraded behavior for caches. Record remaining exceptions and remove only those resolved by the migration. The recurring detector's cadence policy, 365-day query, Redis decorator and Clock are specific choices. Use only the boundaries a later workflow needs.
