@@ -219,3 +219,7 @@ GOOGLE_ANDROID_CLIENT_ID=audit-client
 - `fintech-api/target/surefire-reports/`: individual test reports (generated, untracked/ignored).
 
 These artifacts are temporary and may be removed by the OS or a later build. Raw backend logs contain synthetic fixtures, expected error stack traces and generated development security passwords; they were not copied into committed documentation. No actual credentials are included in this report.
+
+## Increment 3 healthy-cache baseline
+
+Java 17 clean verify with dedicated Redis 7.2.7 and disposable PostgreSQL passed **820 of 825 tests**, with zero failures or errors and five existing skips. Compared with Increment 2, six previously skipped Redis tests ran and the new recovery test passed. Compilation and executable packaging passed. The separately rerun architecture suite covers the updated completion registry. [Reproduction and cache checks](recurring-read-pilot.md)
