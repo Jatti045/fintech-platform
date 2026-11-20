@@ -1,4 +1,4 @@
 # feature<TAB>partial|complete<TAB>owning increment
 # Add a row with the first real feature class, never to legitimize legacy package additions.
 recurring	complete	Increment 2
-reporting	partial	Increment 4
+reporting	complete	Increment 4
