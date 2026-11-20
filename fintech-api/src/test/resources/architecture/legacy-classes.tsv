@@ -31,7 +31,6 @@ com.fintechapp.fintech_api.controller.InsightController	Existing HTTP boundary; 
 com.fintechapp.fintech_api.controller.PlaidController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
 com.fintechapp.fintech_api.controller.PlaidController$1	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
 com.fintechapp.fintech_api.controller.PlaidController$ConnectionCapability	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
-com.fintechapp.fintech_api.controller.RecurringPaymentController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 2
 com.fintechapp.fintech_api.controller.TransactionController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
 com.fintechapp.fintech_api.controller.UserController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
 com.fintechapp.fintech_api.dto.auth.AuthErrorResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
@@ -229,8 +228,6 @@ com.fintechapp.fintech_api.service.ProfileImageCleanupJobs	Existing mixed workfl
 com.fintechapp.fintech_api.service.ProfileImageCleanupJobs$Claim	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
 com.fintechapp.fintech_api.service.ProfileImageCleanupWorker	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
 com.fintechapp.fintech_api.service.ProfilePictureStore	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
-com.fintechapp.fintech_api.service.RecurringPaymentService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 2
-com.fintechapp.fintech_api.service.RecurringPaymentService$CadenceFit	Existing mixed workflow/technical service; migrate owning feature slice	Increment 2
 com.fintechapp.fintech_api.service.StalePlaidSyncPageException	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
 com.fintechapp.fintech_api.service.TransactionClassificationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
 com.fintechapp.fintech_api.service.TransactionClassificationService$Decision	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
