@@ -15,17 +15,22 @@ import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
+import org.mockito.ArgumentMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.*;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class FinancialReportIntegrationTest extends BaseIntegrationTest {
   @Autowired FinancialReportService reports;
   @Autowired PlatformTransactionManager manager;
-  @MockitoSpyBean IncomeCalculationService income;
+  @MockitoSpyBean JdbcTemplate jdbc;
   User user;
   static final Instant START = Instant.parse("2026-02-01T00:00:00Z");
 
@@ -36,7 +41,7 @@ class FinancialReportIntegrationTest extends BaseIntegrationTest {
 
   @AfterEach
   void clean() {
-    reset(income);
+    reset(jdbc);
     new TransactionTemplate(manager)
         .executeWithoutResult(s -> {
           transactionRepository.deleteByUser_Id(user.getId());
@@ -214,20 +219,32 @@ class FinancialReportIntegrationTest extends BaseIntegrationTest {
   void authorizationIsolationAndInvalidPeriods() throws Exception {
     mockMvc
         .perform(get("/api/financial-summary/report").param("year", "2026").param("month", "1"))
-        .andExpect(status().isUnauthorized());
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("No token provided."))
+        .andExpect(jsonPath("$.fieldErrors").isEmpty())
+        .andExpect(jsonPath("$.timestamp").exists());
     mockMvc
         .perform(
             get("/api/financial-summary/report")
                 .header(authHeaderName(), authHeader(user))
                 .param("year", "2026")
                 .param("month", "12"))
-        .andExpect(status().isBadRequest());
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Valid month and year are required"))
+        .andExpect(jsonPath("$.fieldErrors").isEmpty())
+        .andExpect(jsonPath("$.timestamp").exists());
     mockMvc
         .perform(
             get("/api/financial-summary/report")
                 .header(authHeaderName(), authHeader(user))
                 .param("year", "2026"))
-        .andExpect(status().isBadRequest());
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Valid month and year are required"))
+        .andExpect(jsonPath("$.fieldErrors").isEmpty())
+        .andExpect(jsonPath("$.timestamp").exists());
     User other = createUser("other-" + UUID.randomUUID() + "@example.com", "Password123!", "other");
     try {
       Transaction t =
@@ -271,17 +288,131 @@ class FinancialReportIntegrationTest extends BaseIntegrationTest {
   }
 
   @Test
+  void wireContractRetainsEnvelopeFieldsNullsAndListOrdering() throws Exception {
+    var budget = createBudget(user, "Zero", 0, START);
+    createTransaction(user, budget, "first", START, "Zebra", TransactionType.EXPENSE, 5);
+    createTransaction(
+        user, null, "second", START.plusSeconds(86400), "Alpha", TransactionType.EXPENSE, 3);
+    var response =
+        mockMvc
+            .perform(
+                get("/api/financial-summary/report")
+                    .header(authHeaderName(), authHeader(user))
+                    .param("year", " 2026 ")
+                    .param("month", "01"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse();
+    var json = new tools.jackson.databind.ObjectMapper().readTree(response.getContentAsString());
+    assertFields(json, "success", "message", "data");
+    assertTrue(json.get("success").asBoolean());
+    assertEquals("Monthly report loaded", json.get("message").asString());
+    var data = json.get("data");
+    assertFields(
+        data,
+        "year",
+        "month",
+        "currency",
+        "generatedAt",
+        "incomeBasis",
+        "expectedIncomeConfigured",
+        "transactionCount",
+        "summary",
+        "grossExpenses",
+        "expenseCredits",
+        "daily",
+        "categories",
+        "budgets",
+        "previousPeriod");
+    assertEquals(1, data.get("month").asInt());
+    Instant.parse(data.get("generatedAt").asString());
+    assertFields(
+        data.get("summary"),
+        "totalAmount",
+        "monthlyIncome",
+        "expectedIncome",
+        "actualIncome",
+        "netSpent",
+        "netRemaining",
+        "spentPercentageOfIncome");
+    assertFields(data.get("daily").get(0), "day", "grossExpenses", "expenseCredits", "netSpent");
+    assertEquals(1, data.get("daily").get(0).get("day").asInt());
+    assertEquals(28, data.get("daily").get(27).get("day").asInt());
+    assertFields(
+        data.get("categories").get(0), "category", "grossExpenses", "expenseCredits", "netSpent");
+    assertEquals("zebra", data.get("categories").get(0).get("category").asString());
+    assertEquals("alpha", data.get("categories").get(1).get("category").asString());
+    var budgetRow = data.get("budgets").get(0);
+    assertFields(
+        budgetRow,
+        "id",
+        "category",
+        "limit",
+        "spent",
+        "remaining",
+        "utilizationPercentage",
+        "autoCreated",
+        "userId",
+        "date",
+        "createdAt",
+        "updatedAt");
+    assertTrue(budgetRow.get("utilizationPercentage").isNull());
+    var previous = data.get("previousPeriod");
+    assertFields(
+        previous,
+        "year",
+        "month",
+        "actualIncome",
+        "netSpent",
+        "actualIncomeChange",
+        "netSpentChange",
+        "incomeChangePercentage",
+        "spendingChangePercentage");
+    assertTrue(previous.get("incomeChangePercentage").isNull());
+    assertTrue(previous.get("spendingChangePercentage").isNull());
+  }
+
+  private static void assertFields(tools.jackson.databind.JsonNode node, String... names) {
+    assertEquals(java.util.Set.of(names), java.util.Set.copyOf(node.propertyNames()));
+  }
+
+  @Test
+  void factsJoinsTheCallersWriteSnapshotAndObservesUncommittedData() {
+    var snapshot = new TransactionTemplate(manager);
+    snapshot.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+    snapshot.executeWithoutResult(status -> {
+      createTransaction(user, null, "uncommitted", START, "Food", TransactionType.EXPENSE, 12);
+      transactionRepository.flush();
+      assertEquals(12, reports.facts(user, 2026, 1).report().summary().netSpent());
+      assertFalse(TransactionSynchronizationManager.isCurrentTransactionReadOnly());
+      status.setRollbackOnly();
+    });
+    assertEquals(0, report().summary().netSpent());
+  }
+
+  @Test
   void concurrentWriterCannotMixTotalsBreakdownsOrIncomeSnapshots() throws Exception {
     createTransaction(user, null, "meal", START, "Food", TransactionType.EXPENSE, 20);
     CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
     doAnswer(
             inv -> {
+              assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
+              assertTrue(TransactionSynchronizationManager.isCurrentTransactionReadOnly());
+              assertEquals(
+                  TransactionDefinition.ISOLATION_REPEATABLE_READ,
+                  TransactionSynchronizationManager.getCurrentTransactionIsolationLevel());
+              Object rows = inv.callRealMethod();
               entered.countDown();
               assertTrue(release.await(10, TimeUnit.SECONDS));
-              return inv.callRealMethod();
+              return rows;
             })
-        .when(income)
-        .resolveExpectedForMonth(any(), eq(2026), eq(1));
+        .when(jdbc)
+        .query(
+            contains("AS gross"),
+            ArgumentMatchers.<RowMapper<Object>>any(),
+            eq(user.getId()),
+            eq(java.sql.Timestamp.from(START)),
+            eq(java.sql.Timestamp.from(Instant.parse("2026-03-01T00:00:00Z"))));
     ExecutorService pool = Executors.newSingleThreadExecutor();
     try {
       Future<FinancialReportResponse.Report> future = pool.submit(this::report);
