@@ -12,6 +12,9 @@ import com.fintechapp.fintech_api.model.User;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.json.JsonCompareMode;
 
@@ -36,6 +39,47 @@ class RecurringPaymentIntegrationTest extends BaseIntegrationTest {
   }
 
   @Test
+  void returnsExactWeeklySeriesInPredictionOrder() throws Exception {
+    User user = createUser("recurring-order@example.com", "Password123!", "recurring-order");
+    Instant today = Instant.now().truncatedTo(ChronoUnit.DAYS);
+    String later = seedWeeklyAndExpectedJson(user, "Music", today.minus(1, ChronoUnit.DAYS));
+    String earlier = seedWeeklyAndExpectedJson(user, "Gym", today.minus(3, ChronoUnit.DAYS));
+    mockMvc
+        .perform(get("/api/recurring-payments").header(authHeaderName(), authHeader(user)))
+        .andExpect(status().isOk())
+        .andExpect(
+            content()
+                .json(
+                    """
+                    {"success":true,"message":"Recurring payments retrieved successfully",
+                     "data":{"recurringPayments":[%s,%s]}}
+                    """
+                        .formatted(earlier, later),
+                    JsonCompareMode.STRICT));
+  }
+
+  private String seedWeeklyAndExpectedJson(User user, String name, Instant last) throws Exception {
+    var matches = new ArrayList<Map<String, Object>>();
+    for (int week = 3; week >= 0; week--) {
+      Instant date = last.minus(week * 7L, ChronoUnit.DAYS);
+      var transaction =
+          createTransaction(user, null, name, date, "Bills", TransactionType.EXPENSE, 20);
+      matches.add(Map.of("id", transaction.getId(), "date", date.toString(), "amount", 20));
+    }
+    return """
+    {"seriesKey":"%s","name":"%s","expectedAmount":20,"currency":"USD","cadence":"WEEKLY",
+     "intervalDays":7,"nextExpectedDate":"%s","lastOccurredDate":"%s","occurrences":4,
+     "confidence":"HIGH","usualDayOfMonth":null,"amountChange":null,"matchedTransactions":%s}
+    """
+        .formatted(
+            name.toUpperCase(java.util.Locale.ROOT),
+            name,
+            last.plus(7, ChronoUnit.DAYS),
+            last,
+            asJson(matches));
+  }
+
+  @Test
   void emptyHistoryPreservesTheExactSuccessEnvelope() throws Exception {
     User user = createUser("recurring-envelope@example.com", "Password123!", "recurring-envelope");
     mockMvc
@@ -53,7 +97,13 @@ class RecurringPaymentIntegrationTest extends BaseIntegrationTest {
 
   @Test
   void getRecurringPayments_noToken_returnsUnauthorized() throws Exception {
-    mockMvc.perform(get("/api/recurring-payments")).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(get("/api/recurring-payments"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("No token provided."))
+        .andExpect(jsonPath("$.fieldErrors").isEmpty())
+        .andExpect(jsonPath("$.timestamp").exists());
   }
 
   @Test
