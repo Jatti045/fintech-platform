@@ -223,3 +223,11 @@ These artifacts are temporary and may be removed by the OS or a later build. Raw
 ## Increment 3 healthy-cache baseline
 
 Java 17 clean verify with dedicated Redis 7.2.7 and disposable PostgreSQL passed **820 of 825 tests**, with zero failures or errors and five existing skips. Compared with Increment 2, six previously skipped Redis tests ran and the new recovery test passed. Compilation and executable packaging passed. The separately rerun architecture suite covers the updated completion registry. [Reproduction and cache checks](recurring-read-pilot.md)
+
+## Increment 4 authoritative report verification
+
+Java 17 `clean verify` discovered 831 tests. **826 passed, zero failed or errored, five existing skips.** This adds six passing tests over the accepted Increment 3 baseline of 820. It includes 26 ArchUnit tests, ten report characterization tests, three framework-independent reporting tests, seven financial summary HTTP tests, 15 monthly insight service tests and seven healthy Redis cache integration tests. Compilation and executable packaging passed.
+
+All ten report characterization tests also passed against the original implementation in a separate checkout. PostgreSQL 18.3 ran on loopback with a fresh synthetic database for each backend full run. Redis 7.2.7 ran locally with persistence disabled and `-Dtest.requireRedis=true`. Provider credentials and dotenv loading were disabled. The PostgreSQL statement log recorded six report data queries in the same order and transaction before and after. See [reporting verification](financial-report-read.md) for the query boundaries and concurrency cases.
+
+Client reporting, budget-hook and reporting-clock suites passed 31 tests across four suites. TypeScript passed. Jest ran with Watchman disabled because its state directory was inaccessible to the test process. Changed Java formatting and applicable commit hooks passed. No native-device or production validation was performed.

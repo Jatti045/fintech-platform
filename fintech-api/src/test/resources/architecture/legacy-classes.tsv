@@ -180,9 +180,7 @@ com.fintechapp.fintech_api.service.EncryptionService	Existing mixed workflow/tec
 com.fintechapp.fintech_api.service.FinancialCacheInvalidator	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
 com.fintechapp.fintech_api.service.FinancialCacheInvalidator$1	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
 com.fintechapp.fintech_api.service.FinancialReportService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
-com.fintechapp.fintech_api.service.FinancialReportService$Amounts	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
 com.fintechapp.fintech_api.service.FinancialReportService$MonthlyFacts	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
-com.fintechapp.fintech_api.service.FinancialReportService$Row	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
 com.fintechapp.fintech_api.service.FinancialSummaryService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
 com.fintechapp.fintech_api.service.IncomeCalculationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 4
 com.fintechapp.fintech_api.service.InternalTransferReconciliationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
