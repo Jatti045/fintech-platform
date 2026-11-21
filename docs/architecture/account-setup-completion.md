@@ -39,3 +39,5 @@ The Redis test verifies both regions survive a rollback, the row and baseline ro
 Revert the increment commits together to roll back. No data conversion is required. The next bounded candidate is the standalone monthly-income update. Characterize its lock re-entry, baseline carry-forward, write validation and after-commit eviction before selecting a boundary.
 
 PostgreSQL statement logs recorded 11 setup statements in the winning change-of-currency request before and after, including two owner-lock reads and three writes. The retry issued three statements, including one lock and zero writes. Counts exclude JWT session lookup, test observer queries and transaction control. They describe the measured fixture, not all input branches.
+
+The registry marks only the account setup command complete. The shared domain entry records the currency eligibility rule without declaring a second workflow migrated. The [hosted architecture check](https://github.com/Jatti045/fintech-platform/actions/runs/44964122809) passed before this completion entry was updated.
