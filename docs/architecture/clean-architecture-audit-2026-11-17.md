@@ -754,3 +754,7 @@ These links point at the audited workspace; later changes can shift line numbers
 ## Increment 3 pilot validation
 
 Increment 3 is limited to recurring-read validation and standardization. The next separately approved migration should be the authoritative report read, with current and previous-period facts held in one repeatable-read snapshot. Characterize reconciliation, signed credits and exact output before extracting the facts reader and calculator. The risk is higher than recurring reads because splitting queries can lose snapshot consistency and moving rounding can change totals. Keep legacy Redis summary compatibility and client contracts in scope only where they interact with that report. [Pilot evaluation](recurring-read-pilot.md)
+
+## Increment 4 authoritative report read
+
+The reporting slice originally listed under Increment 3 was approved as Increment 4 after the recurring pilot was merged. The report now uses a plain calculator and application-owned facts reader with a single infrastructure snapshot boundary. Summary and insight continue through a narrow legacy contract. The next separately approved slice should be the authenticated income/profile read, before account setup or income writes. [Reporting migration and verification](financial-report-read.md)
