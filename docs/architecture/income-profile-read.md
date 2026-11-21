@@ -40,3 +40,5 @@ The migration removes the legacy controller entry and its corresponding service 
 Rollback reverts the increment commits together, including the migration registry. The next bounded candidate is account-setup completion, after characterizing idempotency and owner-lock ordering. Its income and currency writes should be evaluated as part of that single transaction without migrating the standalone update routes.
 
 PostgreSQL statement logs captured five successful fixture requests on each version. Each made three data queries in order: owner profile, latest eligible income baseline, and aggregate. Each sequence ran on one read-only repeatable-read transaction, with no explicit row lock or write. The separate JWT session-version lookup adds one read. The migration adds no query or dependency.
+
+The architecture registry marks only this read complete. The [hosted architecture check](https://github.com/Jatti045/fintech-platform/actions/runs/44963024694) passed before the completion entry was updated.
