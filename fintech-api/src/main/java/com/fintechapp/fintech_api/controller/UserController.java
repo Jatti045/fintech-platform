@@ -13,7 +13,6 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -83,13 +82,5 @@ public class UserController {
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @Valid @RequestBody UpdateMonthlyIncomeRequest request) {
     return userService.updateMonthlyIncome(authenticatedUser, request);
-  }
-
-  @GetMapping("/me/monthly-income")
-  public UserDataResponse getMonthlyIncomeForMonth(
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
-      @RequestParam String month,
-      @RequestParam String year) {
-    return userService.getMonthlyIncomeForMonth(authenticatedUser, month, year);
   }
 }

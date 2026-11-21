@@ -2,3 +2,4 @@
 # Add a row with the first real feature class, never to legitimize legacy package additions.
 recurring	complete	Increment 2
 reporting	complete	Increment 4
+incomeprofile	partial	Increment 5

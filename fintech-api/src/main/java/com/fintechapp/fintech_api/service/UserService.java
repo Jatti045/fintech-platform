@@ -95,24 +95,6 @@ public class UserService {
     return new UserDataResponse(true, "Current user fetched successfully.", toUserSummary(user));
   }
 
-  @Transactional(
-      readOnly = true,
-      isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-  public UserDataResponse getMonthlyIncomeForMonth(
-      AuthenticatedUser authenticatedUser, String monthRaw, String yearRaw) {
-    User user = requireCurrentUser(authenticatedUser);
-
-    Integer month = parseInteger(monthRaw);
-    Integer year = parseInteger(yearRaw);
-    if (month == null || year == null || month < 0 || month > 11 || year <= 0) {
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "Month and year query parameters are required");
-    }
-
-    return new UserDataResponse(
-        true, "Monthly income fetched successfully.", toUserSummary(user, year, month));
-  }
-
   @Transactional
   public ApiMessageResponse deleteAccount(String userId, AuthenticatedUser authenticatedUser) {
     requireSameUser(userId, authenticatedUser);
@@ -363,18 +345,6 @@ public class UserService {
         actualIncome,
         user.getCreatedAt(),
         user.getUpdatedAt());
-  }
-
-  private Integer parseInteger(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return null;
-    }
-
-    try {
-      return Integer.parseInt(raw.trim());
-    } catch (NumberFormatException ignored) {
-      return null;
-    }
   }
 
   private ProfilePictureUserResponse toProfilePictureUser(User user) {
