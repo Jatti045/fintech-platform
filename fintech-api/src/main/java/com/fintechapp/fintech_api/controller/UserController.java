@@ -3,7 +3,6 @@ package com.fintechapp.fintech_api.controller;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.common.ApiMessageResponse;
 import com.fintechapp.fintech_api.dto.user.ChangePasswordRequest;
-import com.fintechapp.fintech_api.dto.user.CompleteSetupRequest;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUploadResponse;
 import com.fintechapp.fintech_api.dto.user.UpdateCurrencyRequest;
 import com.fintechapp.fintech_api.dto.user.UpdateMonthlyIncomeRequest;
@@ -61,13 +60,6 @@ public class UserController {
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @Valid @RequestBody ChangePasswordRequest request) {
     return userService.changePassword(authenticatedUser, request);
-  }
-
-  @PatchMapping("/me/setup")
-  public UserDataResponse completeSetup(
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
-      @Valid @RequestBody CompleteSetupRequest request) {
-    return userService.completeSetup(authenticatedUser, request);
   }
 
   @PatchMapping("/me/currency")
