@@ -758,3 +758,7 @@ Increment 3 is limited to recurring-read validation and standardization. The nex
 ## Increment 4 authoritative report read
 
 The reporting slice originally listed under Increment 3 was approved as Increment 4 after the recurring pilot was merged. The report now uses a plain calculator and application-owned facts reader with a single infrastructure snapshot boundary. Summary and insight continue through a narrow legacy contract. The next separately approved slice should be the authenticated income/profile read, before account setup or income writes. [Reporting migration and verification](financial-report-read.md)
+
+## Increment 5 monthly-income profile read
+
+The read-only profile slice of the account roadmap moved to `incomeprofile`. Its own use case and snapshot boundary reuse the original owner, baseline and aggregate queries. The existing profile/auth and write flows still use the legacy services. The next candidate is the bounded account-setup completion command, subject to separate approval. [Income/profile read migration](income-profile-read.md)

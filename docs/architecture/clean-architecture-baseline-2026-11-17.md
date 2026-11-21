@@ -231,3 +231,9 @@ Java 17 `clean verify` discovered 831 tests. **826 passed, zero failed or errore
 All ten report characterization tests also passed against the original implementation in a separate checkout. PostgreSQL 18.3 ran on loopback with a fresh synthetic database for each backend full run. Redis 7.2.7 ran locally with persistence disabled and `-Dtest.requireRedis=true`. Provider credentials and dotenv loading were disabled. The PostgreSQL statement log recorded six report data queries in the same order and transaction before and after. See [reporting verification](financial-report-read.md) for the query boundaries and concurrency cases.
 
 Client reporting, budget-hook and reporting-clock suites passed 31 tests across four suites. TypeScript passed. Jest ran with Watchman disabled because its state directory was inaccessible to the test process. Changed Java formatting and applicable commit hooks passed. No native-device or production validation was performed.
+
+## Increment 5 monthly-income profile verification
+
+Java 17 `clean verify` discovered 838 tests. **833 passed, zero failed or errored, five existing skips.** This adds three endpoint characterization tests and four framework-independent policy/use-case tests to the Increment 4 baseline. All 26 ArchUnit tests passed. Compilation, executable packaging and the seven healthy Redis cases passed. The backend run used disposable loopback PostgreSQL 18.3 and Redis 7.2.7 with provider settings disabled.
+
+The same three HTTP cases passed against the original route. PostgreSQL logged three owner-scoped data reads in the same read-only repeatable-read transaction before and after. The separate JWT lookup remained outside the snapshot. The client authentication, profile and session suites passed 132 tests across 17 suites, and TypeScript passed. See [income/profile read migration](income-profile-read.md).
