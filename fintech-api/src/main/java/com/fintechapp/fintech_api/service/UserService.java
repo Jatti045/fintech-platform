@@ -6,7 +6,6 @@ import com.fintechapp.fintech_api.dto.user.ChangePasswordRequest;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUploadResponse;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUserResponse;
 import com.fintechapp.fintech_api.dto.user.UpdateCurrencyRequest;
-import com.fintechapp.fintech_api.dto.user.UpdateMonthlyIncomeRequest;
 import com.fintechapp.fintech_api.dto.user.UserDataResponse;
 import com.fintechapp.fintech_api.dto.user.UserSummaryResponse;
 import com.fintechapp.fintech_api.model.User;
@@ -237,36 +236,6 @@ public class UserService {
     }
     user.setCurrency(currency);
     return true;
-  }
-
-  @Transactional
-  public UserDataResponse updateMonthlyIncome(
-      AuthenticatedUser authenticatedUser, UpdateMonthlyIncomeRequest request) {
-    User user = requireLockedCurrentUser(authenticatedUser);
-    if (request == null || request.monthlyIncome() == null) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Monthly income is required.");
-    }
-
-    if (request.monthlyIncome() < 0) {
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "Monthly income must be a non-negative number.");
-    }
-
-    Integer month = request.month();
-    Integer year = request.year();
-    if (month == null || year == null) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month and year are required");
-    }
-
-    monthlyIncomeService.upsertForMonth(user, year, month, request.monthlyIncome());
-
-    // The income baseline feeds the summary of the target month and every
-    // later month ("latest monthStart <= target"), so evict the whole
-    // user's summary region rather than guessing the affected months.
-    cacheInvalidator.evictFinancialSummaryRegion(user.getId());
-
-    return new UserDataResponse(
-        true, "Monthly income updated successfully.", toUserSummary(user, year, month));
   }
 
   private User requireLockedCurrentUser(AuthenticatedUser authenticatedUser) {
