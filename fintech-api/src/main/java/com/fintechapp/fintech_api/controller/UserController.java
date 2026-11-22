@@ -5,7 +5,6 @@ import com.fintechapp.fintech_api.dto.common.ApiMessageResponse;
 import com.fintechapp.fintech_api.dto.user.ChangePasswordRequest;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUploadResponse;
 import com.fintechapp.fintech_api.dto.user.UpdateCurrencyRequest;
-import com.fintechapp.fintech_api.dto.user.UpdateMonthlyIncomeRequest;
 import com.fintechapp.fintech_api.dto.user.UserDataResponse;
 import com.fintechapp.fintech_api.service.UserService;
 import jakarta.validation.Valid;
@@ -67,12 +66,5 @@ public class UserController {
       @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
       @Valid @RequestBody UpdateCurrencyRequest request) {
     return userService.updateCurrency(authenticatedUser, request);
-  }
-
-  @PatchMapping("/me/monthly-income")
-  public UserDataResponse updateMonthlyIncome(
-      @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
-      @Valid @RequestBody UpdateMonthlyIncomeRequest request) {
-    return userService.updateMonthlyIncome(authenticatedUser, request);
   }
 }

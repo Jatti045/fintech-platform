@@ -338,6 +338,64 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
   }
 
   @Test
+  void incomeUpdateEvictsEveryOwnerSummaryOnlyAfterCommitAndToleratesRedisTimeout()
+      throws Exception {
+    var owner = createUser("cache-income-commit@example.com", "Password123!", "income-commit");
+    var other = createUser("cache-income-other@example.com", "Password123!", "income-other");
+    String keyPrefix = CacheConfig.FINANCIAL_SUMMARY_CACHE + "::";
+    var ownerKeys =
+        java.util.List.of(
+            keyPrefix + owner.getId() + ":2024:0", keyPrefix + owner.getId() + ":2024:11");
+    var preserved =
+        java.util.List.of(
+            keyPrefix + other.getId() + ":2024:0", "recurringPayments::" + owner.getId());
+    var allKeys = java.util.stream.Stream.concat(ownerKeys.stream(), preserved.stream()).toList();
+    allKeys.forEach(key -> redisTemplate.opsForValue().set(key, "income eviction fixture"));
+
+    var request =
+        patch("/api/users/me/monthly-income")
+            .header(authHeaderName(), authHeader(owner))
+            .contentType(json())
+            .content("{\"monthlyIncome\":275,\"month\":0,\"year\":2024}");
+    transactionTemplate.executeWithoutResult(status -> {
+      try {
+        mockMvc.perform(request).andExpect(status().isOk());
+      } catch (Exception exception) {
+        throw new AssertionError(exception);
+      }
+      allKeys.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+      status.setRollbackOnly();
+    });
+    allKeys.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+    Assertions.assertFalse(userMonthlyIncomeRepository.existsByUser_Id(owner.getId()));
+
+    if (Boolean.getBoolean("test.requireRedis")) {
+      try (var connection = redisTemplate.getConnectionFactory().getConnection()) {
+        connection.execute(
+            "CLIENT",
+            "PAUSE".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "2500".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "ALL".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+      }
+      mockMvc.perform(request).andExpect(status().isOk());
+      Assertions.assertEquals(
+          275,
+          userMonthlyIncomeRepository
+              .findByUser_IdAndMonthStart(owner.getId(), Instant.parse("2024-01-01T00:00:00Z"))
+              .orElseThrow()
+              .getIncome());
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+      while (!redisAvailable() && System.nanoTime() < deadline) Thread.sleep(100);
+      Assertions.assertTrue(redisAvailable());
+      ownerKeys.forEach(key -> redisTemplate.opsForValue().set(key, "recovery fixture"));
+    }
+
+    mockMvc.perform(request).andExpect(status().isOk());
+    ownerKeys.forEach(key -> Assertions.assertFalse(redisTemplate.hasKey(key)));
+    preserved.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+  }
+
+  @Test
   void setupEvictsOnlyOnCommitAndDoesNotEvictOnRetry() throws Exception {
     var user = createUser("cache-setup@example.com", "Password123!", "cache-setup");
     var other = createUser("cache-setup-other@example.com", "Password123!", "cache-setup-other");
