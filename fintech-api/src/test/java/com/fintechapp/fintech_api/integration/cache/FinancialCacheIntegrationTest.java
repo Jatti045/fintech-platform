@@ -772,6 +772,10 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
   @Autowired
   private com.fintechapp.fintech_api.service.CategorizationRuleService categorizationRules;
 
+  @Autowired
+  private com.fintechapp.fintech_api.categorization.infrastructure.HistoricalRuleApplication
+      historicalApply;
+
   @Test
   void historicalClassificationRollsBackStateAndDefersOwnerEvictionUntilCommit() {
     var user = createUser("cache-rule-commit@example.com", "Password123!", "cache-rule");
@@ -814,7 +818,7 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
     }
     String token = categorizationRules.preview(actor, rule.id()).token();
     transactionTemplate.executeWithoutResult(status -> {
-      Assertions.assertEquals(1, categorizationRules.apply(actor, rule.id(), token).changed());
+      Assertions.assertEquals(1, historicalApply.apply(actor, rule.id(), token).changed());
       Assertions.assertTrue(redisTemplate.hasKey(summary));
       Assertions.assertTrue(redisTemplate.hasKey(recurring));
       status.setRollbackOnly();
@@ -826,7 +830,7 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
     Assertions.assertTrue(redisTemplate.hasKey(summary));
     Assertions.assertTrue(redisTemplate.hasKey(recurring));
 
-    Assertions.assertEquals(1, categorizationRules.apply(actor, rule.id(), token).changed());
+    Assertions.assertEquals(1, historicalApply.apply(actor, rule.id(), token).changed());
     Assertions.assertEquals(
         "Coffee", transactionRepository.findById(tx.getId()).orElseThrow().getCategory());
     var budget = budgetRepository.findByUser_IdOrderByDateDesc(user.getId()).get(0);
@@ -834,6 +838,92 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
     Assertions.assertFalse(redisTemplate.hasKey(summary));
     Assertions.assertFalse(redisTemplate.hasKey(recurring));
     Assertions.assertTrue(redisTemplate.hasKey(otherRecurring));
+  }
+
+  @Test
+  void historicalApplyNoOpKeepsCacheAndTimeoutDoesNotUndoCommittedChanges() throws Exception {
+    var owner = createUser("cache-history-timeout@example.com", "Password123!", "History timeout");
+    var other =
+        createUser("cache-history-isolated@example.com", "Password123!", "History isolated");
+    var row =
+        createTransaction(
+            owner, null, "Store", monthStart(utcToday), "Old", TransactionType.EXPENSE, 12);
+    var actor =
+        new com.fintechapp.fintech_api.dto.auth.AuthenticatedUser(
+            owner.getId(), owner.getEmail(), 0);
+    var first = categorizationRules.save(actor, null, historyRequest("Coffee", null));
+    String current = categorizationRules.preview(actor, first.id()).token();
+    Assertions.assertEquals(1, historicalApply.apply(actor, first.id(), current).changed());
+
+    String summary =
+        CacheConfig.FINANCIAL_SUMMARY_CACHE
+            + "::"
+            + owner.getId()
+            + ":"
+            + currentYear()
+            + ":"
+            + currentMonthIndex();
+    String recurring = "recurringPayments::" + owner.getId();
+    String otherRecurring = "recurringPayments::" + other.getId();
+    var ownerKeys = java.util.List.of(summary, recurring);
+    ownerKeys.forEach(key -> redisTemplate.opsForValue().set(key, "before no-op"));
+    redisTemplate.opsForValue().set(otherRecurring, "other");
+    String empty = categorizationRules.preview(actor, first.id()).token();
+    Assertions.assertEquals(0, historicalApply.apply(actor, first.id(), empty).changed());
+    ownerKeys.forEach(
+        key -> Assertions.assertEquals("before no-op", redisTemplate.opsForValue().get(key)));
+
+    var second =
+        categorizationRules.save(actor, first.id(), historyRequest("Travel", first.revision()));
+    String changed = categorizationRules.preview(actor, second.id()).token();
+    if (Boolean.getBoolean("test.requireRedis")) {
+      try (var connection = redisTemplate.getConnectionFactory().getConnection()) {
+        connection.execute(
+            "CLIENT",
+            "PAUSE".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "2500".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "ALL".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+      }
+    }
+    var batch = historicalApply.apply(actor, second.id(), changed);
+    Assertions.assertEquals(1, batch.changed());
+    Assertions.assertEquals(
+        "Travel", transactionRepository.findById(row.getId()).orElseThrow().getCategory());
+    Assertions.assertTrue(
+        categorizationRules.history(actor).stream()
+            .anyMatch(entry -> entry.id().equals(batch.applicationId()) && entry.changed() == 1));
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while (!redisAvailable() && System.nanoTime() < deadline) Thread.sleep(100);
+    Assertions.assertTrue(redisAvailable());
+
+    var third =
+        categorizationRules.save(actor, second.id(), historyRequest("Shopping", second.revision()));
+    ownerKeys.forEach(key -> redisTemplate.opsForValue().set(key, "recovery"));
+    Assertions.assertEquals(
+        1,
+        historicalApply
+            .apply(actor, third.id(), categorizationRules.preview(actor, third.id()).token())
+            .changed());
+    ownerKeys.forEach(key -> Assertions.assertFalse(redisTemplate.hasKey(key)));
+    Assertions.assertEquals("other", redisTemplate.opsForValue().get(otherRecurring));
+  }
+
+  private com.fintechapp.fintech_api.dto.rules.RuleRequest historyRequest(
+      String category, Long revision) {
+    return new com.fintechapp.fintech_api.dto.rules.RuleRequest(
+        "Store history",
+        "MERCHANT",
+        "EXACT",
+        "Store",
+        null,
+        null,
+        null,
+        category,
+        null,
+        null,
+        1,
+        true,
+        revision);
   }
 
   // ── Test-only payload shapes (match the API records) ────────────────────

@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.rules.RuleRequest;
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
+import com.fintechapp.fintech_api.model.RuleApplication;
 import com.fintechapp.fintech_api.model.Transaction;
 import com.fintechapp.fintech_api.model.TransactionType;
 import com.fintechapp.fintech_api.model.User;
@@ -101,6 +102,7 @@ class HistoricalPreviewGoldenIntegrationTest extends BaseIntegrationTest {
     String batchId = objectMapper.readTree(applied).at("/data/applicationId").asString();
     String journal =
         applications.findByIdAndUser_Id(batchId, owner.getId()).orElseThrow().getChangesJson();
+    String originalJournal;
     try (var fixture =
             getClass().getResourceAsStream("/categorization/historical-preview-golden.jsonl");
         var hashes =
@@ -114,6 +116,7 @@ class HistoricalPreviewGoldenIntegrationTest extends BaseIntegrationTest {
       for (int i = 0; i < tokens.length; i++) {
         expected = expected.replace("GOLDEN_HASH_" + i, tokens[i]);
       }
+      originalJournal = expected.lines().skip(3).findFirst().orElseThrow();
       String observed = String.join("\n", winning, losing, disabledTarget, journal) + "\n";
       assertArrayEquals(
           expected.getBytes(StandardCharsets.UTF_8), observed.getBytes(StandardCharsets.UTF_8));
@@ -127,6 +130,22 @@ class HistoricalPreviewGoldenIntegrationTest extends BaseIntegrationTest {
         .andExpect(status().isConflict())
         .andExpect(
             jsonPath("$.message").value("History or rules changed. Preview again before applying"));
+
+    // Feed the original writer's stored bytes to the unchanged undo reader.
+    var originalBatch = new RuleApplication();
+    originalBatch.setId("golden-original-batch");
+    originalBatch.setUser(owner);
+    originalBatch.setRuleId("golden-winner");
+    originalBatch.setCreatedAt(DATE);
+    originalBatch.setChangesJson(originalJournal);
+    applications.saveAndFlush(originalBatch);
+    assertEquals(2, rules.undo(auth, originalBatch.getId()).changed());
+    assertEquals(0, rules.undo(auth, originalBatch.getId()).changed());
+    assertEquals(
+        "Manual name", transactionRepository.findById("golden-a").orElseThrow().getNameOverride());
+    assertEquals(
+        "previous-rule",
+        transactionRepository.findById("golden-c").orElseThrow().getAppliedRuleId());
   }
 
   @Test
