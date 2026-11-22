@@ -41,3 +41,5 @@ PostgreSQL observes the second update waiting for the owner row, then sees a sin
 Roll back by reverting the increment commits together. No schema or cache conversion is required. The next bounded candidate is the standalone currency update. Characterize its response validation and rollback behavior, and preserve owner-lock serialization and both of its existing cache invalidation paths.
 
 PostgreSQL recorded six endpoint statements each for the first insert and subsequent update, before and after. Each sequence includes two owner-lock reads, the exact-month lookup, one write, the carry-forward lookup, and the actual-income aggregate. Counts exclude JWT session lookup, transaction control and test observer queries.
+
+The registry marks only this endpoint complete. The [hosted architecture workflow](https://github.com/Jatti045/fintech-platform/actions/runs/44967212874) passed on the implementation before the completion entry was updated.
