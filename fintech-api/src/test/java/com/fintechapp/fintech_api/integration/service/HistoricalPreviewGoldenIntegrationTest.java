@@ -129,6 +129,47 @@ class HistoricalPreviewGoldenIntegrationTest extends BaseIntegrationTest {
             jsonPath("$.message").value("History or rules changed. Preview again before applying"));
   }
 
+  @Test
+  void emptyPreviewCanBeReplayedAndPersistsDistinctEmptyBatches() throws Exception {
+    var owner = createUser("history-empty@example.com", "Password123!", "Empty history");
+    var auth = new AuthenticatedUser(owner.getId(), owner.getEmail(), 0);
+    var rule = save(auth, "Coffee", 1, true);
+    String token = objectMapper.readTree(preview(owner, rule.id())).at("/data/token").asString();
+
+    String first = applyEmpty(owner, rule.id(), token);
+    String second = applyEmpty(owner, rule.id(), token);
+
+    assertNotEquals(first, second);
+    assertEquals(first, java.util.UUID.fromString(first).toString());
+    assertEquals(second, java.util.UUID.fromString(second).toString());
+    assertEquals(
+        "{\"changes\":[]}",
+        applications.findByIdAndUser_Id(first, owner.getId()).orElseThrow().getChangesJson());
+    assertEquals(
+        "{\"changes\":[]}",
+        applications.findByIdAndUser_Id(second, owner.getId()).orElseThrow().getChangesJson());
+  }
+
+  private String applyEmpty(User owner, String ruleId, String token) throws Exception {
+    String response =
+        mockMvc
+            .perform(
+                post(PATH + ruleId + "/apply")
+                    .header(authHeaderName(), authHeader(owner))
+                    .contentType(json())
+                    .content(asJson(new Apply(token))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.success").value(true))
+            .andExpect(jsonPath("$.data.changed").value(0))
+            .andReturn()
+            .getResponse()
+            .getContentAsString(StandardCharsets.UTF_8);
+    String id = objectMapper.readTree(response).at("/data/applicationId").asString();
+    assertEquals(
+        "{\"success\":true,\"data\":{\"applicationId\":\"" + id + "\",\"changed\":0}}", response);
+    return id;
+  }
+
   private String preview(User owner, String id) throws Exception {
     return mockMvc
         .perform(post(PATH + id + "/preview").header(authHeaderName(), authHeader(owner)))
