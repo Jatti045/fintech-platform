@@ -544,6 +544,40 @@ class CategorizationRulesIntegrationTest extends BaseIntegrationTest {
     assertEquals(10, spent(u));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+  void undoRejectsMissingHistoryWithoutRestoringAnotherAppliedRow(boolean removeTransaction) {
+    User owner = user();
+    Transaction first = ingest(owner, "first", 10);
+    Transaction second = ingest(owner, "second", 20);
+    String originalBudget = second.getBudget().getId();
+    var target = rule(owner, "Coffee", 1);
+    var batch =
+        historicalApply.apply(
+            auth(owner), target.id(), rules.preview(auth(owner), target.id()).token());
+    assertEquals(2, batch.changed());
+
+    if (removeTransaction) {
+      transactionRepository.deleteById(second.getId());
+    } else {
+      budgetRepository.deleteById(originalBudget);
+    }
+    em.flush();
+    em.clear();
+
+    var conflict =
+        assertThrows(
+            ResponseStatusException.class, () -> rules.undo(auth(owner), batch.applicationId()));
+    assertEquals(409, conflict.getStatusCode().value());
+    assertEquals(
+        removeTransaction
+            ? "A transaction was removed; undo is unavailable"
+            : "The original budget changed; undo is unavailable",
+        conflict.getReason());
+    assertEquals("Coffee", fresh(first.getId()).getCategory());
+    assertEquals(target.id(), fresh(first.getId()).getAppliedRuleId());
+  }
+
   @Test
   void manualCreationPersistsUserChoicesAndCannotBeReplacedByHistoryRules() {
     User u = user();
