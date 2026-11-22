@@ -3,6 +3,7 @@ package com.fintechapp.fintech_api.config;
 import java.util.Arrays;
 
 import org.flywaydb.core.api.MigrationState;
+import org.flywaydb.core.api.MigrationVersion;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Bean;
@@ -12,7 +13,10 @@ import org.springframework.context.annotation.Configuration;
 public class DatabaseMigrations {
     @Bean
     FlywayMigrationStrategy databaseMigrationStrategy(
-            @Value("${app.database.migrate-on-startup:false}") boolean migrate) {
+            @Value("${app.database.migrate-on-startup:false}") boolean migrate,
+            @Value("${app.database.approved-baseline-version:}") String approvedBaselineVersion) {
+        var approvedBaseline = approvedBaselineVersion.isBlank()
+                ? null : MigrationVersion.fromVersion(approvedBaselineVersion.trim());
         return flyway -> {
             if (migrate) {
                 flyway.migrate();
@@ -28,7 +32,8 @@ public class DatabaseMigrations {
             }
             flyway.validate();
             var current = history.current();
-            if (current == null || current.getState() == MigrationState.BASELINE) {
+            if (current == null || (current.getState() == MigrationState.BASELINE
+                    && !current.getVersion().equals(approvedBaseline))) {
                 throw new IllegalStateException("Database requires a completed versioned migration before startup.");
             }
         };
