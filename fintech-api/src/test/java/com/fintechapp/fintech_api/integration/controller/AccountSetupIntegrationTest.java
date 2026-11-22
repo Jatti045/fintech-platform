@@ -1,6 +1,7 @@
 package com.fintechapp.fintech_api.integration.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -16,6 +17,10 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -25,7 +30,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+@org.springframework.test.context.TestPropertySource(
+    properties = "spring.datasource.hikari.maximum-pool-size=3")
 class AccountSetupIntegrationTest extends BaseIntegrationTest {
 
   private static final String PASSWORD = "Password123!";
@@ -231,6 +239,180 @@ class AccountSetupIntegrationTest extends BaseIntegrationTest {
                 .contentType(json())
                 .content("{\"monthlyIncome\":0,\"currency\":\"CAD\"}"))
         .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
+  void competingSessionsWaitForTheOwnerLockAndKeepTheFirstSettings() throws Exception {
+    var user = createUser("setup-race@example.com", PASSWORD, "Setup race");
+    committedAccountEmail = user.getEmail();
+    String firstToken = login(user.getEmail(), false);
+    String secondToken = login(user.getEmail(), false);
+    var firstWrote = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var secondStarted = new CountDownLatch(1);
+    var secondPid = new AtomicInteger();
+    var pool = Executors.newFixedThreadPool(2);
+    try {
+      var first =
+          pool.submit(() ->
+              tx.execute(status -> {
+                var response =
+                    setup(firstToken, "{\"monthlyIncome\":3500.75,\"currency\":\"cad\"}");
+                firstWrote.countDown();
+                try {
+                  assertTrue(release.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException exception) {
+                  Thread.currentThread().interrupt();
+                  throw new AssertionError(exception);
+                }
+                return response;
+              }));
+      assertTrue(firstWrote.await(10, TimeUnit.SECONDS));
+      var second =
+          pool.submit(() ->
+              tx.execute(status -> {
+                secondPid.set(jdbc.queryForObject("select pg_backend_pid()", Integer.class));
+                secondStarted.countDown();
+                return setup(secondToken, "{\"monthlyIncome\":25,\"currency\":\"GBP\"}");
+              }));
+      assertTrue(secondStarted.await(10, TimeUnit.SECONDS));
+      boolean blocked = false;
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+      while (!second.isDone() && System.nanoTime() < deadline) {
+        blocked =
+            Boolean.TRUE.equals(
+                jdbc.queryForObject(
+                    "select cardinality(pg_blocking_pids(?)) > 0", Boolean.class, secondPid.get()));
+        if (blocked) break;
+        Thread.sleep(10);
+      }
+      assertTrue(blocked, "The second setup must wait for the owner's PostgreSQL row lock");
+      release.countDown();
+      for (var response :
+          java.util.List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS))) {
+        assertEquals("Account setup is complete.", response.get("message").asString());
+        assertEquals("CAD", response.at("/data/currency").asString());
+        assertEquals(3500.75, response.at("/data/monthlyIncome").asDouble());
+        assertTrue(response.at("/data/setupComplete").asBoolean());
+        assertEquals(user.getId(), response.at("/data/id").asString());
+        assertEquals(user.getEmail(), response.at("/data/email").asString());
+        assertEquals(user.getUsername(), response.at("/data/username").asString());
+        assertTrue(response.at("/data/profilePic").isNull());
+        assertEquals(0, response.at("/data/actualMonthlyIncome").asDouble());
+        java.time.Instant.parse(response.at("/data/createdAt").asString());
+        java.time.Instant.parse(response.at("/data/updatedAt").asString());
+        assertEquals(
+            java.util.List.of("success", "message", "data"),
+            java.util.List.copyOf(response.propertyNames()));
+        assertEquals(
+            java.util.List.of(
+                "id",
+                "username",
+                "email",
+                "profilePic",
+                "currency",
+                "setupComplete",
+                "monthlyIncome",
+                "actualMonthlyIncome",
+                "createdAt",
+                "updatedAt"),
+            java.util.List.copyOf(response.get("data").propertyNames()));
+      }
+      assertTrue(userRepository.findById(user.getId()).orElseThrow().isSetupComplete());
+      assertEquals(
+          1,
+          jdbc.queryForObject(
+              "select count(*) from user_monthly_incomes where user_id = ?",
+              Integer.class,
+              user.getId()));
+    } finally {
+      release.countDown();
+      pool.shutdownNow();
+    }
+  }
+
+  @Test
+  void matchingCurrencyAllowsSetupDespiteFinancialData() throws Exception {
+    var user = createUser("setup-same-currency@example.com", PASSWORD, "Same currency");
+    var month =
+        LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+    createBudget(user, "Food", 50, month);
+    mockMvc
+        .perform(
+            patch(SETUP_PATH)
+                .header(authHeaderName(), authHeader(user))
+                .contentType(json())
+                .content("{\"monthlyIncome\":0,\"currency\":\"CAD\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(
+            jsonPath("$.message")
+                .value(
+                    "Cannot change currency after financial data exists (transactions, budgets, or"
+                        + " monthly income)."));
+    var result = setup(authHeader(user), "{\"monthlyIncome\":0,\"currency\":\"usd\"}");
+    assertTrue(result.at("/data/setupComplete").asBoolean());
+    assertEquals("USD", result.at("/data/currency").asString());
+    assertEquals(0, result.at("/data/monthlyIncome").asDouble());
+  }
+
+  @Test
+  void malformedRetryStillFailsHttpValidationBeforeTheCompletedCheck() throws Exception {
+    var user = createUser("setup-retry-invalid@example.com", PASSWORD, "Setup retry");
+    String token = authHeader(user);
+    setup(token, "{\"monthlyIncome\":0,\"currency\":\"USD\"}");
+    mockMvc
+        .perform(
+            patch(SETUP_PATH)
+                .header(authHeaderName(), token)
+                .contentType(json())
+                .content("{\"monthlyIncome\":-1,\"currency\":\"USD\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value("Request validation failed."))
+        .andExpect(
+            jsonPath("$.fieldErrors.monthlyIncome").value("Monthly income cannot be negative"));
+    var result = setup(token, "{\"monthlyIncome\":12,\"currency\":\"XYZ\"}");
+    assertEquals(0, result.at("/data/monthlyIncome").asDouble());
+    assertEquals("USD", result.at("/data/currency").asString());
+  }
+
+  @Test
+  void invalidAndDeletedUserTokensAreRejected() throws Exception {
+    var user = createUser("setup-deleted@example.com", PASSWORD, "Setup deleted");
+    String token = authHeader(user);
+    userRepository.delete(user);
+    userRepository.flush();
+    String body = "{\"monthlyIncome\":0,\"currency\":\"CAD\"}";
+    mockMvc
+        .perform(
+            patch(SETUP_PATH).header(authHeaderName(), "invalid").contentType(json()).content(body))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.message").value("Invalid token format."));
+    mockMvc
+        .perform(
+            patch(SETUP_PATH).header(authHeaderName(), token).contentType(json()).content(body))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.message").value("Session has been revoked. Please sign in again."));
+  }
+
+  @Autowired private TransactionTemplate tx;
+
+  private tools.jackson.databind.JsonNode setup(String token, String body) {
+    try {
+      return objectMapper.readTree(
+          mockMvc
+              .perform(
+                  patch(SETUP_PATH)
+                      .header(authHeaderName(), token)
+                      .contentType(json())
+                      .content(body))
+              .andExpect(status().isOk())
+              .andReturn()
+              .getResponse()
+              .getContentAsString());
+    } catch (Exception exception) {
+      throw new AssertionError(exception);
+    }
   }
 
   private String login(String email, boolean completed) throws Exception {

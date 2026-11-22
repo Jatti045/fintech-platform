@@ -3,7 +3,6 @@ package com.fintechapp.fintech_api.service;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.common.ApiMessageResponse;
 import com.fintechapp.fintech_api.dto.user.ChangePasswordRequest;
-import com.fintechapp.fintech_api.dto.user.CompleteSetupRequest;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUploadResponse;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUserResponse;
 import com.fintechapp.fintech_api.dto.user.UpdateCurrencyRequest;
@@ -16,9 +15,9 @@ import com.fintechapp.fintech_api.repository.PasswordResetTokenRepository;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
+import com.fintechapp.fintech_api.shared.domain.CurrencyChange;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Currency;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -220,44 +219,17 @@ public class UserService {
     return new UserDataResponse(true, "Currency updated successfully.", toUserSummary(user));
   }
 
-  @Transactional
-  public UserDataResponse completeSetup(
-      AuthenticatedUser authenticatedUser, CompleteSetupRequest request) {
-    User user = requireLockedCurrentUser(authenticatedUser);
-    if (user.isSetupComplete()) {
-      // A retry after a committed request or on a second device returns the saved profile.
-      return new UserDataResponse(true, "Account setup is complete.", toUserSummary(user));
-    }
-
-    double income = request.monthlyIncome().doubleValue();
-    if (!Double.isFinite(income) || income < 0) {
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "Monthly income must be a non-negative number.");
-    }
-
-    String currency = request.currency().toUpperCase(Locale.ROOT);
-    try {
-      Currency.getInstance(currency);
-    } catch (IllegalArgumentException ex) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid currency code");
-    }
-
-    applyCurrency(user, currency);
-    LocalDate utcNow = LocalDate.now(ZoneOffset.UTC);
-    int year = utcNow.getYear();
-    int month = utcNow.getMonthValue() - 1;
-    monthlyIncomeService.upsertForMonth(user, year, month, income);
-    user.setSetupComplete(true);
-    cacheInvalidator.evictFinancialDataAfterCommit(user.getId());
-    return new UserDataResponse(
-        true, "Account setup is complete.", toUserSummary(user, year, month));
-  }
-
   private boolean applyCurrency(User user, String currency) {
-    if (currency.equals(user.getCurrency())) return false;
-    if (transactionRepository.existsByUser_Id(user.getId())
-        || budgetRepository.existsByUser_Id(user.getId())
-        || monthlyIncomeService.existsForUser(user.getId())) {
+    var decision =
+        CurrencyChange.decide(
+            user.getCurrency(),
+            currency,
+            () ->
+                transactionRepository.existsByUser_Id(user.getId())
+                    || budgetRepository.existsByUser_Id(user.getId())
+                    || monthlyIncomeService.existsForUser(user.getId()));
+    if (decision == CurrencyChange.UNCHANGED) return false;
+    if (decision == CurrencyChange.BLOCKED) {
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST,
           "Cannot change currency after financial data exists (transactions, budgets, or monthly"

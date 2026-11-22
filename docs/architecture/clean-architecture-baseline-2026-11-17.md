@@ -237,3 +237,9 @@ Client reporting, budget-hook and reporting-clock suites passed 31 tests across 
 Java 17 `clean verify` discovered 838 tests. **833 passed, zero failed or errored, five existing skips.** This adds three endpoint characterization tests and four framework-independent policy/use-case tests to the Increment 4 baseline. All 26 ArchUnit tests passed. Compilation, executable packaging and the seven healthy Redis cases passed. The backend run used disposable loopback PostgreSQL 18.3 and Redis 7.2.7 with provider settings disabled.
 
 The same three HTTP cases passed against the original route. PostgreSQL logged three owner-scoped data reads in the same read-only repeatable-read transaction before and after. The separate JWT lookup remained outside the snapshot. The client authentication, profile and session suites passed 132 tests across 17 suites, and TypeScript passed. See [income/profile read migration](income-profile-read.md).
+
+## Increment 6 account setup verification
+
+Java 17 `clean verify` discovered 847 tests. **842 passed, zero failed or errored, five existing skips.** This adds five characterization cases and four framework-independent tests over Increment 5. All 26 ArchUnit checks, 13 setup integration cases, 15 currency financial-state cases, and eight healthy Redis cases passed. Compilation and executable packaging passed.
+
+The original endpoint passed the same 21 setup and healthy Redis integration cases. The PostgreSQL lock observer confirmed that the competing request waited for the owner row. Both versions executed 11 setup statements on first completion and three on retry in the same fixture. Client authentication, setup and session suites passed 89 tests across 11 suites. TypeScript, changed-file formatting and applicable Git hooks passed. [Setup evidence](account-setup-completion.md)

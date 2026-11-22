@@ -3,3 +3,5 @@
 recurring	complete	Increment 2
 reporting	complete	Increment 4
 incomeprofile	complete	Increment 5
+accountsetup	complete	Increment 6
+shared	partial	Increment 6

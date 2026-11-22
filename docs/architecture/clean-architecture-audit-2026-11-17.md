@@ -762,3 +762,7 @@ The reporting slice originally listed under Increment 3 was approved as Incremen
 ## Increment 5 monthly-income profile read
 
 The read-only profile slice of the account roadmap moved to `incomeprofile`. Its own use case and snapshot boundary reuse the original owner, baseline and aggregate queries. The existing profile/auth and write flows still use the legacy services. The next candidate is the bounded account-setup completion command, subject to separate approval. [Income/profile read migration](income-profile-read.md)
+
+## Increment 6 account setup completion
+
+Only the authenticated setup command moved into the `accountsetup` feature. The original owner lock, income upsert, persistence context and after-commit cache invalidator remain in use. The setup and standalone currency routes share the pure eligibility decision while keeping their respective validations and write boundaries. [Setup migration and verification](account-setup-completion.md)

@@ -337,6 +337,86 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
         .andExpect(jsonPath("$.data.expectedIncome").value(4200.0));
   }
 
+  @Test
+  void setupEvictsOnlyOnCommitAndDoesNotEvictOnRetry() throws Exception {
+    var user = createUser("cache-setup@example.com", "Password123!", "cache-setup");
+    var other = createUser("cache-setup-other@example.com", "Password123!", "cache-setup-other");
+    String summary =
+        CacheConfig.FINANCIAL_SUMMARY_CACHE
+            + "::"
+            + user.getId()
+            + ":"
+            + currentYear()
+            + ":"
+            + currentMonthIndex();
+    String recurring = "recurringPayments::" + user.getId();
+    String otherSummary =
+        CacheConfig.FINANCIAL_SUMMARY_CACHE
+            + "::"
+            + other.getId()
+            + ":"
+            + currentYear()
+            + ":"
+            + currentMonthIndex();
+    String otherRecurring = "recurringPayments::" + other.getId();
+    var keys = java.util.List.of(summary, recurring, otherSummary, otherRecurring);
+    keys.forEach(key -> redisTemplate.opsForValue().set(key, "setup eviction fixture"));
+    var request =
+        patch("/api/users/me/setup")
+            .header(authHeaderName(), authHeader(user))
+            .contentType(json())
+            .content("{\"monthlyIncome\":1800,\"currency\":\"CAD\"}");
+    transactionTemplate.executeWithoutResult(status -> {
+      try {
+        mockMvc.perform(request).andExpect(status().isOk());
+      } catch (Exception exception) {
+        throw new AssertionError(exception);
+      }
+      keys.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+      status.setRollbackOnly();
+    });
+    keys.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+    var unchanged = userRepository.findById(user.getId()).orElseThrow();
+    Assertions.assertFalse(unchanged.isSetupComplete());
+    Assertions.assertEquals("USD", unchanged.getCurrency());
+    Assertions.assertFalse(userMonthlyIncomeRepository.existsByUser_Id(user.getId()));
+
+    if (Boolean.getBoolean("test.requireRedis")) {
+      try (var connection = redisTemplate.getConnectionFactory().getConnection()) {
+        connection.execute(
+            "CLIENT",
+            "PAUSE".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "2500".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "ALL".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+      }
+      var outage =
+          createUser("cache-setup-outage@example.com", "Password123!", "cache-setup-outage");
+      mockMvc
+          .perform(
+              patch("/api/users/me/setup")
+                  .header(authHeaderName(), authHeader(outage))
+                  .contentType(json())
+                  .content("{\"monthlyIncome\":40,\"currency\":\"CAD\"}"))
+          .andExpect(status().isOk());
+      Assertions.assertTrue(
+          userRepository.findById(outage.getId()).orElseThrow().isSetupComplete());
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+      while (!redisAvailable() && System.nanoTime() < deadline) Thread.sleep(100);
+      Assertions.assertTrue(redisAvailable());
+    }
+
+    mockMvc.perform(request).andExpect(status().isOk());
+    Assertions.assertFalse(redisTemplate.hasKey(summary));
+    Assertions.assertFalse(redisTemplate.hasKey(recurring));
+    Assertions.assertTrue(redisTemplate.hasKey(otherSummary));
+    Assertions.assertTrue(redisTemplate.hasKey(otherRecurring));
+    redisTemplate.opsForValue().set(summary, "retry fixture");
+    redisTemplate.opsForValue().set(recurring, "retry fixture");
+    mockMvc.perform(request).andExpect(status().isOk());
+    Assertions.assertTrue(redisTemplate.hasKey(summary));
+    Assertions.assertTrue(redisTemplate.hasKey(recurring));
+  }
+
   // ── Recurring payments: expensive read is cached and evicted ────────────
 
   @Test
