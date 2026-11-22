@@ -2,6 +2,7 @@ package com.fintechapp.fintech_api.integration.service;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.fintechapp.fintech_api.categorization.infrastructure.HistoricalRuleApplication;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.rules.RuleRequest;
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
@@ -32,6 +33,7 @@ class ClassificationPersistenceCharacterizationTest extends BaseIntegrationTest 
   private static final Instant NEXT = Instant.parse("2024-03-01T00:00:00Z");
   private static final Instant EFFECTIVE = Instant.parse("2024-02-10T12:00:00Z");
 
+  @Autowired HistoricalRuleApplication historicalApply;
   @Autowired private CategorizationRuleService rules;
   @Autowired private TransactionClassificationService classification;
   @Autowired private RuleApplicationRepository applications;
@@ -204,7 +206,7 @@ class ClassificationPersistenceCharacterizationTest extends BaseIntegrationTest 
                 List.of(fingerprint(tx, before)))),
         preview.token());
 
-    var batch = rules.apply(auth(user), rule.id(), preview.token());
+    var batch = historicalApply.apply(auth(user), rule.id(), preview.token());
     assertEquals(1, batch.changed());
     var saved = applications.findByIdAndUser_Id(batch.applicationId(), user.getId()).orElseThrow();
     var applied = transactionRepository.findById(tx.getId()).orElseThrow();

@@ -110,7 +110,7 @@ public class CategorizationRuleService {
 
   public record ApplicationResult(String applicationId, int changed) {}
 
-  private String userId(AuthenticatedUser auth) {
+  public String userId(AuthenticatedUser auth) {
     if (auth == null || auth.userId() == null || auth.userId().isBlank())
       throw error(HttpStatus.UNAUTHORIZED, "Authentication required");
     return auth.userId();
@@ -225,7 +225,7 @@ public class CategorizationRuleService {
     return computePreview(userId, owned(userId, id));
   }
 
-  private Preview computePreview(String userId, CategorizationRule target) {
+  public Preview computePreview(String userId, CategorizationRule target) {
     List<Match> matches = new ArrayList<>();
     List<String> fingerprints = new ArrayList<>();
     var allRules = rules.findByUser_IdOrderByPriorityAscCreatedAtAscIdAsc(userId);
@@ -290,35 +290,6 @@ public class CategorizationRuleService {
                     matches,
                     fingerprints)));
     return new Preview(token, List.copyOf(matches), false);
-  }
-
-  @Transactional
-  public ApplicationResult apply(AuthenticatedUser auth, String id, String token) {
-    String userId = userId(auth);
-    classification.lock(userId);
-    CategorizationRule rule = owned(userId, id);
-    Preview preview = computePreview(userId, rule);
-    if (!Objects.equals(token, preview.token()))
-      throw error(HttpStatus.CONFLICT, "History or rules changed. Preview again before applying");
-    List<Change> changes = new ArrayList<>();
-    for (Match match : preview.matches()) {
-      if (!id.equals(match.winnerId())) continue;
-      Transaction tx = transactions.findByIdAndUser_Id(match.id(), userId).orElseThrow();
-      if (tx.isRulesDisabled()) continue;
-      State before = state(tx);
-      classification.snapshot(tx, rule);
-      classification.classify(tx, false);
-      if (!before.equals(state(tx))) changes.add(new Change(tx.getId(), before, fingerprint(tx)));
-    }
-    RuleApplication batch = new RuleApplication();
-    batch.setId(UUID.randomUUID().toString());
-    batch.setUser(rule.getUser());
-    batch.setRuleId(id);
-    batch.setCreatedAt(Instant.now());
-    batch.setChangesJson(json(new Changes(changes)));
-    applications.save(batch);
-    if (!changes.isEmpty()) cache.evictFinancialDataAfterCommit(userId);
-    return new ApplicationResult(batch.getId(), changes.size());
   }
 
   @Transactional
@@ -387,7 +358,7 @@ public class CategorizationRuleService {
     return state(tx);
   }
 
-  private CategorizationRule owned(String userId, String id) {
+  public CategorizationRule owned(String userId, String id) {
     return rules
         .findByIdAndUser_Id(id, userId)
         .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "Rule not found"));
@@ -413,7 +384,7 @@ public class CategorizationRuleService {
         r.getEffectiveAt());
   }
 
-  private State state(Transaction t) {
+  public State state(Transaction t) {
     return new State(
         t.getName(),
         t.getCategory(),
@@ -452,7 +423,7 @@ public class CategorizationRuleService {
     t.setRulesDisabled(s.rulesDisabled());
   }
 
-  private String fingerprint(Transaction t) {
+  public String fingerprint(Transaction t) {
     return hash(
         json(
             Arrays.asList(

@@ -786,3 +786,7 @@ The legacy classifier now delegates deterministic matcher, live selection and na
 ## Increment 9C historical preview decisions
 
 Historical preview delegates winner selection, override protection and target projection eligibility to the existing plain classification policy. The same path is used by the apply stale-token check. The rule service retains owner-scoped reads, isolation, pagination, anchor lookup, response mapping, tokens and mutation orchestration. Categorization remains partial. The next proposed increment is the locked historical apply and guarded undo boundary. [Compatibility and SQL evidence](categorization-preview-policy.md)
+
+## Increment 9D1 historical apply
+
+Historical apply now has a plain application operation and a single outer owner-locked transaction. It shares the legacy preview and journal helpers and continues using the existing classifier for managed transaction and budget writes. Seven obsolete apply exceptions were removed. Categorization remains partial. Guarded undo is the next bounded migration. [Apply compatibility and lock evidence](categorization-historical-apply.md)
