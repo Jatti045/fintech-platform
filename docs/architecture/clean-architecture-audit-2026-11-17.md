@@ -790,3 +790,7 @@ Historical preview delegates winner selection, override protection and target pr
 ## Increment 9D1 historical apply
 
 Historical apply now has a plain application operation and a single outer owner-locked transaction. It shares the legacy preview and journal helpers and continues using the existing classifier for managed transaction and budget writes. Seven obsolete apply exceptions were removed. Categorization remains partial. Guarded undo is the next bounded migration. [Apply compatibility and lock evidence](categorization-historical-apply.md)
+
+## Increment 9D2 guarded historical undo
+
+Guarded undo coordinates two ordered passes in a framework-independent application operation. The existing historical application infrastructure keeps the owner lock, persisted journal reader and writes in a single transaction. Categorization remains partial. Pending-to-posted inheritance is the next proposed slice. [Guarded undo compatibility and lock evidence](categorization-historical-undo.md)
