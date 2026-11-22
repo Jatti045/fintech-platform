@@ -275,3 +275,7 @@ PostgreSQL statement sequences matched for four characterization transactions. A
 ## Increment 9C historical preview
 
 The merged starting commit `f80db37` reproduced **884 passes, zero failures or errors and five existing skips** with Java 17. The final `clean verify` discovered 894 tests. **889 passed, zero failed or errored and five existing skips.** The increase consists of four pure preview-policy tests and one PostgreSQL HTTP and journal golden test. All 26 ArchUnit checks, 12 healthy Redis cases and the Redis outage case passed. Compilation, executable packaging, changed-file formatting and applicable hooks passed. The unrelated Flyway formatter limitations remain. [Preview and SQL parity evidence](categorization-preview-policy.md)
+
+## Increment 9D1 historical apply
+
+The merged `main` tree at `ea38e6e` reproduced **889 passes, zero failures or errors and five existing skips** after separating concurrent Maven output directories. The final Java 17 `clean verify` discovered 903 tests. **898 passed, zero failed or errored and five existing skips.** The nine added cases comprise four plain application tests, one no-change replay case, one PostgreSQL lock-wait case, one Redis no-op and timeout recovery case, and two guarded undo conflicts. All 26 ArchUnit checks, 13 healthy Redis cases and the Redis outage case passed. Executable packaging, changed-file formatting and applicable commit hooks passed. Existing unrelated Flyway formatting limitations remain. [Historical apply evidence](categorization-historical-apply.md)
