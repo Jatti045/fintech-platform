@@ -243,3 +243,9 @@ The same three HTTP cases passed against the original route. PostgreSQL logged t
 Java 17 `clean verify` discovered 847 tests. **842 passed, zero failed or errored, five existing skips.** This adds five characterization cases and four framework-independent tests over Increment 5. All 26 ArchUnit checks, 13 setup integration cases, 15 currency financial-state cases, and eight healthy Redis cases passed. Compilation and executable packaging passed.
 
 The original endpoint passed the same 21 setup and healthy Redis integration cases. The PostgreSQL lock observer confirmed that the competing request waited for the owner row. Both versions executed 11 setup statements on first completion and three on retry in the same fixture. Client authentication, setup and session suites passed 89 tests across 11 suites. TypeScript, changed-file formatting and applicable Git hooks passed. [Setup evidence](account-setup-completion.md)
+
+## Increment 7 standalone monthly-income verification
+
+Java 17 `clean verify` discovered 856 tests. **851 passed, zero failed or errored, five existing skips.** This adds six integration cases and three framework-independent tests. All 26 ArchUnit checks, 17 currency financial-state cases, nine healthy Redis cases, and account-setup, profile read and financial report regressions passed. Compilation and executable packaging passed.
+
+The endpoint, Redis and currency contention cases also passed against the original implementation. PostgreSQL logged six endpoint statements for each insert and update on both versions, including two owner-lock reads. Client profile, budget-hook and session suites passed 69 tests across eight suites. TypeScript, changed-file formatting and applicable Git hooks passed. [Income update evidence](monthly-income-update.md)

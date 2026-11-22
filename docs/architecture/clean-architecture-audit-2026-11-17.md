@@ -766,3 +766,7 @@ The read-only profile slice of the account roadmap moved to `incomeprofile`. Its
 ## Increment 6 account setup completion
 
 Only the authenticated setup command moved into the `accountsetup` feature. The original owner lock, income upsert, persistence context and after-commit cache invalidator remain in use. The setup and standalone currency routes share the pure eligibility decision while keeping their respective validations and write boundaries. [Setup migration and verification](account-setup-completion.md)
+
+## Increment 7 standalone monthly-income update
+
+The standalone income write moved into `incomeupdate`. It keeps the existing owner lock, shared income upsert, selected-period calculations, and after-commit owner-wide summary eviction. Standalone currency remains a separate candidate. [Income update migration and verification](monthly-income-update.md)
