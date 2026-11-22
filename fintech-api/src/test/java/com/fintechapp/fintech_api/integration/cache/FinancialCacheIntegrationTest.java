@@ -769,6 +769,73 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
     keys.forEach(key -> Assertions.assertEquals("blocked", redisTemplate.opsForValue().get(key)));
   }
 
+  @Autowired
+  private com.fintechapp.fintech_api.service.CategorizationRuleService categorizationRules;
+
+  @Test
+  void historicalClassificationRollsBackStateAndDefersOwnerEvictionUntilCommit() {
+    var user = createUser("cache-rule-commit@example.com", "Password123!", "cache-rule");
+    var other = createUser("cache-rule-other@example.com", "Password123!", "cache-rule-other");
+    var tx =
+        createTransaction(
+            user, null, "Shop", monthStart(utcToday), "Old", TransactionType.EXPENSE, 12);
+    var actor =
+        new com.fintechapp.fintech_api.dto.auth.AuthenticatedUser(user.getId(), user.getEmail(), 0);
+    var rule =
+        categorizationRules.save(
+            actor,
+            null,
+            new com.fintechapp.fintech_api.dto.rules.RuleRequest(
+                "Shop rule",
+                "MERCHANT",
+                "EXACT",
+                "Shop",
+                null,
+                null,
+                null,
+                "Coffee",
+                null,
+                null,
+                1,
+                true,
+                null));
+    String summary =
+        CacheConfig.FINANCIAL_SUMMARY_CACHE
+            + "::"
+            + user.getId()
+            + ":"
+            + currentYear()
+            + ":"
+            + currentMonthIndex();
+    String recurring = "recurringPayments::" + user.getId();
+    String otherRecurring = "recurringPayments::" + other.getId();
+    for (String key : java.util.List.of(summary, recurring, otherRecurring)) {
+      redisTemplate.opsForValue().set(key, "before historical classification");
+    }
+    String token = categorizationRules.preview(actor, rule.id()).token();
+    transactionTemplate.executeWithoutResult(status -> {
+      Assertions.assertEquals(1, categorizationRules.apply(actor, rule.id(), token).changed());
+      Assertions.assertTrue(redisTemplate.hasKey(summary));
+      Assertions.assertTrue(redisTemplate.hasKey(recurring));
+      status.setRollbackOnly();
+    });
+    Assertions.assertEquals(
+        "Old", transactionRepository.findById(tx.getId()).orElseThrow().getCategory());
+    Assertions.assertTrue(budgetRepository.findByUser_IdOrderByDateDesc(user.getId()).isEmpty());
+    Assertions.assertTrue(categorizationRules.history(actor).isEmpty());
+    Assertions.assertTrue(redisTemplate.hasKey(summary));
+    Assertions.assertTrue(redisTemplate.hasKey(recurring));
+
+    Assertions.assertEquals(1, categorizationRules.apply(actor, rule.id(), token).changed());
+    Assertions.assertEquals(
+        "Coffee", transactionRepository.findById(tx.getId()).orElseThrow().getCategory());
+    var budget = budgetRepository.findByUser_IdOrderByDateDesc(user.getId()).get(0);
+    Assertions.assertEquals(12, budget.getSpent());
+    Assertions.assertFalse(redisTemplate.hasKey(summary));
+    Assertions.assertFalse(redisTemplate.hasKey(recurring));
+    Assertions.assertTrue(redisTemplate.hasKey(otherRecurring));
+  }
+
   // ── Test-only payload shapes (match the API records) ────────────────────
 
   record CreateTransactionPayload(
