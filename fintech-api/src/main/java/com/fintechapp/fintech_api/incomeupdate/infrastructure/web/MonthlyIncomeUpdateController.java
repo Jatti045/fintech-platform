@@ -54,6 +54,8 @@ public class MonthlyIncomeUpdateController {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found.");
     } catch (IncomeBaselineChange.MissingAmount exception) {
       throw badRequest("Monthly income is required.");
+    } catch (IncomeBaselineChange.NonfiniteAmount exception) {
+      throw badRequest("Monthly income must be finite.");
     } catch (IncomeBaselineChange.NegativeAmount exception) {
       throw badRequest("Monthly income must be a non-negative number.");
     } catch (IncomeBaselineChange.MissingPeriod exception) {

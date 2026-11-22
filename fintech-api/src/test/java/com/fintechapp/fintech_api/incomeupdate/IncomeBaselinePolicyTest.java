@@ -19,6 +19,22 @@ class IncomeBaselinePolicyTest {
   private final LockedOwner owner = mock(LockedOwner.class);
 
   @Test
+  void rejectsAllNonfiniteAmountsBeforeWriteOrEviction() {
+    when(store.lock(OWNER)).thenReturn(Optional.of(owner));
+    var operation = new UpdateIncomeBaseline(store, ignored -> fail("Unexpected eviction"));
+    for (double amount :
+        new double[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NaN}) {
+      assertThrows(
+          IncomeBaselineChange.NonfiniteAmount.class,
+          () -> new IncomeBaselineChange(YearMonth.of(2024, 1), amount));
+      assertThrows(
+          IncomeBaselineChange.NonfiniteAmount.class,
+          () -> operation.execute(OWNER, amount, 0, Integer.MAX_VALUE));
+    }
+    verifyNoInteractions(owner);
+  }
+
+  @Test
   void preservesValidationPrecedenceAndZeroBasedPeriods() {
     assertThrows(
         IncomeBaselineChange.MissingAmount.class,

@@ -338,6 +338,58 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
   }
 
   @Test
+  void rejectedNonfiniteUpdatePreservesCommittedBaselineAndSummaryKeys() throws Exception {
+    var owner = createUser("cache-nonfinite@example.com", "Password123!", "nonfinite");
+    var january = Instant.parse("2024-01-01T00:00:00Z");
+    createMonthlyIncome(owner, january, 275.125);
+    var saved =
+        userMonthlyIncomeRepository
+            .findByUser_IdAndMonthStart(owner.getId(), january)
+            .orElseThrow();
+    String prefix = CacheConfig.FINANCIAL_SUMMARY_CACHE + "::" + owner.getId();
+    var keys = java.util.List.of(prefix + ":2024:0", prefix + ":2024:1");
+    keys.forEach(key -> redisTemplate.opsForValue().set(key, "baseline before rejection"));
+
+    var expectedMessages =
+        java.util.Map.of(
+            "1e1000", "Monthly income must be finite.",
+            "-1e1000", "Request validation failed.",
+            "\"NaN\"", "Request validation failed.",
+            "\"Infinity\"", "Monthly income must be finite.",
+            "\"-Infinity\"", "Request validation failed.",
+            "NaN", "Invalid request payload.");
+    for (var input : expectedMessages.entrySet()) {
+      mockMvc
+          .perform(
+              patch("/api/users/me/monthly-income")
+                  .header(authHeaderName(), authHeader(owner))
+                  .contentType(json())
+                  .content("{\"month\":0,\"year\":2024,\"monthlyIncome\":" + input.getKey() + "}"))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.success").value(false))
+          .andExpect(jsonPath("$.message").value(input.getValue()));
+    }
+    var current =
+        userMonthlyIncomeRepository
+            .findByUser_IdAndMonthStart(owner.getId(), january)
+            .orElseThrow();
+    Assertions.assertEquals(saved.getId(), current.getId());
+    Assertions.assertEquals(275.125, current.getIncome());
+    Assertions.assertEquals(saved.getUpdatedAt(), current.getUpdatedAt());
+    keys.forEach(key ->
+        Assertions.assertEquals("baseline before rejection", redisTemplate.opsForValue().get(key)));
+
+    mockMvc
+        .perform(
+            get("/api/financial-summary/report")
+                .header(authHeaderName(), authHeader(owner))
+                .param("month", "1")
+                .param("year", "2024"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.summary.expectedIncome").value(275.13));
+  }
+
+  @Test
   void incomeUpdateEvictsEveryOwnerSummaryOnlyAfterCommitAndToleratesRedisTimeout()
       throws Exception {
     var owner = createUser("cache-income-commit@example.com", "Password123!", "income-commit");
