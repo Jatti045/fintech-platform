@@ -253,3 +253,9 @@ The endpoint, Redis and currency contention cases also passed against the origin
 ## Increment 7.1 nonfinite income correction
 
 Java 17 `clean verify` discovered 859 tests. **854 passed, zero failed or errored, five existing skips.** The three added tests cover application rejection, direct-upsert rollback and PostgreSQL/Redis state preservation. All 26 ArchUnit checks, ten healthy Redis cases, and the reporting, account-setup and income regressions passed. Compilation, executable packaging, formatting and applicable Git hooks passed. No client files changed. [Validation and data diagnostic](nonfinite-monthly-income.md)
+
+## Increment 8 standalone currency verification
+
+Java 17 `clean verify` discovered 872 tests. **867 passed, zero failed or errored, five existing skips.** This adds nine integration cases and four framework-independent tests. All 26 ArchUnit checks, 11 healthy Redis cases, and the account setup, income update, profile read and financial report regressions passed. Compilation and executable packaging passed.
+
+The original and migrated implementations passed the same 57 targeted endpoint, Redis, writer-concurrency and controller/adapter regression cases. PostgreSQL matched statement counts across no-op, success, blocked and concurrent branches. The client passed 67 tests across eight profile, setup and session suites. TypeScript, changed-file formatting and applicable Git hooks passed. [Standalone currency evidence](standalone-currency-update.md)
