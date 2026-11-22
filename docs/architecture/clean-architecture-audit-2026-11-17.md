@@ -770,3 +770,7 @@ Only the authenticated setup command moved into the `accountsetup` feature. The 
 ## Increment 7 standalone monthly-income update
 
 The standalone income write moved into `incomeupdate`. It keeps the existing owner lock, shared income upsert, selected-period calculations, and after-commit owner-wide summary eviction. Standalone currency remains a separate candidate. [Income update migration and verification](monthly-income-update.md)
+
+## Increment 8 standalone currency update
+
+Only the standalone currency endpoint moved into `currencyupdate`. It uses the existing shared eligibility policy, owner lock, explicit managed save and after-commit cache invalidation. Account setup, income and other write workflows remain separate. [Currency migration and verification](standalone-currency-update.md)
