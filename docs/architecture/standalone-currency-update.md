@@ -48,3 +48,5 @@ PostgreSQL statement counts matched before and after. Counts exclude JWT, transa
 | Setup commits, then currency is blocked | 11 + 4 | 11 + 4 |
 
 Each measured currency request used one `FOR NO KEY UPDATE` read. A successful change used one version-checked write. The blocked paths and same-currency requests made zero writes. Existing JPA auto-flush and response calculation order are preserved.
+
+The registry marks only this endpoint complete. The [hosted architecture check](https://github.com/Jatti045/fintech-platform/actions/runs/44969378787) passed before the completion entry was updated.
