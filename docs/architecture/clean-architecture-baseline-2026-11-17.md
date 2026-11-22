@@ -249,3 +249,7 @@ The original endpoint passed the same 21 setup and healthy Redis integration cas
 Java 17 `clean verify` discovered 856 tests. **851 passed, zero failed or errored, five existing skips.** This adds six integration cases and three framework-independent tests. All 26 ArchUnit checks, 17 currency financial-state cases, nine healthy Redis cases, and account-setup, profile read and financial report regressions passed. Compilation and executable packaging passed.
 
 The endpoint, Redis and currency contention cases also passed against the original implementation. PostgreSQL logged six endpoint statements for each insert and update on both versions, including two owner-lock reads. Client profile, budget-hook and session suites passed 69 tests across eight suites. TypeScript, changed-file formatting and applicable Git hooks passed. [Income update evidence](monthly-income-update.md)
+
+## Increment 7.1 nonfinite income correction
+
+Java 17 `clean verify` discovered 859 tests. **854 passed, zero failed or errored, five existing skips.** The three added tests cover application rejection, direct-upsert rollback and PostgreSQL/Redis state preservation. All 26 ArchUnit checks, ten healthy Redis cases, and the reporting, account-setup and income regressions passed. Compilation, executable packaging, formatting and applicable Git hooks passed. No client files changed. [Validation and data diagnostic](nonfinite-monthly-income.md)
