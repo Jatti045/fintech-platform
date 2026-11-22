@@ -3,6 +3,7 @@ package com.fintechapp.fintech_api.integration.service;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
 
+import com.fintechapp.fintech_api.currencyupdate.infrastructure.web.StandaloneCurrencyController;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.budget.ApplySuggestionsRequest;
 import com.fintechapp.fintech_api.dto.budget.CreateBudgetRequest;
@@ -14,7 +15,6 @@ import com.fintechapp.fintech_api.service.BudgetService;
 import com.fintechapp.fintech_api.service.FinancialCacheInvalidator;
 import com.fintechapp.fintech_api.service.MonthlyIncomeService;
 import com.fintechapp.fintech_api.service.TransactionService;
-import com.fintechapp.fintech_api.service.UserService;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -42,7 +42,7 @@ import org.springframework.web.server.ResponseStatusException;
 class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
   // Cache transport is outside this regression; all financial DB operations and locks are real.
   @MockitoBean private FinancialCacheInvalidator cacheInvalidator;
-  @Autowired private UserService users;
+  @Autowired private StandaloneCurrencyController currency;
   @Autowired private TransactionService transactions;
   @Autowired private BudgetService budgets;
   @Autowired private MonthlyIncomeService income;
@@ -171,7 +171,7 @@ class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
       assertTrue(waiting.await(5, TimeUnit.SECONDS));
       assertEquals(
           "EUR",
-          pool.submit(() -> users.updateCurrency(auth(user), new UpdateCurrencyRequest("EUR")))
+          pool.submit(() -> currency.updateCurrency(auth(user), new UpdateCurrencyRequest("EUR")))
               .get(5, TimeUnit.SECONDS)
               .data()
               .currency());
@@ -196,7 +196,7 @@ class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
     User user = user();
     assertEquals(
         "CAD",
-        users.updateCurrency(auth(user), new UpdateCurrencyRequest("cad")).data().currency());
+        currency.updateCurrency(auth(user), new UpdateCurrencyRequest("cad")).data().currency());
   }
 
   @ParameterizedTest
@@ -210,13 +210,13 @@ class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
     ResponseStatusException error =
         assertThrows(
             ResponseStatusException.class,
-            () -> users.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD")));
+            () -> currency.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD")));
     assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
     assertTrue(error.getReason().contains("financial data"));
     assertEquals("USD", userRepository.findById(user.getId()).orElseThrow().getCurrency());
     assertEquals(
         "USD",
-        users.updateCurrency(auth(user), new UpdateCurrencyRequest("usd")).data().currency());
+        currency.updateCurrency(auth(user), new UpdateCurrencyRequest("usd")).data().currency());
   }
 
   @Test
@@ -225,12 +225,12 @@ class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
     createMonthlyIncome(user, Instant.parse("2026-10-01T00:00:00Z"), 0);
     assertThrows(
         ResponseStatusException.class,
-        () -> users.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD")));
+        () -> currency.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD")));
     User other = user();
     createBudget(other, "Food", 0, Instant.parse("2026-10-01T00:00:00Z"));
     assertThrows(
         ResponseStatusException.class,
-        () -> users.updateCurrency(auth(other), new UpdateCurrencyRequest("CAD")));
+        () -> currency.updateCurrency(auth(other), new UpdateCurrencyRequest("CAD")));
   }
 
   @ParameterizedTest
@@ -262,7 +262,7 @@ class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
           pool.submit(() ->
               tx.execute(status -> {
                 if (currencyFirst)
-                  users.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD"));
+                  currency.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD"));
                 else write(user, state);
                 firstHasWritten.countDown();
                 await(releaseFirst);
@@ -276,7 +276,7 @@ class CurrencyFinancialStateIntegrationTest extends BaseIntegrationTest {
                 secondPid.set(jdbc.queryForObject("select pg_backend_pid()", Integer.class));
                 secondStarted.countDown();
                 if (currencyFirst) write(user, state);
-                else users.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD"));
+                else currency.updateCurrency(auth(user), new UpdateCurrencyRequest("CAD"));
               });
               return true;
             } catch (ResponseStatusException error) {

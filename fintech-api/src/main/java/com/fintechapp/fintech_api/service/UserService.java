@@ -5,7 +5,6 @@ import com.fintechapp.fintech_api.dto.common.ApiMessageResponse;
 import com.fintechapp.fintech_api.dto.user.ChangePasswordRequest;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUploadResponse;
 import com.fintechapp.fintech_api.dto.user.ProfilePictureUserResponse;
-import com.fintechapp.fintech_api.dto.user.UpdateCurrencyRequest;
 import com.fintechapp.fintech_api.dto.user.UserDataResponse;
 import com.fintechapp.fintech_api.dto.user.UserSummaryResponse;
 import com.fintechapp.fintech_api.model.User;
@@ -14,10 +13,8 @@ import com.fintechapp.fintech_api.repository.PasswordResetTokenRepository;
 import com.fintechapp.fintech_api.repository.PlaidItemRepository;
 import com.fintechapp.fintech_api.repository.TransactionRepository;
 import com.fintechapp.fintech_api.repository.UserRepository;
-import com.fintechapp.fintech_api.shared.domain.CurrencyChange;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -191,51 +188,6 @@ public class UserService {
         user.getId(), passwordEncoder.encode(request.newPassword()));
     passwordResetTokenRepository.deleteByUser_Id(user.getId());
     return new ApiMessageResponse(true, "Password changed successfully.");
-  }
-
-  @Transactional
-  public UserDataResponse updateCurrency(
-      AuthenticatedUser authenticatedUser, UpdateCurrencyRequest request) {
-    // Share the financial writers' user-row lock before reading currency or checking state.
-    User user = requireLockedCurrentUser(authenticatedUser);
-    if (request == null || !StringUtils.hasText(request.currency())) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Currency code is required.");
-    }
-
-    String normalizedCurrency = request.currency().trim().toUpperCase(Locale.ROOT);
-    if (!normalizedCurrency.matches("^[A-Z]{3}$")) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid currency code");
-    }
-
-    if (applyCurrency(user, normalizedCurrency)) {
-      User updatedUser = userRepository.save(user);
-      cacheInvalidator.evictFinancialSummaryRegion(user.getId());
-      cacheInvalidator.evictRecurringPayments(user.getId());
-      return new UserDataResponse(
-          true, "Currency updated successfully.", toUserSummary(updatedUser));
-    }
-
-    return new UserDataResponse(true, "Currency updated successfully.", toUserSummary(user));
-  }
-
-  private boolean applyCurrency(User user, String currency) {
-    var decision =
-        CurrencyChange.decide(
-            user.getCurrency(),
-            currency,
-            () ->
-                transactionRepository.existsByUser_Id(user.getId())
-                    || budgetRepository.existsByUser_Id(user.getId())
-                    || monthlyIncomeService.existsForUser(user.getId()));
-    if (decision == CurrencyChange.UNCHANGED) return false;
-    if (decision == CurrencyChange.BLOCKED) {
-      throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST,
-          "Cannot change currency after financial data exists (transactions, budgets, or monthly"
-              + " income).");
-    }
-    user.setCurrency(currency);
-    return true;
   }
 
   private User requireLockedCurrentUser(AuthenticatedUser authenticatedUser) {

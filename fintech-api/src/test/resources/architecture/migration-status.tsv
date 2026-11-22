@@ -6,3 +6,4 @@ incomeprofile	complete	Increment 5
 accountsetup	complete	Increment 6
 shared	partial	Increment 6
 incomeupdate	complete	Increment 7
+currencyupdate	partial	Increment 8
