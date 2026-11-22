@@ -782,3 +782,7 @@ This increment reviews the six completed workflow boundaries and adds behavior e
 ## Increment 9B classification policy extraction
 
 The legacy classifier now delegates deterministic matcher, live selection and name/category/budget intent to a Java-only categorization domain policy. Ownership, persistence order and historical callers remain in place. This is a partial migration. [Extraction and verification](classification-policy-extraction.md)
+
+## Increment 9C historical preview decisions
+
+Historical preview delegates winner selection, override protection and target projection eligibility to the existing plain classification policy. The same path is used by the apply stale-token check. The rule service retains owner-scoped reads, isolation, pagination, anchor lookup, response mapping, tokens and mutation orchestration. Categorization remains partial. The next proposed increment is the locked historical apply and guarded undo boundary. [Compatibility and SQL evidence](categorization-preview-policy.md)

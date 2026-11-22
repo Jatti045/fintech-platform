@@ -98,6 +98,27 @@ public final class ClassificationPolicy {
     return OptionalInt.empty();
   }
 
+  public record HistoricalPreview(
+      String winnerId, boolean protectedOverride, boolean projectsTarget) {}
+
+  /** Uses current matching order independently of live selection and effective time. */
+  public static HistoricalPreview historicalPreview(
+      String targetId,
+      List<String> matchingIds,
+      boolean rulesDisabled,
+      String nameOverride,
+      String categoryOverride,
+      String budgetOverrideCategory) {
+    String winner = matchingIds.isEmpty() ? null : matchingIds.get(0);
+    boolean protectedOverride =
+        rulesDisabled
+            || nameOverride != null
+            || categoryOverride != null
+            || budgetOverrideCategory != null;
+    return new HistoricalPreview(
+        winner, protectedOverride, !rulesDisabled && targetId.equals(winner));
+  }
+
   public static Decision decide(
       DisplayFacts transaction, RuleActions rule, OwnedBudgetAnchor anchor) {
     String name =

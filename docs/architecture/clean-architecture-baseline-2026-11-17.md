@@ -271,3 +271,7 @@ The preparation suite discovered 883 tests. **878 passed, zero failed or errored
 The unchanged merged baseline at `15198a3` passed 878 tests with zero failures or errors and five skips. The final Java 17 `clean verify` discovered 889 tests. **884 passed, zero failed or errored, five existing skips.** Six direct policy tests account for the increase. All 26 ArchUnit checks and 12 healthy Redis cases passed. The categorization, lock, budget, pending handoff and history regressions passed. Compilation, executable packaging, changed-file formatting and applicable hooks passed.
 
 PostgreSQL statement sequences matched for four characterization transactions. A separate fixed-data replay compared preview and history bytes across both versions. No frontend or Flyway file changed. [Extraction and exact parity evidence](classification-policy-extraction.md)
+
+## Increment 9C historical preview
+
+The merged starting commit `f80db37` reproduced **884 passes, zero failures or errors and five existing skips** with Java 17. The final `clean verify` discovered 894 tests. **889 passed, zero failed or errored and five existing skips.** The increase consists of four pure preview-policy tests and one PostgreSQL HTTP and journal golden test. All 26 ArchUnit checks, 12 healthy Redis cases and the Redis outage case passed. Compilation, executable packaging, changed-file formatting and applicable hooks passed. The unrelated Flyway formatter limitations remain. [Preview and SQL parity evidence](categorization-preview-policy.md)
