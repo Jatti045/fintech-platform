@@ -699,6 +699,76 @@ class FinancialCacheIntegrationTest extends BaseIntegrationTest {
     Assertions.assertEquals(0, recurringKeysAfter == null ? 0 : recurringKeysAfter.size());
   }
 
+  @Test
+  void currencyRollbackNoOpAndBlockedChangesPreserveKeysAndRecoveryEvictsOwnerOnly()
+      throws Exception {
+    var owner = createUser("cache-currency-scope@example.com", "Password123!", "currency-scope");
+    var other = createUser("cache-currency-other@example.com", "Password123!", "currency-other");
+    String prefix = CacheConfig.FINANCIAL_SUMMARY_CACHE + "::";
+    var keys =
+        java.util.List.of(
+            prefix + owner.getId() + ":2024:0", "recurringPayments::" + owner.getId());
+    String otherKey = prefix + other.getId() + ":2024:0";
+    redisTemplate.opsForValue().set(otherKey, "other");
+    keys.forEach(key -> redisTemplate.opsForValue().set(key, "owner"));
+    var request =
+        patch("/api/users/me/currency")
+            .header(authHeaderName(), authHeader(owner))
+            .contentType(json())
+            .content("{\"currency\":\"CAD\"}");
+    mockMvc
+        .perform(
+            patch("/api/users/me/currency")
+                .header(authHeaderName(), authHeader(owner))
+                .contentType(json())
+                .content("{\"currency\":\"USD\"}"))
+        .andExpect(status().isOk());
+    keys.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+    transactionTemplate.executeWithoutResult(status -> {
+      try {
+        mockMvc.perform(request).andExpect(status().isOk());
+      } catch (Exception exception) {
+        throw new AssertionError(exception);
+      }
+      keys.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+      status.setRollbackOnly();
+    });
+    Assertions.assertEquals(
+        "USD", userRepository.findById(owner.getId()).orElseThrow().getCurrency());
+    keys.forEach(key -> Assertions.assertTrue(redisTemplate.hasKey(key)));
+
+    if (Boolean.getBoolean("test.requireRedis")) {
+      try (var connection = redisTemplate.getConnectionFactory().getConnection()) {
+        connection.execute(
+            "CLIENT",
+            "PAUSE".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "2500".getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+            "ALL".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+      }
+      mockMvc.perform(request).andExpect(status().isOk());
+      Assertions.assertEquals(
+          "CAD", userRepository.findById(owner.getId()).orElseThrow().getCurrency());
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+      while (!redisAvailable() && System.nanoTime() < deadline) Thread.sleep(100);
+      Assertions.assertTrue(redisAvailable());
+      keys.forEach(key -> redisTemplate.opsForValue().set(key, "recovery"));
+    }
+
+    mockMvc
+        .perform(
+            patch("/api/users/me/currency")
+                .header(authHeaderName(), authHeader(owner))
+                .contentType(json())
+                .content("{\"currency\":\"EUR\"}"))
+        .andExpect(status().isOk());
+    keys.forEach(key -> Assertions.assertFalse(redisTemplate.hasKey(key)));
+    Assertions.assertEquals("other", redisTemplate.opsForValue().get(otherKey));
+    createMonthlyIncome(owner, Instant.parse("2024-01-01T00:00:00Z"), 0);
+    keys.forEach(key -> redisTemplate.opsForValue().set(key, "blocked"));
+    mockMvc.perform(request).andExpect(status().isBadRequest());
+    keys.forEach(key -> Assertions.assertEquals("blocked", redisTemplate.opsForValue().get(key)));
+  }
+
   // ── Test-only payload shapes (match the API records) ────────────────────
 
   record CreateTransactionPayload(
