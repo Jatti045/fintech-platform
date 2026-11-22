@@ -54,7 +54,7 @@ class DatabaseMigrationsIntegrationTest {
   void cleanInstallOrdersBothV15ChangesAndValidationDoesNotWrite() {
     Flyway flyway = configuration().load();
     assertThrows(
-        RuntimeException.class, () -> strategy.databaseMigrationStrategy(false).migrate(flyway));
+        RuntimeException.class, () -> strategy.databaseMigrationStrategy(false, "").migrate(flyway));
     assertNull(jdbc.queryForObject("SELECT to_regnamespace(?)::text", String.class, schema));
     flyway.migrate();
     var applied =
@@ -75,8 +75,8 @@ class DatabaseMigrationsIntegrationTest {
         jdbc.queryForObject(
             "SELECT setup_complete FROM " + schema + ".users WHERE id='new'", Boolean.class));
     assertEquals(0, flyway.migrate().migrationsExecuted);
-    strategy.databaseMigrationStrategy(false).migrate(flyway);
-    strategy.databaseMigrationStrategy(false).migrate(flyway);
+    strategy.databaseMigrationStrategy(false, "").migrate(flyway);
+    strategy.databaseMigrationStrategy(false, "").migrate(flyway);
     assertEquals(
         applied.size(),
         jdbc.queryForObject(
@@ -196,11 +196,26 @@ class DatabaseMigrationsIntegrationTest {
     flyway.baseline();
     assertThrows(
         IllegalStateException.class,
-        () -> strategy.databaseMigrationStrategy(false).migrate(flyway));
+        () -> strategy.databaseMigrationStrategy(false, "31").migrate(flyway));
     // V32 aligns the schema, V33 adds preview ordering, V34 introduces setup.
     assertEquals(3, flyway.migrate().migrationsExecuted);
     assertEquals("34", flyway.info().current().getVersion().getVersion());
-    strategy.databaseMigrationStrategy(false).migrate(flyway);
+    strategy.databaseMigrationStrategy(false, "").migrate(flyway);
+  }
+
+  @Test
+  void baselineOnlyLedgerRequiresExplicitApprovalOfItsVersion() {
+    configuration().load().migrate();
+    jdbc.execute("DROP TABLE " + schema + ".flyway_schema_history");
+    var flyway = configuration().baselineVersion("34").load();
+    flyway.baseline();
+    assertThrows(IllegalStateException.class,
+        () -> strategy.databaseMigrationStrategy(false, "").migrate(flyway));
+    assertThrows(IllegalStateException.class,
+        () -> strategy.databaseMigrationStrategy(false, "33").migrate(flyway));
+    strategy.databaseMigrationStrategy(false, "34").migrate(flyway);
+    assertEquals(1, jdbc.queryForObject(
+        "SELECT count(*) FROM " + schema + ".flyway_schema_history", Integer.class));
   }
 
   @Test
