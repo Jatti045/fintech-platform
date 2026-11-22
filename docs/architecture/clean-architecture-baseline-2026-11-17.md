@@ -259,3 +259,9 @@ Java 17 `clean verify` discovered 859 tests. **854 passed, zero failed or errore
 Java 17 `clean verify` discovered 872 tests. **867 passed, zero failed or errored, five existing skips.** This adds nine integration cases and four framework-independent tests. All 26 ArchUnit checks, 11 healthy Redis cases, and the account setup, income update, profile read and financial report regressions passed. Compilation and executable packaging passed.
 
 The original and migrated implementations passed the same 57 targeted endpoint, Redis, writer-concurrency and controller/adapter regression cases. PostgreSQL matched statement counts across no-op, success, blocked and concurrent branches. The client passed 67 tests across eight profile, setup and session suites. TypeScript, changed-file formatting and applicable Git hooks passed. [Standalone currency evidence](standalone-currency-update.md)
+
+## Increment 9A categorization preparation
+
+The fresh Java 17 baseline at `be6f366` discovered 873 tests. **868 passed, zero failed or errored, five existing skips.** This includes 26 ArchUnit checks, eight Flyway integration cases and 11 healthy Redis cases. Compilation and executable packaging passed. The two Java files changed by PR #27 already fail an explicit formatter dry-run and remain outside this increment.
+
+The preparation suite discovered 883 tests. **878 passed, zero failed or errored, five existing skips.** Ten new tests cover matcher/precedence facts, real PostgreSQL rule and budget behavior, and owner-scoped cache effects with healthy Redis. The run includes 26 ArchUnit checks and 12 healthy Redis cases. Packaging, changed-file formatting and applicable hooks passed. Production and client files were untouched. Both runs used disposable local PostgreSQL and Redis. [Preparation evidence and scope](categorization-policy-preparation.md)

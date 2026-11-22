@@ -774,3 +774,7 @@ The standalone income write moved into `incomeupdate`. It keeps the existing own
 ## Increment 8 standalone currency update
 
 Only the standalone currency endpoint moved into `currencyupdate`. It uses the existing shared eligibility policy, owner lock, explicit managed save and after-commit cache invalidation. Account setup, income and other write workflows remain separate. [Currency migration and verification](standalone-currency-update.md)
+
+## Increment 9A categorization preparation
+
+This increment reviews the six completed workflow boundaries and adds behavior evidence for categorization on the current `main` baseline. Profile mapping duplication can wait for a profile contract change. The lock-bound write ports and cache scopes still have distinct roles. The next candidate is pure matching and precedence extraction, with existing side-effect order and historical bytes protected. [Consolidation findings, behavior matrix and proposed sequence](categorization-policy-preparation.md)
