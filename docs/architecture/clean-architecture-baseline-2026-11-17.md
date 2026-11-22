@@ -265,3 +265,9 @@ The original and migrated implementations passed the same 57 targeted endpoint, 
 The fresh Java 17 baseline at `be6f366` discovered 873 tests. **868 passed, zero failed or errored, five existing skips.** This includes 26 ArchUnit checks, eight Flyway integration cases and 11 healthy Redis cases. Compilation and executable packaging passed. The two Java files changed by PR #27 already fail an explicit formatter dry-run and remain outside this increment.
 
 The preparation suite discovered 883 tests. **878 passed, zero failed or errored, five existing skips.** Ten new tests cover matcher/precedence facts, real PostgreSQL rule and budget behavior, and owner-scoped cache effects with healthy Redis. The run includes 26 ArchUnit checks and 12 healthy Redis cases. Packaging, changed-file formatting and applicable hooks passed. Production and client files were untouched. Both runs used disposable local PostgreSQL and Redis. [Preparation evidence and scope](categorization-policy-preparation.md)
+
+## Increment 9B classification policy
+
+The unchanged merged baseline at `15198a3` passed 878 tests with zero failures or errors and five skips. The final Java 17 `clean verify` discovered 889 tests. **884 passed, zero failed or errored, five existing skips.** Six direct policy tests account for the increase. All 26 ArchUnit checks and 12 healthy Redis cases passed. The categorization, lock, budget, pending handoff and history regressions passed. Compilation, executable packaging, changed-file formatting and applicable hooks passed.
+
+PostgreSQL statement sequences matched for four characterization transactions. A separate fixed-data replay compared preview and history bytes across both versions. No frontend or Flyway file changed. [Extraction and exact parity evidence](classification-policy-extraction.md)

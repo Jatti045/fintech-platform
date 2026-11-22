@@ -778,3 +778,7 @@ Only the standalone currency endpoint moved into `currencyupdate`. It uses the e
 ## Increment 9A categorization preparation
 
 This increment reviews the six completed workflow boundaries and adds behavior evidence for categorization on the current `main` baseline. Profile mapping duplication can wait for a profile contract change. The lock-bound write ports and cache scopes still have distinct roles. The next candidate is pure matching and precedence extraction, with existing side-effect order and historical bytes protected. [Consolidation findings, behavior matrix and proposed sequence](categorization-policy-preparation.md)
+
+## Increment 9B classification policy extraction
+
+The legacy classifier now delegates deterministic matcher, live selection and name/category/budget intent to a Java-only categorization domain policy. Ownership, persistence order and historical callers remain in place. This is a partial migration. [Extraction and verification](classification-policy-extraction.md)
