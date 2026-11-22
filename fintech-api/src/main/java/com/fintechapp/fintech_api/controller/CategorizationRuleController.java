@@ -13,12 +13,12 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/categorization-rules")
 public class CategorizationRuleController {
   private final CategorizationRuleService rules;
-  private final HistoricalRuleApplication historicalApply;
+  private final HistoricalRuleApplication historicalApplications;
 
   public CategorizationRuleController(
-      CategorizationRuleService rules, HistoricalRuleApplication historicalApply) {
+      CategorizationRuleService rules, HistoricalRuleApplication historicalApplications) {
     this.rules = rules;
-    this.historicalApply = historicalApply;
+    this.historicalApplications = historicalApplications;
   }
 
   public record Result<T>(boolean success, T data) {}
@@ -74,11 +74,11 @@ public class CategorizationRuleController {
       @AuthenticationPrincipal AuthenticatedUser auth,
       @PathVariable String id,
       @RequestBody ApplyRequest body) {
-    return new Result<>(true, historicalApply.apply(auth, id, body.token()));
+    return new Result<>(true, historicalApplications.apply(auth, id, body.token()));
   }
 
   @PostMapping("/applications/{id}/undo")
   public Result<?> undo(@AuthenticationPrincipal AuthenticatedUser auth, @PathVariable String id) {
-    return new Result<>(true, rules.undo(auth, id));
+    return new Result<>(true, historicalApplications.undo(auth, id));
   }
 }

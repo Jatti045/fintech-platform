@@ -265,7 +265,7 @@ class HistoricalUndoIntegrationTest extends BaseIntegrationTest {
       var empty =
           historicalApply.apply(
               actor(other), emptyRule.id(), rules.preview(actor(other), emptyRule.id()).token());
-      assertEquals(0, rules.undo(actor(other), empty.applicationId()).changed());
+      assertEquals(0, historicalApply.undo(actor(other), empty.applicationId()).changed());
       assertEquals("other", redis.opsForValue().get(otherRecurring));
 
       var rule = rules.list(actor(fixture.owner())).get(0);
@@ -282,7 +282,8 @@ class HistoricalUndoIntegrationTest extends BaseIntegrationTest {
           connection.execute("CLIENT", ascii("PAUSE"), ascii("2500"), ascii("ALL"));
         }
       }
-      assertEquals(2, rules.undo(actor(fixture.owner()), reapplied.applicationId()).changed());
+      assertEquals(
+          2, historicalApply.undo(actor(fixture.owner()), reapplied.applicationId()).changed());
       assertNotNull(
           applications
               .findByIdAndUser_Id(reapplied.applicationId(), fixture.owner().getId())
@@ -299,7 +300,8 @@ class HistoricalUndoIntegrationTest extends BaseIntegrationTest {
               rule.id(),
               rules.preview(actor(fixture.owner()), rule.id()).token());
       keys.forEach(key -> redis.opsForValue().set(key, "recovery"));
-      assertEquals(2, rules.undo(actor(fixture.owner()), recovery.applicationId()).changed());
+      assertEquals(
+          2, historicalApply.undo(actor(fixture.owner()), recovery.applicationId()).changed());
       keys.forEach(key -> assertFalse(redis.hasKey(key)));
       assertEquals("other", redis.opsForValue().get(otherRecurring));
     } finally {
@@ -337,7 +339,7 @@ class HistoricalUndoIntegrationTest extends BaseIntegrationTest {
   }
 
   private int undo(Fixture fixture) {
-    return rules.undo(actor(fixture.owner()), fixture.applicationId()).changed();
+    return historicalApply.undo(actor(fixture.owner()), fixture.applicationId()).changed();
   }
 
   private com.fintechapp.fintech_api.model.RuleApplication journal(Fixture fixture) {

@@ -181,10 +181,10 @@ class CategorizationRulesIntegrationTest extends BaseIntegrationTest {
             .apply(auth(u), high.id(), rules.preview(auth(u), high.id()).token())
             .changed());
     assertEquals(10, spent(u));
-    assertEquals(1, rules.undo(auth(u), batch.applicationId()).changed());
+    assertEquals(1, historicalApply.undo(auth(u), batch.applicationId()).changed());
     assertEquals("Food", fresh(t.getId()).getCategory());
     assertEquals(10, spent(u));
-    assertEquals(0, rules.undo(auth(u), batch.applicationId()).changed());
+    assertEquals(0, historicalApply.undo(auth(u), batch.applicationId()).changed());
     edits.updateTransaction(
         auth(u),
         t.getId(),
@@ -210,7 +210,8 @@ class CategorizationRulesIntegrationTest extends BaseIntegrationTest {
         t.getId(),
         new UpdateTransactionRequest(
             "New decision", null, null, null, null, null, null, null, null, null));
-    assertThrows(ResponseStatusException.class, () -> rules.undo(auth(u), batch.applicationId()));
+    assertThrows(
+        ResponseStatusException.class, () -> historicalApply.undo(auth(u), batch.applicationId()));
     assertEquals("New decision", fresh(t.getId()).getName());
     assertEquals(10, spent(u));
   }
@@ -539,7 +540,8 @@ class CategorizationRulesIntegrationTest extends BaseIntegrationTest {
     Budget budget = budgetRepository.findById(original).orElseThrow();
     budget.setCategory("Renamed original");
     budgetRepository.saveAndFlush(budget);
-    assertThrows(ResponseStatusException.class, () -> rules.undo(auth(u), batch.applicationId()));
+    assertThrows(
+        ResponseStatusException.class, () -> historicalApply.undo(auth(u), batch.applicationId()));
     assertEquals("Coffee", fresh(t.getId()).getCategory());
     assertEquals(10, spent(u));
   }
@@ -567,7 +569,8 @@ class CategorizationRulesIntegrationTest extends BaseIntegrationTest {
 
     var conflict =
         assertThrows(
-            ResponseStatusException.class, () -> rules.undo(auth(owner), batch.applicationId()));
+            ResponseStatusException.class,
+            () -> historicalApply.undo(auth(owner), batch.applicationId()));
     assertEquals(409, conflict.getStatusCode().value());
     assertEquals(
         removeTransaction
