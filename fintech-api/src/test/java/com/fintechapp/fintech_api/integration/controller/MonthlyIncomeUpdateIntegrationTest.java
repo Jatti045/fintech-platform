@@ -138,8 +138,9 @@ class MonthlyIncomeUpdateIntegrationTest extends BaseIntegrationTest {
                 .header(authHeaderName(), token)
                 .contentType(json())
                 .content("{\"monthlyIncome\":1e1000,\"month\":0,\"year\":2024}"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.monthlyIncome").value("Infinity"));
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Monthly income must be finite."));
     mockMvc
         .perform(
             patch(PATH)
@@ -157,6 +158,7 @@ class MonthlyIncomeUpdateIntegrationTest extends BaseIntegrationTest {
           .andExpect(status().isBadRequest())
           .andExpect(jsonPath("$.message").value("Invalid month/year value"));
     }
+    assertFalse(userMonthlyIncomeRepository.existsByUser_Id(owner.getId()));
     var deleted = createUser("income-update-deleted@example.com", "Password123!", "income-deleted");
     String deletedToken = authHeader(deleted);
     userRepository.deleteById(deleted.getId());
@@ -216,6 +218,35 @@ class MonthlyIncomeUpdateIntegrationTest extends BaseIntegrationTest {
     } finally {
       commit.countDown();
       pool.shutdownNow();
+    }
+  }
+
+  @Autowired private com.fintechapp.fintech_api.service.MonthlyIncomeService incomeService;
+
+  @Test
+  void sharedIncomeWriterRejectsNonfiniteValuesAndRollsBackTheJoinedTransaction() {
+    var owner = createUser("nonfinite-direct@example.com", "Password123!", "nonfinite-direct");
+    var january = Instant.parse("2024-01-01T00:00:00Z");
+    createMonthlyIncome(owner, january, 125.25);
+    for (double invalid :
+        new double[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NaN}) {
+      assertThrows(
+          IllegalArgumentException.class,
+          () ->
+              tx.executeWithoutResult(status -> {
+                incomeService.upsertForMonth(owner, 2024, 1, 40);
+                incomeService.upsertForMonth(owner, 2024, 0, invalid);
+              }));
+      assertEquals(
+          125.25,
+          userMonthlyIncomeRepository
+              .findByUser_IdAndMonthStart(owner.getId(), january)
+              .orElseThrow()
+              .getIncome());
+      assertTrue(
+          userMonthlyIncomeRepository
+              .findByUser_IdAndMonthStart(owner.getId(), Instant.parse("2024-02-01T00:00:00Z"))
+              .isEmpty());
     }
   }
 

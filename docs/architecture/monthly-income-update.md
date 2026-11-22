@@ -43,3 +43,7 @@ Roll back by reverting the increment commits together. No schema or cache conver
 PostgreSQL recorded six endpoint statements each for the first insert and subsequent update, before and after. Each sequence includes two owner-lock reads, the exact-month lookup, one write, the carry-forward lookup, and the actual-income aggregate. Counts exclude JWT session lookup, transaction control and test observer queries.
 
 The registry marks only this endpoint complete. The [hosted architecture workflow](https://github.com/Jatti045/fintech-platform/actions/runs/44967212874) passed on the implementation before the completion entry was updated.
+
+## Increment 7.1 correction
+
+The separate correctness repair rejects nonfinite amounts at the update and shared upsert boundaries. See the [validation and historical-data diagnostic](nonfinite-monthly-income.md). The characterization above records the behavior before that repair.
