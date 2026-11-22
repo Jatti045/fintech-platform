@@ -1,5 +1,14 @@
 package com.fintechapp.fintech_api.service;
 
+import com.fintechapp.fintech_api.config.PlaidConfig;
+import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
+import com.fintechapp.fintech_api.dto.plaid.PlaidItemResponse;
+import com.fintechapp.fintech_api.model.PlaidItem;
+import com.fintechapp.fintech_api.model.PlaidItemStatus;
+import com.fintechapp.fintech_api.model.User;
+import com.fintechapp.fintech_api.repository.PlaidItemRepository;
+import com.fintechapp.fintech_api.repository.UserRepository;
+import com.fintechapp.fintech_api.service.PlaidTransactionIngestService.PlaidTransaction;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -8,10 +17,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import java.util.Optional;
 import java.util.Objects;
-
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -29,590 +38,639 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
-
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import com.fintechapp.fintech_api.config.PlaidConfig;
-import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
-import com.fintechapp.fintech_api.dto.plaid.PlaidItemResponse;
-import com.fintechapp.fintech_api.model.PlaidItem;
-import com.fintechapp.fintech_api.model.PlaidItemStatus;
-import com.fintechapp.fintech_api.model.User;
-import com.fintechapp.fintech_api.repository.PlaidItemRepository;
-import com.fintechapp.fintech_api.repository.UserRepository;
-import com.fintechapp.fintech_api.service.PlaidTransactionIngestService.PlaidTransaction;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * Client for the Plaid HTTP API plus the orchestration that binds link-token
- * creation, item token exchange, and asynchronous transaction ingestion.
+ * Client for the Plaid HTTP API plus the orchestration that binds link-token creation, item token
+ * exchange, and asynchronous transaction ingestion.
  *
- * <p>
- * All requests are made server-side with the plaid {@code client_id} and
- * {@code secret}; clients only ever see scoped link/public tokens. The durable
- * {@code access_token} is encrypted before it is persisted.
- * </p>
+ * <p>All requests are made server-side with the plaid {@code client_id} and {@code secret}; clients
+ * only ever see scoped link/public tokens. The durable {@code access_token} is encrypted before it
+ * is persisted.
  */
 @Service
 public class PlaidService {
 
-    /** Result of one /transactions/sync page. */
-    public record SyncPageResult(String nextCursor, boolean hasMore) {
+  /** Result of one /transactions/sync page. */
+  public record SyncPageResult(String nextCursor, boolean hasMore) {}
+
+  /** Worker-local pages; no intermediate cursor or financial changes are durable. */
+  public static final class SyncAttempt {
+    private boolean initialized;
+    private String startCursor;
+    private String progressCursor;
+    private final List<JsonNode> pages = new ArrayList<>();
+
+    public void restart() {
+      pages.clear();
+      progressCursor = startCursor;
+    }
+  }
+
+  private static final String PRODUCT_TRANSACTIONS = "transactions";
+  private static final int SYNC_COUNT = 500;
+  private static final DateTimeFormatter ISO_OFFSET = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+  private static final DateTimeFormatter PLAID_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
+
+  private static final Logger logger = LoggerFactory.getLogger(PlaidService.class);
+
+  /** Used only to parse Plaid's error payloads so they can be surfaced. */
+  private static final ObjectMapper ERROR_BODY_MAPPER = new ObjectMapper();
+
+  private final RestClient plaidRestClient;
+  private final PlaidConfig.PlaidSettings settings;
+  private final EncryptionService encryptionService;
+  private final PlaidItemRepository plaidItemRepository;
+  private final UserRepository userRepository;
+  private final PlaidTransactionIngestService ingestService;
+  private final FinancialCacheInvalidator cacheInvalidator;
+  private final InternalTransferReconciliationService transferReconciliation;
+  private final TransactionTemplate transactionTemplate;
+  private final PlaidRevocationJobService revocations;
+
+  @Autowired
+  public PlaidService(
+      @Qualifier("plaidRestClient") RestClient plaidRestClient,
+      PlaidConfig.PlaidSettings settings,
+      EncryptionService encryptionService,
+      PlaidItemRepository plaidItemRepository,
+      UserRepository userRepository,
+      PlaidTransactionIngestService ingestService,
+      FinancialCacheInvalidator cacheInvalidator,
+      InternalTransferReconciliationService transferReconciliation,
+      Optional<PlatformTransactionManager> transactionManager,
+      PlaidRevocationJobService revocations) {
+    this.plaidRestClient = plaidRestClient;
+    this.settings = settings;
+    this.encryptionService = encryptionService;
+    this.plaidItemRepository = plaidItemRepository;
+    this.userRepository = userRepository;
+    this.ingestService = ingestService;
+    this.cacheInvalidator = cacheInvalidator;
+    this.transferReconciliation = transferReconciliation;
+    this.revocations = revocations;
+    this.transactionTemplate =
+        transactionManager != null && transactionManager.isPresent()
+            ? new TransactionTemplate(transactionManager.get())
+            : null;
+  }
+
+  public PlaidService(
+      @Qualifier("plaidRestClient") RestClient plaidRestClient,
+      PlaidConfig.PlaidSettings settings,
+      EncryptionService encryptionService,
+      PlaidItemRepository plaidItemRepository,
+      UserRepository userRepository,
+      PlaidTransactionIngestService ingestService,
+      FinancialCacheInvalidator cacheInvalidator,
+      InternalTransferReconciliationService transferReconciliation,
+      PlaidRevocationJobService revocations) {
+    this(
+        plaidRestClient,
+        settings,
+        encryptionService,
+        plaidItemRepository,
+        userRepository,
+        ingestService,
+        cacheInvalidator,
+        transferReconciliation,
+        Optional.empty(),
+        revocations);
+  }
+
+  private <T> T inTransaction(TransactionCallback<T> action) {
+    if (transactionTemplate != null) {
+      return transactionTemplate.execute(action);
+    }
+    return action.doInTransaction(new SimpleTransactionStatus());
+  }
+
+  public boolean canConnectBank(AuthenticatedUser authenticatedUser) {
+    return settings.allowsNewConnections(requireUserId(authenticatedUser));
+  }
+
+  void requireNewConnectionAccess(AuthenticatedUser authenticatedUser) {
+    if (!canConnectBank(authenticatedUser)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bank linking is currently private.");
+    }
+  }
+
+  /**
+   * Creates a Plaid Link token for the authenticated user, configured for transaction tracking and
+   * pointing at our webhook handler.
+   */
+  public String createLinkToken(AuthenticatedUser authenticatedUser) {
+    requireNewConnectionAccess(authenticatedUser);
+    String userId = authenticatedUser.userId();
+
+    Map<String, Object> body = baseBody();
+    body.put("client_name", "Fundleaf");
+    body.put("country_codes", settings.countryCodes());
+    body.put("language", settings.language());
+    body.put("user", Map.of("client_user_id", userId));
+    body.put("products", List.of(PRODUCT_TRANSACTIONS));
+    body.put("transactions", Map.of("days_requested", 365));
+    if (StringUtils.hasText(settings.webhookUrl())) {
+      body.put("webhook", settings.webhookUrl());
+    } else {
+      logger.warn(
+          "PLAID_WEBHOOK_URL is not configured; link tokens are created WITHOUT a webhook URL "
+              + "and Plaid will not send webhooks for new items.");
     }
 
-    /** Worker-local pages; no intermediate cursor or financial changes are durable. */
-    public static final class SyncAttempt {
-        private boolean initialized;
-        private String startCursor;
-        private String progressCursor;
-        private final List<JsonNode> pages = new ArrayList<>();
+    JsonNode response = post("/link/token/create", body);
+    JsonNode linkToken = response.get("link_token");
+    if (linkToken == null || !StringUtils.hasText(linkToken.asString())) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_GATEWAY, "Plaid did not return a link token.");
+    }
+    return linkToken.asString();
+  }
 
-        public void restart() {
-            pages.clear();
-            progressCursor = startCursor;
-        }
+  JsonNode exchangePublicToken(String publicToken) {
+    Map<String, Object> body = baseBody();
+    body.put("public_token", publicToken);
+    return post("/item/public_token/exchange", body);
+  }
+
+  /**
+   * Stages a /transactions/sync page. Only the final page applies the complete sequence and
+   * advances the durable cursor, in one transaction.
+   *
+   * <p>The external Plaid HTTP call executes strictly outside any database transaction, without
+   * holding any row locks or database connections. Completed pagination is persisted atomically in
+   * a dedicated transaction. Before any mutations, the locked item must still have this worker's
+   * unexpired lease and the durable cursor from which the sequence started.
+   */
+  public SyncPageResult fetchAndApplySyncPage(
+      String itemId, String leaseToken, SyncAttempt attempt) {
+    // Step 1: Read cursor and decrypt access token outside of any database
+    // transaction.
+    PlaidItem item =
+        plaidItemRepository
+            .findByItemId(itemId)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
+    if (!attempt.initialized) {
+      attempt.startCursor = item.getCursor();
+      attempt.progressCursor = attempt.startCursor;
+      attempt.initialized = true;
+    }
+    String cursor = attempt.progressCursor;
+    String userId = item.getUser().getId();
+
+    String accessToken;
+    try {
+      accessToken = encryptionService.decrypt(item.getAccessTokenEncrypted());
+    } catch (IllegalStateException ex) {
+      throw new ResponseStatusException(
+          HttpStatus.INTERNAL_SERVER_ERROR, "Could not decrypt Plaid access token.", ex);
     }
 
-    private static final String PRODUCT_TRANSACTIONS = "transactions";
-    private static final int SYNC_COUNT = 500;
-    private static final DateTimeFormatter ISO_OFFSET = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-    private static final DateTimeFormatter PLAID_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
-
-    private static final Logger logger = LoggerFactory.getLogger(PlaidService.class);
-
-    /** Used only to parse Plaid's error payloads so they can be surfaced. */
-    private static final ObjectMapper ERROR_BODY_MAPPER = new ObjectMapper();
-
-    private final RestClient plaidRestClient;
-    private final PlaidConfig.PlaidSettings settings;
-    private final EncryptionService encryptionService;
-    private final PlaidItemRepository plaidItemRepository;
-    private final UserRepository userRepository;
-    private final PlaidTransactionIngestService ingestService;
-    private final FinancialCacheInvalidator cacheInvalidator;
-    private final InternalTransferReconciliationService transferReconciliation;
-    private final TransactionTemplate transactionTemplate;
-    private final PlaidRevocationJobService revocations;
-
-    @Autowired
-    public PlaidService(
-            @Qualifier("plaidRestClient") RestClient plaidRestClient,
-            PlaidConfig.PlaidSettings settings,
-            EncryptionService encryptionService,
-            PlaidItemRepository plaidItemRepository,
-            UserRepository userRepository,
-            PlaidTransactionIngestService ingestService,
-            FinancialCacheInvalidator cacheInvalidator,
-            InternalTransferReconciliationService transferReconciliation,
-            Optional<PlatformTransactionManager> transactionManager,
-            PlaidRevocationJobService revocations) {
-        this.plaidRestClient = plaidRestClient;
-        this.settings = settings;
-        this.encryptionService = encryptionService;
-        this.plaidItemRepository = plaidItemRepository;
-        this.userRepository = userRepository;
-        this.ingestService = ingestService;
-        this.cacheInvalidator = cacheInvalidator;
-        this.transferReconciliation = transferReconciliation;
-        this.revocations = revocations;
-        this.transactionTemplate = transactionManager != null && transactionManager.isPresent()
-                ? new TransactionTemplate(transactionManager.get())
-                : null;
+    Map<String, Object> body = baseBody();
+    body.put("access_token", accessToken);
+    body.put("count", SYNC_COUNT);
+    if (StringUtils.hasText(cursor)) {
+      body.put("cursor", cursor);
     }
 
-    public PlaidService(
-            @Qualifier("plaidRestClient") RestClient plaidRestClient,
-            PlaidConfig.PlaidSettings settings,
-            EncryptionService encryptionService,
-            PlaidItemRepository plaidItemRepository,
-            UserRepository userRepository,
-            PlaidTransactionIngestService ingestService,
-            FinancialCacheInvalidator cacheInvalidator,
-            InternalTransferReconciliationService transferReconciliation,
-            PlaidRevocationJobService revocations) {
-        this(plaidRestClient, settings, encryptionService, plaidItemRepository, userRepository, ingestService,
-                cacheInvalidator, transferReconciliation, Optional.empty(), revocations);
+    // Step 2: External Plaid HTTP call happens OUTSIDE of any database transaction.
+    JsonNode response = post("/transactions/sync", body);
+
+    String nextCursor = response.path("next_cursor").asString(null);
+    boolean hasMore = response.path("has_more").asBoolean(false);
+    if (hasMore && !StringUtils.hasText(nextCursor)) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_GATEWAY, "Plaid pagination cursor is missing.");
+    }
+    attempt.pages.add(response);
+    attempt.progressCursor = StringUtils.hasText(nextCursor) ? nextCursor : cursor;
+    if (hasMore) {
+      return new SyncPageResult(attempt.progressCursor, true);
     }
 
-    private <T> T inTransaction(TransactionCallback<T> action) {
-        if (transactionTemplate != null) {
-            return transactionTemplate.execute(action);
-        }
-        return action.doInTransaction(new SimpleTransactionStatus());
+    // Warm distinct currency pairs before acquiring the writer and item row locks.
+    // The write still resolves currency from the locked user and checks quote expiry.
+    User snapshot =
+        userRepository
+            .findById(userId)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+    for (JsonNode page : attempt.pages) {
+      ingestService.prepareRates(
+          snapshot,
+          java.util.stream.Stream.concat(
+                  nodes(page, "added").stream(), nodes(page, "modified").stream())
+              .map(node -> toPlaidTransaction(node, itemId))
+              .toList());
     }
 
-    /**
-     * Creates a Plaid Link token for the authenticated user, configured for
-     * transaction tracking and pointing at our webhook handler.
-     */
-    public String createLinkToken(AuthenticatedUser authenticatedUser) {
-        String userId = requireUserId(authenticatedUser);
+    // Step 3: Fence and persist the COMPLETE sequence in one transaction.
+    return CurrencyConversionService.withPreparedRates(
+        ingestService.currencyConversion(),
+        () ->
+            inTransaction(status -> {
+              transferReconciliation.lockUser(userId);
+              PlaidItem managedItem =
+                  plaidItemRepository
+                      .findByItemIdForUpdate(itemId)
+                      .orElseThrow(() ->
+                          new ResponseStatusException(
+                              HttpStatus.NOT_FOUND, "Plaid item not found"));
 
-        Map<String, Object> body = baseBody();
-        body.put("client_name", "Fundleaf");
-        body.put("country_codes", settings.countryCodes());
-        body.put("language", settings.language());
-        body.put("user", Map.of("client_user_id", userId));
-        body.put("products", List.of(PRODUCT_TRANSACTIONS));
-        body.put("transactions", Map.of("days_requested", 365));
-        if (StringUtils.hasText(settings.webhookUrl())) {
-            body.put("webhook", settings.webhookUrl());
-        } else {
-            logger.warn("PLAID_WEBHOOK_URL is not configured; link tokens are created WITHOUT a webhook URL "
-                    + "and Plaid will not send webhooks for new items.");
-        }
-
-        JsonNode response = post("/link/token/create", body);
-        JsonNode linkToken = response.get("link_token");
-        if (linkToken == null || !StringUtils.hasText(linkToken.asString())) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid did not return a link token.");
-        }
-        return linkToken.asString();
-    }
-
-    JsonNode exchangePublicToken(String publicToken) {
-        Map<String, Object> body = baseBody();
-        body.put("public_token", publicToken);
-        return post("/item/public_token/exchange", body);
-    }
-
-    /**
-     * Stages a /transactions/sync page. Only the final page applies the complete
-     * sequence and advances the durable cursor, in one transaction.
-     *
-     * <p>
-     * The external Plaid HTTP call executes strictly outside any database
-     * transaction, without holding any row locks or database connections.
-     * Completed pagination is persisted atomically in a dedicated transaction.
-     * Before any mutations, the locked item must still have this worker's
-     * unexpired lease and the durable cursor from which the sequence started.
-     * </p>
-     */
-    public SyncPageResult fetchAndApplySyncPage(String itemId, String leaseToken, SyncAttempt attempt) {
-        // Step 1: Read cursor and decrypt access token outside of any database
-        // transaction.
-        PlaidItem item = plaidItemRepository.findByItemId(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
-        if (!attempt.initialized) {
-            attempt.startCursor = item.getCursor();
-            attempt.progressCursor = attempt.startCursor;
-            attempt.initialized = true;
-        }
-        String cursor = attempt.progressCursor;
-        String userId = item.getUser().getId();
-
-        String accessToken;
-        try {
-            accessToken = encryptionService.decrypt(item.getAccessTokenEncrypted());
-        } catch (IllegalStateException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not decrypt Plaid access token.",
-                    ex);
-        }
-
-        Map<String, Object> body = baseBody();
-        body.put("access_token", accessToken);
-        body.put("count", SYNC_COUNT);
-        if (StringUtils.hasText(cursor)) {
-            body.put("cursor", cursor);
-        }
-
-        // Step 2: External Plaid HTTP call happens OUTSIDE of any database transaction.
-        JsonNode response = post("/transactions/sync", body);
-
-        String nextCursor = response.path("next_cursor").asString(null);
-        boolean hasMore = response.path("has_more").asBoolean(false);
-        if (hasMore && !StringUtils.hasText(nextCursor)) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid pagination cursor is missing.");
-        }
-        attempt.pages.add(response);
-        attempt.progressCursor = StringUtils.hasText(nextCursor) ? nextCursor : cursor;
-        if (hasMore) {
-            return new SyncPageResult(attempt.progressCursor, true);
-        }
-
-        // Warm distinct currency pairs before acquiring the writer and item row locks.
-        // The write still resolves currency from the locked user and checks quote expiry.
-        User snapshot = userRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
-        for (JsonNode page : attempt.pages) {
-            ingestService.prepareRates(snapshot, java.util.stream.Stream.concat(
-                    nodes(page, "added").stream(), nodes(page, "modified").stream())
-                    .map(node -> toPlaidTransaction(node, itemId)).toList());
-        }
-
-        // Step 3: Fence and persist the COMPLETE sequence in one transaction.
-        return CurrencyConversionService.withPreparedRates(ingestService.currencyConversion(), () -> inTransaction(status -> {
-            transferReconciliation.lockUser(userId);
-            PlaidItem managedItem = plaidItemRepository.findByItemIdForUpdate(itemId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
-
-            // The row lock serializes writers; ownership and the input cursor fence
-            // responses fetched before another worker took over or advanced the item.
-            if (!StringUtils.hasText(leaseToken)
-                    || !leaseToken.equals(managedItem.getSyncLockToken())
-                    || managedItem.getSyncLockExpiresAt() == null
-                    || !managedItem.getSyncLockExpiresAt().isAfter(Instant.now())
-                    || !Objects.equals(attempt.startCursor, managedItem.getCursor())) {
+              // The row lock serializes writers; ownership and the input cursor fence
+              // responses fetched before another worker took over or advanced the item.
+              if (!StringUtils.hasText(leaseToken)
+                  || !leaseToken.equals(managedItem.getSyncLockToken())
+                  || managedItem.getSyncLockExpiresAt() == null
+                  || !managedItem.getSyncLockExpiresAt().isAfter(Instant.now())
+                  || !Objects.equals(attempt.startCursor, managedItem.getCursor())) {
                 throw new StalePlaidSyncPageException(itemId);
-            }
+              }
 
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
-            for (JsonNode stagedPage : attempt.pages) {
+              User user =
+                  userRepository
+                      .findById(userId)
+                      .orElseThrow(() ->
+                          new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+              for (JsonNode stagedPage : attempt.pages) {
                 List<String> removedIds = new ArrayList<>();
 
-                List<PlaidTransaction> added = nodes(stagedPage, "added").stream()
+                List<PlaidTransaction> added =
+                    nodes(stagedPage, "added").stream()
                         .map(node -> toPlaidTransaction(node, managedItem.getItemId()))
                         .toList();
-                List<PlaidTransaction> modified = nodes(stagedPage, "modified").stream()
+                List<PlaidTransaction> modified =
+                    nodes(stagedPage, "modified").stream()
                         .map(node -> toPlaidTransaction(node, managedItem.getItemId()))
                         .toList();
                 ingestService.upsertAddedBatch(user, added);
                 for (PlaidTransaction plaidTx : modified) {
-                    ingestService.upsertTransaction(user, plaidTx);
+                  ingestService.upsertTransaction(user, plaidTx);
                 }
                 for (JsonNode node : nodes(stagedPage, "removed")) {
-                    JsonNode txId = node.get("transaction_id");
-                    if (txId != null && StringUtils.hasText(txId.asString())) {
-                        removedIds.add(txId.asString());
-                    }
+                  JsonNode txId = node.get("transaction_id");
+                  if (txId != null && StringUtils.hasText(txId.asString())) {
+                    removedIds.add(txId.asString());
+                  }
                 }
                 if (!removedIds.isEmpty()) {
-                    ingestService.removeByPlaidIds(removedIds, userId);
+                  ingestService.removeByPlaidIds(removedIds, userId);
                 }
                 // Flush JPA mutations before the next page's native upserts.
                 // This still participates in the one atomic sequence transaction.
                 ingestService.flushPendingWrites();
-            }
-            transferReconciliation.reconcile(userId);
+              }
+              transferReconciliation.reconcile(userId);
 
-            managedItem.setCursor(attempt.progressCursor);
-            managedItem.setLastSyncedAt(Instant.now());
-            managedItem.setSyncError(false);
-            plaidItemRepository.save(managedItem);
+              managedItem.setCursor(attempt.progressCursor);
+              managedItem.setLastSyncedAt(Instant.now());
+              managedItem.setSyncError(false);
+              plaidItemRepository.save(managedItem);
 
-            logger.info("Plaid sync sequence applied for item_id={}: pages={}, new_cursor={}",
-                    itemId, attempt.pages.size(), managedItem.getCursor());
+              logger.info(
+                  "Plaid sync sequence applied for item_id={}: pages={}, new_cursor={}",
+                  itemId,
+                  attempt.pages.size(),
+                  managedItem.getCursor());
 
-            cacheInvalidator.evictFinancialDataAfterCommit(userId);
+              cacheInvalidator.evictFinancialDataAfterCommit(userId);
 
-            registerCursorCommitMilestone(itemId, userId, attempt.startCursor, managedItem.getCursor());
+              registerCursorCommitMilestone(
+                  itemId, userId, attempt.startCursor, managedItem.getCursor());
 
-            return new SyncPageResult(managedItem.getCursor(), hasMore);
-        }));
+              return new SyncPageResult(managedItem.getCursor(), hasMore);
+            }));
+  }
+
+  /**
+   * Logs a persistence milestone only after the surrounding transaction has actually committed, so
+   * the INFO line is a reliable signal that the page's rows and the updated cursor are durable.
+   */
+  private void registerCursorCommitMilestone(
+      String itemId, String userId, String oldCursor, String newCursor) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      return;
     }
-
-    /**
-     * Logs a persistence milestone only after the surrounding transaction has
-     * actually committed, so the INFO line is a reliable signal that the page's
-     * rows and the updated cursor are durable.
-     */
-    private void registerCursorCommitMilestone(String itemId, String userId, String oldCursor, String newCursor) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                logger.info("Committed Plaid sync page for item_id={} user_id={}: cursor {} -> {}",
-                        itemId, userId, oldCursor, newCursor);
-            }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            logger.info(
+                "Committed Plaid sync page for item_id={} user_id={}: cursor {} -> {}",
+                itemId,
+                userId,
+                oldCursor,
+                newCursor);
+          }
         });
+  }
+
+  /**
+   * Lists the active Plaid items connected to the authenticated user, newest first. The encrypted
+   * access token is never exposed.
+   */
+  public List<PlaidItemResponse> listItems(AuthenticatedUser authenticatedUser) {
+    String userId = requireUserId(authenticatedUser);
+    return plaidItemRepository.findByUser_IdOrderByCreatedAtDesc(userId).stream()
+        .map(item ->
+            new PlaidItemResponse(
+                item.getId(),
+                item.getItemId(),
+                item.getInstitutionName(),
+                item.getCreatedAt(),
+                item.getStatus() == null ? PlaidItemStatus.ACTIVE.name() : item.getStatus().name(),
+                item.isSyncError(),
+                item.getLastSyncedAt(),
+                item.getReauthRequestedAt()))
+        .toList();
+  }
+
+  /**
+   * Creates an <em>update-mode</em> Plaid Link token so the user can repair a connection that needs
+   * re-authentication.
+   *
+   * <p>Update mode re-uses the item's durable {@code access_token} and the request body
+   * deliberately omits a {@code products} array. The access token does NOT change, so the client
+   * must NOT call {@code /item/public_token/exchange} after update mode completes.
+   */
+  public String createUpdateLinkToken(AuthenticatedUser authenticatedUser, String itemId) {
+    String userId = requireUserId(authenticatedUser);
+    PlaidItem item = findOwnedItem(authenticatedUser, itemId);
+
+    String accessToken;
+    try {
+      accessToken = encryptionService.decrypt(item.getAccessTokenEncrypted());
+    } catch (IllegalStateException ex) {
+      throw new ResponseStatusException(
+          HttpStatus.INTERNAL_SERVER_ERROR, "Could not decrypt Plaid access token.", ex);
     }
 
-    /**
-     * Lists the active Plaid items connected to the authenticated user,
-     * newest first. The encrypted access token is never exposed.
-     */
-    public List<PlaidItemResponse> listItems(AuthenticatedUser authenticatedUser) {
-        String userId = requireUserId(authenticatedUser);
-        return plaidItemRepository.findByUser_IdOrderByCreatedAtDesc(userId).stream()
-                .map(item -> new PlaidItemResponse(
-                        item.getId(), item.getItemId(), item.getInstitutionName(), item.getCreatedAt(),
-                        item.getStatus() == null ? PlaidItemStatus.ACTIVE.name() : item.getStatus().name(),
-                        item.isSyncError(), item.getLastSyncedAt(), item.getReauthRequestedAt()))
-                .toList();
+    Map<String, Object> body = baseBody();
+    body.put("access_token", accessToken);
+    body.put("client_name", "Fundleaf");
+    body.put("country_codes", settings.countryCodes());
+    body.put("language", settings.language());
+    body.put("user", Map.of("client_user_id", userId));
+    if (StringUtils.hasText(settings.webhookUrl())) {
+      body.put("webhook", settings.webhookUrl());
+    } else {
+      logger.warn(
+          "PLAID_WEBHOOK_URL is not configured; update-mode link tokens are created WITHOUT a"
+              + " webhook URL and Plaid will not send LOGIN_REPAIRED webhooks for the repaired"
+              + " item.");
     }
 
-    /**
-     * Creates an <em>update-mode</em> Plaid Link token so the user can repair a
-     * connection that needs re-authentication.
-     *
-     * <p>
-     * Update mode re-uses the item's durable {@code access_token} and the
-     * request body deliberately omits a {@code products} array. The access
-     * token does NOT change, so the client must NOT call
-     * {@code /item/public_token/exchange} after update mode completes.
-     * </p>
-     */
-    public String createUpdateLinkToken(AuthenticatedUser authenticatedUser, String itemId) {
-        String userId = requireUserId(authenticatedUser);
-        PlaidItem item = findOwnedItem(authenticatedUser, itemId);
+    JsonNode response = post("/link/token/create", body);
+    JsonNode linkToken = response.get("link_token");
+    if (linkToken == null || !StringUtils.hasText(linkToken.asString())) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_GATEWAY, "Plaid did not return a link token.");
+    }
+    return linkToken.asString();
+  }
 
-        String accessToken;
+  /**
+   * Marks an owned item back to {@code ACTIVE} after the user completes update mode. The access
+   * token is unchanged; no exchange is performed.
+   */
+  @Transactional
+  public PlaidItem completeReauth(AuthenticatedUser authenticatedUser, String itemId) {
+    String userId = requireUserId(authenticatedUser);
+    if (plaidItemRepository.completeReauth(itemId, userId, PlaidItemStatus.ACTIVE, Instant.now())
+        == 0) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found");
+    }
+    return findOwnedItem(authenticatedUser, itemId);
+  }
+
+  /**
+   * Resolves a Plaid item owned by the authenticated user by its internal {@code PlaidItem.id}, or
+   * throws 404 when missing / not owned.
+   */
+  public PlaidItem findOwnedItem(AuthenticatedUser authenticatedUser, String itemId) {
+    String userId = requireUserId(authenticatedUser);
+    return plaidItemRepository
+        .findByIdAndUser_Id(itemId, userId)
+        .orElseThrow(
+            () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
+  }
+
+  /**
+   * Atomically schedules remote revocation and removes the local item, disabling sync immediately.
+   * The independent outbox retains only its encrypted credential.
+   *
+   * @return the locally deleted {@code PlaidItem} id (remote revocation is pending)
+   * @throws ResponseStatusException 404 when the item is missing or belongs to a different user
+   */
+  @Transactional
+  public String disconnectItem(AuthenticatedUser authenticatedUser, String itemId) {
+    String userId = requireUserId(authenticatedUser);
+    // Sync's final apply phase takes this same lock, then rechecks item existence.
+    transferReconciliation.lockUser(userId);
+    PlaidItem item =
+        plaidItemRepository
+            .findByIdAndUser_Id(itemId, userId)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
+
+    plaidItemRepository.flush();
+    revocations.enqueueForItem(item.getId());
+    plaidItemRepository.delete(item);
+    logger.info(
+        "Disconnected Plaid item locally; remote revocation pending job_id={}", item.getId());
+    return item.getId();
+  }
+
+  private String requireUserId(AuthenticatedUser authenticatedUser) {
+    if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+    }
+    return authenticatedUser.userId();
+  }
+
+  private Map<String, Object> baseBody() {
+    Map<String, Object> body = new HashMap<>();
+    body.put("client_id", settings.clientId());
+    body.put("secret", settings.secret());
+    return body;
+  }
+
+  private JsonNode post(String path, Map<String, Object> body) {
+    try {
+      JsonNode response =
+          plaidRestClient
+              .post()
+              .uri(path)
+              .contentType(MediaType.APPLICATION_JSON)
+              .body(body)
+              .retrieve()
+              .body(JsonNode.class);
+      if (response == null) {
+        throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Empty response from Plaid.");
+      }
+      if (response.has("error_type")) {
+        throw plaidError(200, response);
+      }
+      return response;
+    } catch (RestClientResponseException ex) {
+      // Preserve the upstream status for retry classification.
+      String errorBody = ex.getResponseBodyAsString();
+      logger.error("Plaid request '{}' failed with HTTP {}", path, ex.getStatusCode().value());
+      throw plaidError(ex.getStatusCode().value(), errorBody);
+    } catch (RestClientException ex) {
+      // Network-level failure (connect timeout, DNS, connection refused) —
+      // not a Plaid error response.
+      logger.error("Plaid request '{}' failed ({})", path, ex.getClass().getSimpleName());
+      throw new ResponseStatusException(
+          HttpStatus.BAD_GATEWAY, "Plaid is temporarily unavailable, please try again.");
+    }
+  }
+
+  /** 502 that surfaces the error payload from a parsed Plaid error body. */
+  private static ResponseStatusException plaidError(int upstreamStatus, JsonNode body) {
+    String code = body.path("error_code").asString("unknown");
+    String message = body.path("error_message").asString("Plaid reported an error.");
+    if ("TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION".equals(code)) {
+      return new PlaidPaginationMutationException();
+    }
+    return new PlaidProviderException(upstreamStatus, code, "Plaid error " + code + ": " + message);
+  }
+
+  /** 502 that surfaces Plaid's raw error body (parsed when possible). */
+  private static ResponseStatusException plaidError(int upstreamStatus, String errorBody) {
+    if (StringUtils.hasText(errorBody)) {
+      try {
+        return plaidError(upstreamStatus, ERROR_BODY_MAPPER.readTree(errorBody));
+      } catch (JacksonException ignored) {
+        // Body was not JSON (e.g. an intermediary HTML error page) — show it raw.
+        return new PlaidProviderException(
+            upstreamStatus, null, "Plaid request failed: " + errorBody);
+      }
+    }
+    return new PlaidProviderException(upstreamStatus, null, "Plaid request failed.");
+  }
+
+  static final class PlaidProviderException extends ResponseStatusException {
+    final int upstreamStatus;
+    final String code;
+
+    PlaidProviderException(int upstreamStatus, String code, String reason) {
+      super(HttpStatus.BAD_GATEWAY, reason);
+      this.upstreamStatus = upstreamStatus;
+      this.code = code;
+    }
+  }
+
+  private static List<JsonNode> nodes(JsonNode root, String field) {
+    List<JsonNode> out = new ArrayList<>();
+    JsonNode arr = root.get(field);
+    if (arr != null && arr.isArray()) {
+      arr.forEach(out::add);
+    }
+    return out;
+  }
+
+  private PlaidTransaction toPlaidTransaction(JsonNode node, String plaidItemId) {
+    String name = node.path("merchant_name").asText(null);
+    if (!StringUtils.hasText(name)) {
+      name = node.path("name").asText(null);
+    }
+
+    String category = readCategory(node);
+    double amount = node.path("amount").asDouble(0.0);
+    Instant date = parseDate(node);
+    boolean transfer = PlaidTransferDetector.isTransfer(node);
+    // Plaid's structured account_id identifies which of the user's accounts
+    // this transaction belongs to; the item id identifies the connected
+    // financial institution. Both are persisted for ownership-based
+    // transfer classification.
+    String plaidAccountId = node.path("account_id").asText(null);
+    String pfcDetailed = readPfcDetailed(node);
+
+    return new PlaidTransaction(
+        node.path("transaction_id").asText(null),
+        name,
+        date,
+        category,
+        amount,
+        transfer,
+        node.path("iso_currency_code").asText(null),
+        node.path("unofficial_currency_code").asText(null),
+        plaidAccountId,
+        plaidItemId,
+        pfcDetailed,
+        node.has("pending") ? node.path("pending").asBoolean(false) : null,
+        node.path("pending_transaction_id").asText(null),
+        parsePostedDate(node),
+        node.path("transaction_code").asText(null));
+  }
+
+  /**
+   * @return personal_finance_category.detailed if present, otherwise null.
+   */
+  private static String readPfcDetailed(JsonNode node) {
+    JsonNode personalFinance = node.get("personal_finance_category");
+    if (personalFinance != null) {
+      String value = personalFinance.path("detailed").asText(null);
+      if (StringUtils.hasText(value)) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  private static String readCategory(JsonNode node) {
+    JsonNode personalFinance = node.get("personal_finance_category");
+    if (personalFinance != null) {
+      // Prefer the fine-grained code, fall back to the hierarchical one.
+      for (String key : List.of("primary", "detailed", "subcategory")) {
+        String value = personalFinance.path(key).asText(null);
+        if (StringUtils.hasText(value)) {
+          return value;
+        }
+      }
+    }
+    JsonNode legacy = node.get("category");
+    if (legacy != null && legacy.isArray() && legacy.size() > 0) {
+      return legacy.get(0).asText("Other");
+    }
+    return "Other";
+  }
+
+  private static LocalDate parsePostedDate(JsonNode node) {
+    try {
+      return LocalDate.parse(node.path("date").asText(""), PLAID_DATE);
+    } catch (java.time.format.DateTimeParseException ex) {
+      return null;
+    }
+  }
+
+  private static Instant parseDate(JsonNode node) {
+    // Prefer the transaction timestamp when Plaid provides one
+    // (authorized_datetime is the current field; datetime is its deprecated
+    // alias). Preserving the time-of-day lets reconnect matching tell apart
+    // multiple same-day transactions instead of relying on day-level data.
+    for (String field : List.of("authorized_datetime", "datetime")) {
+      String raw = node.path(field).asText(null);
+      if (StringUtils.hasText(raw)) {
         try {
-            accessToken = encryptionService.decrypt(item.getAccessTokenEncrypted());
-        } catch (IllegalStateException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not decrypt Plaid access token.",
-                    ex);
+          return Instant.from(ISO_OFFSET.parse(raw));
+        } catch (Exception ignored) {
+          // fall through to the next field
         }
-
-        Map<String, Object> body = baseBody();
-        body.put("access_token", accessToken);
-        body.put("client_name", "Fundleaf");
-        body.put("country_codes", settings.countryCodes());
-        body.put("language", settings.language());
-        body.put("user", Map.of("client_user_id", userId));
-        if (StringUtils.hasText(settings.webhookUrl())) {
-            body.put("webhook", settings.webhookUrl());
-        } else {
-            logger.warn(
-                    "PLAID_WEBHOOK_URL is not configured; update-mode link tokens are created WITHOUT a webhook URL "
-                            + "and Plaid will not send LOGIN_REPAIRED webhooks for the repaired item.");
-        }
-
-        JsonNode response = post("/link/token/create", body);
-        JsonNode linkToken = response.get("link_token");
-        if (linkToken == null || !StringUtils.hasText(linkToken.asString())) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Plaid did not return a link token.");
-        }
-        return linkToken.asString();
+      }
     }
-
-    /**
-     * Marks an owned item back to {@code ACTIVE} after the user completes
-     * update mode. The access token is unchanged; no exchange is performed.
-     */
-    @Transactional
-    public PlaidItem completeReauth(AuthenticatedUser authenticatedUser, String itemId) {
-        String userId = requireUserId(authenticatedUser);
-        if (plaidItemRepository.completeReauth(itemId, userId, PlaidItemStatus.ACTIVE, Instant.now()) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found");
-        }
-        return findOwnedItem(authenticatedUser, itemId);
+    String rawDate = node.path("date").asText(null);
+    if (StringUtils.hasText(rawDate)) {
+      try {
+        return LocalDate.parse(rawDate, PLAID_DATE).atStartOfDay().toInstant(ZoneOffset.UTC);
+      } catch (Exception ignored) {
+        // fall through
+      }
     }
-
-    /**
-     * Resolves a Plaid item owned by the authenticated user by its internal
-     * {@code PlaidItem.id}, or throws 404 when missing / not owned.
-     */
-    public PlaidItem findOwnedItem(AuthenticatedUser authenticatedUser, String itemId) {
-        String userId = requireUserId(authenticatedUser);
-        return plaidItemRepository.findByIdAndUser_Id(itemId, userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
-    }
-
-    /**
-     * Atomically schedules remote revocation and removes the local item, disabling
-     * sync immediately. The independent outbox retains only its encrypted credential.
-     *
-     * @return the locally deleted {@code PlaidItem} id (remote revocation is pending)
-     * @throws ResponseStatusException 404 when the item is missing or belongs
-     *                                 to a different user
-     */
-    @Transactional
-    public String disconnectItem(AuthenticatedUser authenticatedUser, String itemId) {
-        String userId = requireUserId(authenticatedUser);
-        // Sync's final apply phase takes this same lock, then rechecks item existence.
-        transferReconciliation.lockUser(userId);
-        PlaidItem item = plaidItemRepository.findByIdAndUser_Id(itemId, userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Plaid item not found"));
-
-        plaidItemRepository.flush();
-        revocations.enqueueForItem(item.getId());
-        plaidItemRepository.delete(item);
-        logger.info("Disconnected Plaid item locally; remote revocation pending job_id={}", item.getId());
-        return item.getId();
-    }
-
-    private String requireUserId(AuthenticatedUser authenticatedUser) {
-        if (authenticatedUser == null || !StringUtils.hasText(authenticatedUser.userId())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
-        }
-        return authenticatedUser.userId();
-    }
-
-    private Map<String, Object> baseBody() {
-        Map<String, Object> body = new HashMap<>();
-        body.put("client_id", settings.clientId());
-        body.put("secret", settings.secret());
-        return body;
-    }
-
-    private JsonNode post(String path, Map<String, Object> body) {
-        try {
-            JsonNode response = plaidRestClient.post()
-                    .uri(path)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(JsonNode.class);
-            if (response == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Empty response from Plaid.");
-            }
-            if (response.has("error_type")) {
-                throw plaidError(200, response);
-            }
-            return response;
-        } catch (RestClientResponseException ex) {
-            // Preserve the upstream status for retry classification.
-            String errorBody = ex.getResponseBodyAsString();
-            logger.error("Plaid request '{}' failed with HTTP {}",
-                    path, ex.getStatusCode().value());
-            throw plaidError(ex.getStatusCode().value(), errorBody);
-        } catch (RestClientException ex) {
-            // Network-level failure (connect timeout, DNS, connection refused) —
-            // not a Plaid error response.
-            logger.error("Plaid request '{}' failed ({})", path, ex.getClass().getSimpleName());
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_GATEWAY, "Plaid is temporarily unavailable, please try again.");
-        }
-    }
-
-    /** 502 that surfaces the error payload from a parsed Plaid error body. */
-    private static ResponseStatusException plaidError(int upstreamStatus, JsonNode body) {
-        String code = body.path("error_code").asString("unknown");
-        String message = body.path("error_message").asString("Plaid reported an error.");
-        if ("TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION".equals(code)) {
-            return new PlaidPaginationMutationException();
-        }
-        return new PlaidProviderException(upstreamStatus, code, "Plaid error " + code + ": " + message);
-    }
-
-    /** 502 that surfaces Plaid's raw error body (parsed when possible). */
-    private static ResponseStatusException plaidError(int upstreamStatus, String errorBody) {
-        if (StringUtils.hasText(errorBody)) {
-            try {
-                return plaidError(upstreamStatus, ERROR_BODY_MAPPER.readTree(errorBody));
-            } catch (JacksonException ignored) {
-                // Body was not JSON (e.g. an intermediary HTML error page) — show it raw.
-                return new PlaidProviderException(upstreamStatus, null, "Plaid request failed: " + errorBody);
-            }
-        }
-        return new PlaidProviderException(upstreamStatus, null, "Plaid request failed.");
-    }
-
-    static final class PlaidProviderException extends ResponseStatusException {
-        final int upstreamStatus;
-        final String code;
-
-        PlaidProviderException(int upstreamStatus, String code, String reason) {
-            super(HttpStatus.BAD_GATEWAY, reason);
-            this.upstreamStatus = upstreamStatus;
-            this.code = code;
-        }
-    }
-
-    private static List<JsonNode> nodes(JsonNode root, String field) {
-        List<JsonNode> out = new ArrayList<>();
-        JsonNode arr = root.get(field);
-        if (arr != null && arr.isArray()) {
-            arr.forEach(out::add);
-        }
-        return out;
-    }
-
-    private PlaidTransaction toPlaidTransaction(JsonNode node, String plaidItemId) {
-        String name = node.path("merchant_name").asText(null);
-        if (!StringUtils.hasText(name)) {
-            name = node.path("name").asText(null);
-        }
-
-        String category = readCategory(node);
-        double amount = node.path("amount").asDouble(0.0);
-        Instant date = parseDate(node);
-        boolean transfer = PlaidTransferDetector.isTransfer(node);
-        // Plaid's structured account_id identifies which of the user's accounts
-        // this transaction belongs to; the item id identifies the connected
-        // financial institution. Both are persisted for ownership-based
-        // transfer classification.
-        String plaidAccountId = node.path("account_id").asText(null);
-        String pfcDetailed = readPfcDetailed(node);
-
-        return new PlaidTransaction(
-                node.path("transaction_id").asText(null),
-                name,
-                date,
-                category,
-                amount,
-                transfer,
-                node.path("iso_currency_code").asText(null),
-                node.path("unofficial_currency_code").asText(null),
-                plaidAccountId,
-                plaidItemId,
-                pfcDetailed,
-                node.has("pending") ? node.path("pending").asBoolean(false) : null,
-                node.path("pending_transaction_id").asText(null),
-                parsePostedDate(node),
-                node.path("transaction_code").asText(null));
-    }
-
-    /** @return personal_finance_category.detailed if present, otherwise null. */
-    private static String readPfcDetailed(JsonNode node) {
-        JsonNode personalFinance = node.get("personal_finance_category");
-        if (personalFinance != null) {
-            String value = personalFinance.path("detailed").asText(null);
-            if (StringUtils.hasText(value)) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    private static String readCategory(JsonNode node) {
-        JsonNode personalFinance = node.get("personal_finance_category");
-        if (personalFinance != null) {
-            // Prefer the fine-grained code, fall back to the hierarchical one.
-            for (String key : List.of("primary", "detailed", "subcategory")) {
-                String value = personalFinance.path(key).asText(null);
-                if (StringUtils.hasText(value)) {
-                    return value;
-                }
-            }
-        }
-        JsonNode legacy = node.get("category");
-        if (legacy != null && legacy.isArray() && legacy.size() > 0) {
-            return legacy.get(0).asText("Other");
-        }
-        return "Other";
-    }
-
-    private static LocalDate parsePostedDate(JsonNode node) {
-        try {
-            return LocalDate.parse(node.path("date").asText(""), PLAID_DATE);
-        } catch (java.time.format.DateTimeParseException ex) {
-            return null;
-        }
-    }
-
-    private static Instant parseDate(JsonNode node) {
-        // Prefer the transaction timestamp when Plaid provides one
-        // (authorized_datetime is the current field; datetime is its deprecated
-        // alias). Preserving the time-of-day lets reconnect matching tell apart
-        // multiple same-day transactions instead of relying on day-level data.
-        for (String field : List.of("authorized_datetime", "datetime")) {
-            String raw = node.path(field).asText(null);
-            if (StringUtils.hasText(raw)) {
-                try {
-                    return Instant.from(ISO_OFFSET.parse(raw));
-                } catch (Exception ignored) {
-                    // fall through to the next field
-                }
-            }
-        }
-        String rawDate = node.path("date").asText(null);
-        if (StringUtils.hasText(rawDate)) {
-            try {
-                return LocalDate.parse(rawDate, PLAID_DATE)
-                        .atStartOfDay()
-                        .toInstant(ZoneOffset.UTC);
-            } catch (Exception ignored) {
-                // fall through
-            }
-        }
-        return Instant.EPOCH;
-    }
+    return Instant.EPOCH;
+  }
 }

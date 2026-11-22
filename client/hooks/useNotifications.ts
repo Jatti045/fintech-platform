@@ -60,7 +60,7 @@ function todayKey(): string {
   return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
 }
 
-export function useNotifications() {
+export function useNotifications(accountReady = true) {
   const dispatch = useAppDispatch();
   const { isAuthenticated, isLoading } = useAuth();
   const enabled = useAppSelector(selectPurchaseRemindersEnabled);
@@ -72,7 +72,10 @@ export function useNotifications() {
   // Subscribing here (not only on Home) keeps bill reminders in sync even
   // when Home has not mounted yet. RTK Query dedupes identical args, so this
   // shares the exact same cache entry / network request as the Home screen.
-  const recurringQuery = useGetRecurringPaymentsQuery({ today: todayKey() });
+  const recurringQuery = useGetRecurringPaymentsQuery(
+    { today: todayKey() },
+    { skip: !isAuthenticated || !accountReady },
+  );
   const detectedBills =
     recurringQuery.data?.recurringPayments ?? NO_BILLS;
 
@@ -182,7 +185,7 @@ export function useNotifications() {
     }
 
     // Wait for persisted preferences before deciding anything.
-    if (!prefsLoaded) return;
+    if (!prefsLoaded || !accountReady) return;
 
     // syncReminders applies each preference independently (scheduling enabled
     // types, cancelling disabled ones), so one call covers every combination.
@@ -193,6 +196,7 @@ export function useNotifications() {
     dispatch,
     isLoading,
     isAuthenticated,
+    accountReady,
     enabled,
     billsEnabled,
     prefsLoaded,
@@ -203,7 +207,7 @@ export function useNotifications() {
   // grants/revocations, timezone changes and refreshed bill predictions made
   // while the app was closed.
   useEffect(() => {
-    if (isLoading || !isAuthenticated || !prefsLoaded) return;
+    if (isLoading || !isAuthenticated || !accountReady || !prefsLoaded) return;
 
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
@@ -214,5 +218,5 @@ export function useNotifications() {
     });
 
     return () => subscription.remove();
-  }, [isLoading, isAuthenticated, prefsLoaded, enabled, syncReminders]);
+  }, [isLoading, isAuthenticated, accountReady, prefsLoaded, enabled, syncReminders]);
 }

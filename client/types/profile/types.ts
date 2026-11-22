@@ -57,6 +57,7 @@ export interface ThemeSwitcherProps extends ThemedProps {
 /** Props for CurrencySelector (the row that opens the picker). */
 export interface CurrencySelectorProps extends ThemedProps {
   userCurrency: string;
+  disabled?: boolean;
   onPress: () => void;
 }
 
@@ -86,6 +87,7 @@ export interface BankConnectionsProps extends ThemedProps {
   /** True while the Plaid Link flow is open / token exchange is in flight. */
   linking: boolean;
   /** Starts the bank-connection flow (fetch link token + open Plaid Link). */
+  canConnectBank: boolean;
   onLinkBank: () => Promise<void> | void;
   /** Active bank connections linked to the user's profile. */
   items: IPlaidItem[];

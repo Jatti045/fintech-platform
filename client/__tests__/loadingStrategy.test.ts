@@ -36,7 +36,7 @@
 
 /// <reference types="jest" />
 
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import transactionApi from "@/api/transaction";
 import budgetApi from "@/api/budget";

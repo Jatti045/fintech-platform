@@ -1,4 +1,5 @@
 import BaseAPI from "./base";
+import apiClient from "@/config/apiClient";
 import type { IApiResponse } from "@/types/api/types";
 import type {
   ILinkTokenResponse,
@@ -28,6 +29,12 @@ export type {
  * mode re-authentication reuses the existing item (no public-token exchange).
  */
 class PlaidAPI extends BaseAPI {
+  async fetchConnectionCapability(): Promise<{ canConnectBank: boolean }> {
+    // This endpoint returns the capability directly.
+    const response = await apiClient.get<{ canConnectBank: boolean }>("/plaid/capabilities");
+    return response.data;
+  }
+
   async createLinkToken(): Promise<IApiResponse<ILinkTokenResponse>> {
     return this.makeRequest("/plaid/link-token", { method: "POST" });
   }

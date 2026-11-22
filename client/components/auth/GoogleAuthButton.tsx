@@ -5,7 +5,6 @@ import { useAppDispatch, useAuth, useTheme } from "@/hooks/useRedux";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { googleAuth } from "@/store/slices/userSlice";
 import { useThemedAlert } from "@/utils/themedAlert";
-import { router } from "expo-router";
 import { BRAND } from "@/constants/ThemePalettes";
 
 export default function GoogleAuthButton() {
@@ -29,9 +28,7 @@ export default function GoogleAuthButton() {
       }
 
       const payload = await dispatch(googleAuth(idToken)).unwrap();
-      if (payload?.success) {
-        router.push("/(tabs)");
-      } else {
+      if (!payload?.success) {
         showAlert({
           title: "Error",
           message: payload.message || "Something went wrong",

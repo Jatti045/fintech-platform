@@ -2,7 +2,7 @@ import React from "react";
 import MonthPicker from "@/components/calendar/MonthPicker";
 import renderer, { act } from "react-test-renderer";
 import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import { Text, TextInput, TouchableOpacity } from "react-native";
 import themeReducer, { setTheme } from "@/store/slices/themeSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";

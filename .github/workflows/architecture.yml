@@ -1,0 +1,35 @@
+name: Architecture boundaries
+
+on:
+  pull_request:
+    paths:
+      - 'fintech-api/**'
+      - '.github/workflows/architecture.yml'
+  push:
+    branches: [dev, main]
+    paths:
+      - 'fintech-api/**'
+      - '.github/workflows/architecture.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  architecture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: fintech-api
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: fintech-api/pom.xml
+      - name: Check production boundaries and rule counterexamples
+        run: ./mvnw --batch-mode -Dtest=ArchitectureTest,ArchitecturePolicyTest clean test

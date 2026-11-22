@@ -15,7 +15,7 @@
 import React from "react";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AlertProvider } from "@/utils/themedAlert";
 import transactionApi from "@/api/transaction";

@@ -18,10 +18,16 @@ export interface IUser {
   email: string;
   profilePic?: string | null;
   currency?: string;
+  setupComplete?: boolean;
   monthlyIncome?: number;
   actualMonthlyIncome?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface AccountSetupInput {
+  monthlyIncome: number;
+  currency: string;
 }
 
 export interface IAuthResponse {

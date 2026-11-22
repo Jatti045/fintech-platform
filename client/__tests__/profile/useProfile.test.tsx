@@ -12,12 +12,13 @@
 import React from "react";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import { AlertProvider } from "@/utils/themedAlert";
 import { userAPI } from "@/api/user";
 import { plaidAPI } from "@/api/plaid";
 import { router } from "expo-router";
 import { useProfile } from "@/hooks/profile/useProfile";
+import { createPlaidLinkSession } from "react-native-plaid-link-sdk";
 import userReducer, { loginUser } from "@/store/slices/userSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
@@ -50,6 +51,7 @@ jest.mock("@/api/user", () => ({
 jest.mock("@/api/plaid", () => {
   const plaidAPI = {
     fetchItems: jest.fn(),
+    fetchConnectionCapability: jest.fn(),
     createLinkToken: jest.fn(),
     createUpdateLinkToken: jest.fn(),
     reauthComplete: jest.fn(),
@@ -63,6 +65,10 @@ jest.mock("@/api/plaid", () => {
     default: plaidAPI,
   };
 });
+
+jest.mock("react-native-plaid-link-sdk", () => ({
+  createPlaidLinkSession: jest.fn(),
+}));
 
 jest.mock("expo-router", () => ({
   router: {
@@ -90,6 +96,9 @@ jest.mock("@/utils/currencyConverter", () => ({
 
 const mockedGetMonthlyIncome = userAPI.getMonthlyIncome as jest.Mock;
 const mockedFetchItems = (plaidAPI as any).fetchItems as jest.Mock;
+const mockedCapability = jest.mocked(plaidAPI.fetchConnectionCapability);
+const mockedCreateLink = jest.mocked(plaidAPI.createLinkToken);
+const mockedExchange = jest.mocked(plaidAPI.exchangePublicToken);
 const mockedRouterPush = router.push as jest.Mock;
 const mockedRouterReplace = router.replace as jest.Mock;
 
@@ -133,8 +142,9 @@ function setup() {
     return null;
   }
 
+  let tree!: ReturnType<typeof renderer.create>;
   renderer.act(() => {
-    renderer.create(
+    tree = renderer.create(
       <Provider store={store}>
         <AlertProvider>
           <Harness />
@@ -143,7 +153,7 @@ function setup() {
     );
   });
 
-  return { captured, store };
+  return { captured, store, tree };
 }
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -164,6 +174,10 @@ function gatedResponse(value: any, safetyMs = 500) {
 beforeEach(() => {
   mockedGetMonthlyIncome.mockReset();
   mockedFetchItems.mockReset();
+  mockedCapability.mockReset().mockResolvedValue({ canConnectBank: false });
+  mockedCreateLink.mockReset();
+  mockedExchange.mockReset();
+  jest.mocked(createPlaidLinkSession).mockReset();
   mockedRouterPush.mockReset();
   mockedRouterReplace.mockReset();
   (userAPI.getStoredToken as jest.Mock).mockReset();
@@ -176,6 +190,54 @@ beforeEach(() => {
     data: { monthlyIncome: 3000, actualMonthlyIncome: 2900 },
   });
   mockedFetchItems.mockResolvedValue({ data: { items: [] } });
+});
+
+describe("new bank linking capability", () => {
+  it.each([false, true])("gates linking while loading and when the server returns %s", async (allowed) => {
+    const gate = gatedResponse({ canConnectBank: allowed });
+    mockedCapability.mockReturnValue(gate.promise);
+    const { captured, tree } = setup();
+
+    expect(captured.current!.canConnectBank).toBe(false);
+    await captured.current!.handleLinkBank();
+    expect(mockedCreateLink).not.toHaveBeenCalled();
+
+    await renderer.act(async () => { gate.resolve({ canConnectBank: allowed }); });
+    expect(captured.current!.canConnectBank).toBe(allowed);
+    renderer.act(() => tree.unmount());
+  });
+
+  it("keeps linking unavailable when the capability request fails", async () => {
+    mockedCapability.mockRejectedValueOnce(new Error("Offline"));
+    const { captured, tree } = setup();
+    await renderer.act(flush);
+    expect(captured.current!.canConnectBank).toBe(false);
+    await captured.current!.handleLinkBank();
+    expect(mockedCreateLink).not.toHaveBeenCalled();
+    renderer.act(() => tree.unmount());
+  });
+
+  it.each(["link token", "token exchange"])("shows the private-linking message after a 403 during %s", async (step) => {
+    mockedCapability.mockResolvedValueOnce({ canConnectBank: true });
+    const forbidden = Object.assign(new Error("Forbidden"), { status: 403 });
+    if (step === "link token") {
+      mockedCreateLink.mockRejectedValueOnce(forbidden);
+    } else {
+      mockedCreateLink.mockResolvedValueOnce({ success: true, message: "", data: { linkToken: "link-test" } });
+      mockedExchange.mockRejectedValueOnce(forbidden);
+      jest.mocked(createPlaidLinkSession).mockImplementationOnce(async ({ onSuccess }) => ({
+        open: () => onSuccess?.({ publicToken: "public-test" } as Parameters<NonNullable<typeof onSuccess>>[0]),
+      }) as Awaited<ReturnType<typeof createPlaidLinkSession>>);
+    }
+
+    const { captured, tree } = setup();
+    await renderer.act(flush);
+    expect(captured.current!.canConnectBank).toBe(true);
+    await renderer.act(async () => { await captured.current!.handleLinkBank(); });
+    expect(captured.current!.canConnectBank).toBe(false);
+    expect(JSON.stringify(tree.toJSON())).toContain("Bank linking is currently private.");
+    renderer.act(() => tree.unmount());
+  });
 });
 
 describe("useProfile refresh", () => {

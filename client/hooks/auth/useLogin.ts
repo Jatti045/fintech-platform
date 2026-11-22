@@ -20,8 +20,7 @@ import { normalizeEmail, validateLoginForm } from "@/utils/validation";
  *   return value so the caller (screen) decides how to present them. No
  *   duplicate alert is fired alongside the inline Redux error.
  *
- * Returns `true` from `handleLogin` when authentication succeeded so the
- * caller can perform navigation as a one-off side effect.
+ * Returns `true` from `handleLogin` when authentication succeeded.
  */
 export const useLogin = () => {
   const dispatch = useAppDispatch();

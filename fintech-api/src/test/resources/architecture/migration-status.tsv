@@ -1,0 +1,9 @@
+# feature<TAB>partial|complete<TAB>owning increment
+# Add a row with the first real feature class, never to legitimize legacy package additions.
+recurring	complete	Increment 2
+reporting	complete	Increment 4
+incomeprofile	complete	Increment 5
+accountsetup	complete	Increment 6
+shared	partial	Increment 6
+incomeupdate	complete	Increment 7
+currencyupdate	complete	Increment 8

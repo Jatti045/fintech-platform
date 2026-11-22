@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import apiClient from "../config/apiClient";
+import apiClient, { type SessionRequestConfig } from "../config/apiClient";
 import BaseAPI from "./base";
 import type { IApiResponse } from "@/types/api/types";
 import {
@@ -9,10 +9,11 @@ import {
   getAuthToken,
   setAuthToken,
 } from "@/utils/secureStorage";
-import { establishSession, invalidateSession, getSessionIdentity, sessionGeneration, persistSessionUser, restoreSessionUser } from "@/utils/session";
+import { establishSession, invalidateSession, getSessionIdentity, sessionGeneration, persistSessionUser, restoreSessionUser, type SessionIdentity } from "@/utils/session";
 import { readEncryptedCache, migrateLegacyFinancialCache } from "@/utils/encryptedStorage";
 import { logger } from "@/utils/logger";
 import {
+  type AccountSetupInput,
   type ILoginData,
   type ISignupData,
   type IUser,
@@ -195,6 +196,32 @@ class UserAPI extends BaseAPI {
     return response;
   }
 
+  async completeAccountSetup(payload: AccountSetupInput, generation: number): Promise<IUser> {
+    const config: SessionRequestConfig = { expectedSessionGeneration: generation };
+    const response = await apiClient.patch<IApiResponse<IUser>>("/users/me/setup", payload, config);
+    const user = response.data.data;
+    if (!response.data.success || user?.setupComplete !== true) {
+      throw new Error("Account setup could not be confirmed.");
+    }
+    await persistSessionUser(user, generation);
+    return user;
+  }
+
+  async refreshAccountProfile(expected?: SessionIdentity): Promise<IUser> {
+    const identity = expected ?? await getSessionIdentity();
+    if (!identity) throw new Error("Your session expired. Please sign in again.");
+
+    const config: SessionRequestConfig = { expectedSessionGeneration: identity.generation };
+    const { data: response } = await apiClient.get<IApiResponse<IUser>>("/auth/me", config);
+    if (typeof response.data?.setupComplete !== "boolean") {
+      throw new Error("Your account setup status is unavailable.");
+    }
+    if (!await restoreSessionUser(identity, response.data)) {
+      throw new Error("Your session changed. Please sign in again.");
+    }
+    return response.data;
+  }
+
   async getMonthlyIncome({
     month,
     year,
@@ -243,7 +270,16 @@ class UserAPI extends BaseAPI {
       if (!identity) return null;
       if (identity.userId) {
         const cached = await readEncryptedCache<IUser>(identity.userId, "profile");
-        if (cached?.id === identity.userId && identity.generation === sessionGeneration()) return cached;
+        if (cached?.id === identity.userId && identity.generation === sessionGeneration()) {
+          if (cached.setupComplete !== false) return cached;
+          // Another device may have finished since this profile was cached.
+          try {
+            return await this.refreshAccountProfile(identity);
+          } catch {
+            // An offline pending profile can still reach setup and retry when online.
+            return identity.generation === sessionGeneration() ? cached : null;
+          }
+        }
       }
       const response = await this.makeRequest<IUser>("/auth/me", { method: "GET" });
       return await restoreSessionUser(identity, response.data) ? response.data : null;

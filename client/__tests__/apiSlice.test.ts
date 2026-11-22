@@ -13,7 +13,7 @@
 
 /// <reference types="jest" />
 
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import transactionApi from "@/api/transaction";
 import rulesApi from "@/api/categorizationRules";
 import budgetApi from "@/api/budget";

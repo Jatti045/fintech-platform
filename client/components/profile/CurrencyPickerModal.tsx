@@ -4,7 +4,7 @@ import { Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/hooks/useRedux";
-import { CURRENCIES, DEFAULT_CURRENCY } from "@/constants/Currencies";
+import { CURRENCIES } from "@/constants/Currencies";
 import type { CurrencyPickerModalProps } from "@/types/profile/types";
 
 /**
@@ -26,7 +26,7 @@ export default function CurrencyPickerModal({
       title="Select Default Currency"
     >
       {CURRENCIES.map((item) => {
-        const isSelected = item.code === (userCurrency || DEFAULT_CURRENCY);
+        const isSelected = item.code === userCurrency;
         return (
           <TouchableOpacity
             key={item.code}

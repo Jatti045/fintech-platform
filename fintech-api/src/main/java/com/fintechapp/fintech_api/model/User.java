@@ -1,17 +1,15 @@
 package com.fintechapp.fintech_api.model;
 
+import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
-
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UuidGenerator;
-import org.hibernate.annotations.UpdateTimestamp;
-
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.UuidGenerator;
 
 @Entity
 @Table(name = "users")
@@ -21,72 +19,75 @@ import lombok.Setter;
 @NoArgsConstructor
 public class User {
 
-    @Id
-    @GeneratedValue
-    @UuidGenerator
-    @Column(nullable = false, updatable = false, length = 36)
-    private String id;
+  @Id
+  @GeneratedValue
+  @UuidGenerator
+  @Column(nullable = false, updatable = false, length = 36)
+  private String id;
 
-    // All entity updates, including detached merges, must match the row they read.
-    @Version
-    @org.hibernate.annotations.ColumnDefault("0")
-    @Column(name = "update_version", nullable = false)
-    private long updateVersion;
+  // All entity updates, including detached merges, must match the row they read.
+  @Version
+  @org.hibernate.annotations.ColumnDefault("0")
+  @Column(name = "update_version", nullable = false)
+  private long updateVersion;
 
-    @Column(nullable = false, unique = true)
-    private String email;
+  @Column(nullable = false, unique = true)
+  private String email;
 
-    // Security fields are updated only by the atomic credential update below the repository layer.
-    // Ordinary profile/entity saves must never restore a stale password or session version.
-    @Column(nullable = true, updatable = false)
-    private String password;
+  // Security fields are updated only by the atomic credential update below the repository layer.
+  // Ordinary profile/entity saves must never restore a stale password or session version.
+  @Column(nullable = true, updatable = false)
+  private String password;
 
-    @org.hibernate.annotations.ColumnDefault("0")
-    @Column(name = "session_version", nullable = false, updatable = false)
-    private long sessionVersion;
+  @org.hibernate.annotations.ColumnDefault("0")
+  @Column(name = "session_version", nullable = false, updatable = false)
+  private long sessionVersion;
 
-    @Column(name = "auth_provider", nullable = false)
-    @Enumerated(EnumType.STRING)
-    private AuthProvider authProvider;
+  @Column(name = "auth_provider", nullable = false)
+  @Enumerated(EnumType.STRING)
+  private AuthProvider authProvider;
 
-    @Column(nullable = false)
-    private String username;
+  @Column(nullable = false)
+  private String username;
 
-    @Column(name = "profile_pic")
-    private String profilePic;
+  @Column(name = "profile_pic")
+  private String profilePic;
 
-    @Column(name = "profile_pic_public_id")
-    private String profilePicPublicId;
+  @Column(name = "profile_pic_public_id")
+  private String profilePicPublicId;
 
-    @Column(nullable = false)
-    private String currency = "USD";
+  @Column(nullable = false)
+  private String currency = "USD";
 
-    @Column(name = "ai_processing_enabled", nullable = false)
-    private boolean aiProcessingEnabled;
+  @Column(name = "setup_complete", nullable = false)
+  private boolean setupComplete;
 
-    @Column(name = "ai_consent_version", length = 16)
-    private String aiConsentVersion;
+  @Column(name = "ai_processing_enabled", nullable = false)
+  private boolean aiProcessingEnabled;
 
-    @Column(name = "ai_consent_updated_at")
-    private Instant aiConsentUpdatedAt;
+  @Column(name = "ai_consent_version", length = 16)
+  private String aiConsentVersion;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+  @Column(name = "ai_consent_updated_at")
+  private Instant aiConsentUpdatedAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+  @CreationTimestamp
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
 
-    @OneToMany(mappedBy = "user")
-    private Set<Transaction> transactions = new HashSet<>();
+  @UpdateTimestamp
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt;
 
-    @OneToMany(mappedBy = "user")
-    private Set<Budget> budgets = new HashSet<>();
+  @OneToMany(mappedBy = "user")
+  private Set<Transaction> transactions = new HashSet<>();
 
-    @OneToMany(mappedBy = "user")
-    private Set<PasswordResetToken> passwordResets = new HashSet<>();
+  @OneToMany(mappedBy = "user")
+  private Set<Budget> budgets = new HashSet<>();
 
-    @OneToMany(mappedBy = "user")
-    private Set<UserMonthlyIncome> monthlyIncomes = new HashSet<>();
+  @OneToMany(mappedBy = "user")
+  private Set<PasswordResetToken> passwordResets = new HashSet<>();
+
+  @OneToMany(mappedBy = "user")
+  private Set<UserMonthlyIncome> monthlyIncomes = new HashSet<>();
 }

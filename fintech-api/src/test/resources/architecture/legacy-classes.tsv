@@ -1,0 +1,235 @@
+# Exact binary class inventory at f66fed1; reason and removal increment per row.
+com.fintechapp.fintech_api.FintechApiApplication	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.ai.AiClientException	Existing AI provider seam; relocate ownership without redundant wrapper	Increment 9
+com.fintechapp.fintech_api.ai.AiClientException$Kind	Existing AI provider seam; relocate ownership without redundant wrapper	Increment 9
+com.fintechapp.fintech_api.ai.AiCompletionClient	Existing AI provider seam; relocate ownership without redundant wrapper	Increment 9
+com.fintechapp.fintech_api.ai.OpenAiCompatibleAiClient	Existing AI provider seam; relocate ownership without redundant wrapper	Increment 9
+com.fintechapp.fintech_api.ai.OpenAiCompatibleAiClient$CompletionResponse	Existing AI provider seam; relocate ownership without redundant wrapper	Increment 9
+com.fintechapp.fintech_api.ai.OpenAiCompatibleAiClient$CompletionResponse$Choice	Existing AI provider seam; relocate ownership without redundant wrapper	Increment 9
+com.fintechapp.fintech_api.ai.OpenAiCompatibleAiClient$CompletionResponse$Message	Existing AI provider seam; relocate ownership without redundant wrapper	Increment 9
+com.fintechapp.fintech_api.config.AiConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.AiConfig$AiSettings	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.AsyncConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.CacheConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.CacheConfig$1	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.CloudinaryConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.CurrencyConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.DatabaseMigrations	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.MailConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.PlaidConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.PlaidConfig$PlaidSettings	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.config.SecurityConfig	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.controller.AiPrivacyController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.controller.AuthController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.controller.BudgetController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.controller.CategorizationRuleController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 5
+com.fintechapp.fintech_api.controller.CategorizationRuleController$ApplyRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 5
+com.fintechapp.fintech_api.controller.CategorizationRuleController$Result	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 5
+com.fintechapp.fintech_api.controller.FinancialSummaryController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.controller.HealthController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.controller.InsightController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.controller.PlaidController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
+com.fintechapp.fintech_api.controller.PlaidController$1	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
+com.fintechapp.fintech_api.controller.PlaidController$ConnectionCapability	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
+com.fintechapp.fintech_api.controller.TransactionController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.controller.UserController	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.auth.AuthErrorResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.AuthenticatedUser	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.ForgotPasswordRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.GoogleAuthRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.GoogleAuthResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.LoginData	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.LoginRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.LoginResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.ResetPasswordRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.auth.SignupRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.budget.ApplyBudgetSuggestionsResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.ApplyBudgetSuggestionsResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.ApplyBudgetSuggestionsResponse$SkippedItem	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.ApplySuggestionsRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.ApplySuggestionsRequest$Item	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.BudgetDataResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.BudgetIdResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.BudgetItemResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.BudgetSuggestionsResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.BudgetSuggestionsResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.BudgetSuggestionsResponse$Item	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.BudgetsResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.CreateBudgetRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.budget.UpdateBudgetRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.common.ApiErrorResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.common.ApiMessageResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.financialSummary.FinancialReportResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.financialSummary.FinancialReportResponse$BudgetUsage	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.financialSummary.FinancialReportResponse$Category	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.financialSummary.FinancialReportResponse$Comparison	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.financialSummary.FinancialReportResponse$Daily	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.financialSummary.FinancialReportResponse$Report	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.financialSummary.FinancialSummaryResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.financialSummary.FinancialSummaryResponse$FinancialSummaryData	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 3
+com.fintechapp.fintech_api.dto.insight.MonthlyFinancialContext	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.insight.MonthlyFinancialContext$BudgetStatus	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.insight.MonthlyFinancialContext$CategorySpend	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.insight.MonthlyInsightResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.insight.MonthlyInsightResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 9
+com.fintechapp.fintech_api.dto.plaid.DisconnectItemResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.DisconnectItemResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.ExchangePublicTokenRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.ExchangeTokenResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.ExchangeTokenResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.LinkTokenResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.LinkTokenResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.ManualSyncResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.ManualSyncResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.PlaidItemResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
+com.fintechapp.fintech_api.dto.plaid.PlaidItemsResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
+com.fintechapp.fintech_api.dto.plaid.PlaidItemsResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 11
+com.fintechapp.fintech_api.dto.plaid.ReauthCompleteRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.ReauthCompleteResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.ReauthCompleteResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.plaid.UpdateLinkTokenRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 13
+com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 2
+com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 2
+com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse$Item	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 2
+com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse$Item$AmountChange	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 2
+com.fintechapp.fintech_api.dto.recurring.RecurringPaymentsResponse$Item$MatchedTransaction	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 2
+com.fintechapp.fintech_api.dto.rules.RuleRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 5
+com.fintechapp.fintech_api.dto.transaction.CreateTransactionRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.DeleteTransactionResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.DeleteTransactionResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.DeleteTransactionResponse$RestoredBudget	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionDataResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionDataResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionQueryParams	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionsResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionsResponse$BudgetInfo	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionsResponse$Classification	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionsResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionsResponse$Filters	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionsResponse$Pagination	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.TransactionsResponse$TransactionItem	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.transaction.UpdateTransactionRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 7
+com.fintechapp.fintech_api.dto.user.AiPrivacyResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.AiPrivacyResponse$Data	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.ChangePasswordRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.CompleteSetupRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.CurrentUserResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.ProfilePictureUploadResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.ProfilePictureUserResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.UpdateAiPrivacyRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.UpdateCurrencyRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.UpdateMonthlyIncomeRequest	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.UserDataResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.dto.user.UserSummaryResponse	Existing HTTP boundary; preserve wire contract during owning feature migration	Increment 4
+com.fintechapp.fintech_api.exception.GlobalExceptionHandler	Existing framework composition/security detail; retain outer role during migration	Increment 13
+com.fintechapp.fintech_api.model.AuthProvider	Existing JPA/persistence representation; separate migrated domain models	Increment 9
+com.fintechapp.fintech_api.model.Budget	Existing JPA/persistence representation; separate migrated domain models	Increment 7
+com.fintechapp.fintech_api.model.CategorizationRule	Existing JPA/persistence representation; separate migrated domain models	Increment 5
+com.fintechapp.fintech_api.model.FailedWebhook	Existing JPA/persistence representation; separate migrated domain models	Increment 11
+com.fintechapp.fintech_api.model.PasswordResetToken	Existing JPA/persistence representation; separate migrated domain models	Increment 9
+com.fintechapp.fintech_api.model.PendingClassificationHandoff	Existing JPA/persistence representation; separate migrated domain models	Increment 5
+com.fintechapp.fintech_api.model.PlaidItem	Existing JPA/persistence representation; separate migrated domain models	Increment 11
+com.fintechapp.fintech_api.model.PlaidItemStatus	Existing JPA/persistence representation; separate migrated domain models	Increment 11
+com.fintechapp.fintech_api.model.RuleApplication	Existing JPA/persistence representation; separate migrated domain models	Increment 5
+com.fintechapp.fintech_api.model.Transaction	Existing JPA/persistence representation; separate migrated domain models	Increment 7
+com.fintechapp.fintech_api.model.TransactionCategory	Existing JPA/persistence representation; separate migrated domain models	Increment 7
+com.fintechapp.fintech_api.model.TransactionType	Existing JPA/persistence representation; separate migrated domain models	Increment 7
+com.fintechapp.fintech_api.model.User	Existing JPA/persistence representation; separate migrated domain models	Increment 4
+com.fintechapp.fintech_api.model.UserMonthlyIncome	Existing JPA/persistence representation; separate migrated domain models	Increment 4
+com.fintechapp.fintech_api.repository.BudgetRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 7
+com.fintechapp.fintech_api.repository.CategorizationRuleRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 5
+com.fintechapp.fintech_api.repository.FailedWebhookRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 11
+com.fintechapp.fintech_api.repository.PasswordResetTokenRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 9
+com.fintechapp.fintech_api.repository.PendingClassificationHandoffRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 5
+com.fintechapp.fintech_api.repository.PlaidItemRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 11
+com.fintechapp.fintech_api.repository.RuleApplicationRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 5
+com.fintechapp.fintech_api.repository.TransactionRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 7
+com.fintechapp.fintech_api.repository.TransactionRepository$CategoryTotal	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 7
+com.fintechapp.fintech_api.repository.TransactionSubmissionRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 7
+com.fintechapp.fintech_api.repository.TransactionSubmissionRepository$CreationInput	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 7
+com.fintechapp.fintech_api.repository.TransactionSubmissionRepository$SubmittedTransaction	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 7
+com.fintechapp.fintech_api.repository.UserMonthlyIncomeRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 4
+com.fintechapp.fintech_api.repository.UserRepository	Existing Spring Data/JDBC DAO; wrap with inner-owned contract and adapter	Increment 13
+com.fintechapp.fintech_api.security.JsonAuthenticationEntryPoint	Existing framework composition/security detail; retain outer role during migration	Increment 9
+com.fintechapp.fintech_api.security.JwtAuthenticationFilter	Existing framework composition/security detail; retain outer role during migration	Increment 9
+com.fintechapp.fintech_api.security.JwtService	Existing framework composition/security detail; retain outer role during migration	Increment 9
+com.fintechapp.fintech_api.security.RecoveryClientSource	Existing framework composition/security detail; retain outer role during migration	Increment 9
+com.fintechapp.fintech_api.security.TokenAuthenticationException	Existing framework composition/security detail; retain outer role during migration	Increment 9
+com.fintechapp.fintech_api.service.AiPrivacyService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 9
+com.fintechapp.fintech_api.service.AuthService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 9
+com.fintechapp.fintech_api.service.BudgetService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 7
+com.fintechapp.fintech_api.service.BudgetSuggestionService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 7
+com.fintechapp.fintech_api.service.CategorizationRuleService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$AccountScope	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$ApplicationResult	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$ApplicationView	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$Change	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$Changes	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$Match	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$Preview	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$RuleView	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategorizationRuleService$State	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CategoryNormalizer	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.CloudinaryService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
+com.fintechapp.fintech_api.service.CloudinaryService$UploadedImage	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
+com.fintechapp.fintech_api.service.CurrencyConversionService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 6
+com.fintechapp.fintech_api.service.CurrencyConversionService$CachedRate	Existing mixed workflow/technical service; migrate owning feature slice	Increment 6
+com.fintechapp.fintech_api.service.CurrencyConversionService$RateRequired	Existing mixed workflow/technical service; migrate owning feature slice	Increment 6
+com.fintechapp.fintech_api.service.EmailService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
+com.fintechapp.fintech_api.service.EncryptionService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.FinancialCacheInvalidator	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
+com.fintechapp.fintech_api.service.FinancialCacheInvalidator$1	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
+com.fintechapp.fintech_api.service.FinancialReportService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
+com.fintechapp.fintech_api.service.FinancialReportService$MonthlyFacts	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
+com.fintechapp.fintech_api.service.FinancialSummaryService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 3
+com.fintechapp.fintech_api.service.IncomeCalculationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 4
+com.fintechapp.fintech_api.service.InternalTransferReconciliationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
+com.fintechapp.fintech_api.service.MonthlyIncomeService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 4
+com.fintechapp.fintech_api.service.MonthlyInsightService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 9
+com.fintechapp.fintech_api.service.MonthlyInsightService$Explanation	Existing mixed workflow/technical service; migrate owning feature slice	Increment 9
+com.fintechapp.fintech_api.service.PasswordRecoveryRateLimiter	Existing mixed workflow/technical service; migrate owning feature slice	Increment 9
+com.fintechapp.fintech_api.service.PasswordRecoveryService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 9
+com.fintechapp.fintech_api.service.PasswordRecoveryService$1	Existing mixed workflow/technical service; migrate owning feature slice	Increment 9
+com.fintechapp.fintech_api.service.PendingClassificationBridge	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.PendingClassificationBridge$Choices	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.PlaidCategoryFormatter	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidConnectionService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidConnectionService$Attempt	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidConnectionService$Connection	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidPaginationMutationException	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidRefundDetector	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidRevocationClient	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidRevocationClient$Failure	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidRevocationJobService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidRevocationJobService$Claim	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidRevocationWorker	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidService$1	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidService$PlaidProviderException	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidService$SyncAttempt	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidService$SyncPageResult	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidSyncDeferredException	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidSyncJobService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidSyncJobService$JobClaim	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidSyncJobService$JobStatus	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidSyncJobWorker	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidSyncLeaseStore	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidSyncLockService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidTransactionIngestService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidTransactionIngestService$PlaidTransaction	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidTransactionSyncService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidTransferDetector	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidWebhookService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidWebhookVerificationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.PlaidWebhookVerificationService$CachedKey	Existing mixed workflow/technical service; migrate owning feature slice	Increment 11
+com.fintechapp.fintech_api.service.ProfileImageCleanupJobs	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
+com.fintechapp.fintech_api.service.ProfileImageCleanupJobs$Claim	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
+com.fintechapp.fintech_api.service.ProfileImageCleanupWorker	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
+com.fintechapp.fintech_api.service.ProfilePictureStore	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
+com.fintechapp.fintech_api.service.StalePlaidSyncPageException	Existing mixed workflow/technical service; migrate owning feature slice	Increment 13
+com.fintechapp.fintech_api.service.TransactionClassificationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.TransactionClassificationService$Decision	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
+com.fintechapp.fintech_api.service.TransactionService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 7
+com.fintechapp.fintech_api.service.TransactionService$DateBoundary	Existing mixed workflow/technical service; migrate owning feature slice	Increment 7
+com.fintechapp.fintech_api.service.UploadValidationService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 8
+com.fintechapp.fintech_api.service.UserService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 4-9

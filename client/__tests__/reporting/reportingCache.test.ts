@@ -1,4 +1,4 @@
-import { configureStore } from "@reduxjs/toolkit";
+import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import api from "@/store/api/apiSlice";
 import financialAPI from "@/api/financialSummary";
 import transactionAPI from "@/api/transaction";

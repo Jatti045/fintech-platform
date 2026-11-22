@@ -84,6 +84,7 @@ const user: IUser = {
   id: "u1",
   username: "Test User",
   email: "user@test.com",
+  setupComplete: true,
 };
 
 function makeStore() {

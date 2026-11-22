@@ -136,11 +136,10 @@ beforeEach(() => {
 });
 
 describe("LoginScreen", () => {
-  it("navigates to the tabs after a successful login", async () => {
-    mockedLogin.mockResolvedValue({
-      data: { user: { id: "1", email: "user@test.com" }, token: "tok" },
-    });
-    setup();
+  it("establishes the session and lets the root layout choose the next screen", async () => {
+    const user = { id: "1", email: "user@test.com", setupComplete: false };
+    mockedLogin.mockResolvedValue({ data: { user, token: "tok" } });
+    const { store } = setup();
 
     await fillAndSubmit("User@Test.com", "secret1");
 
@@ -148,7 +147,8 @@ describe("LoginScreen", () => {
       email: "user@test.com",
       password: "secret1",
     });
-    expect(router.replace).toHaveBeenCalledWith("/(tabs)");
+    expect(store.getState().user).toMatchObject({ user, isAuthenticated: true });
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("does not navigate and shows the Redux error inline on failure", async () => {

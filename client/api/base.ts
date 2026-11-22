@@ -2,8 +2,9 @@ import apiClient from "../config/apiClient";
 import { AxiosRequestConfig } from "axios";
 import { logger } from "@/utils/logger";
 
-export type { IApiResponse } from "@/types/api/types";
 import type { IApiResponse } from "@/types/api/types";
+
+export type { IApiResponse } from "@/types/api/types";
 
 export default class BaseAPI {
   protected async makeRequest<T>(
@@ -27,11 +28,11 @@ export default class BaseAPI {
         const errorMessage =
           error.response.data?.message ||
           `HTTP ${error.response.status}: ${error.response.statusText}`;
-        throw new Error(errorMessage);
+        throw Object.assign(new Error(errorMessage), { status: error.response.status });
       } else if (error.request) {
         throw new Error("Network error: No response from server");
       } else {
-        throw new Error(error.message || "Request failed");
+        throw Object.assign(new Error(error.message || "Request failed"), { status: error.status });
       }
     }
   }

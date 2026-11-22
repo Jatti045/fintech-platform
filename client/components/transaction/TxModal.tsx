@@ -172,7 +172,10 @@ function TransactionModal({
         // ignore
       }
     }
-  }, [editingTransaction, userCurrency]);
+  }, [
+    editingTransaction, userCurrency, setTxName, setTxAmount, setTxCurrency,
+    setTxDate, setTxSelectedCategoryAndId, setType,
+  ]);
 
   // Show a live conversion preview when amount or currency changes
   useEffect(() => {

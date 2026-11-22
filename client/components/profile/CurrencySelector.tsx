@@ -3,16 +3,17 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/hooks/useRedux";
-import { getCurrencyByCode, DEFAULT_CURRENCY } from "@/constants/Currencies";
+import { getCurrencyByCode } from "@/constants/Currencies";
 import type { CurrencySelectorProps } from "@/types/profile/types";
 
 
 export default function CurrencySelector({
   userCurrency,
   onPress,
+  disabled,
 }: CurrencySelectorProps) {
   const { THEME } = useTheme();
-  const code = userCurrency || DEFAULT_CURRENCY;
+  const code = userCurrency;
   const currency = getCurrencyByCode(code);
 
   return (
@@ -20,7 +21,9 @@ export default function CurrencySelector({
       activeOpacity={0.7}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Default currency ${code}`}
+      accessibilityLabel={code ? `Default currency ${code}` : "Choose currency"}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       style={{ flexDirection: "row", alignItems: "center", minHeight: 48 }}
     >
       <View
@@ -36,7 +39,11 @@ export default function CurrencySelector({
           marginRight: 12,
         }}
       >
-        <Text style={{ fontSize: 18 }}>{currency?.flag || "🇺🇸"}</Text>
+        {code ? (
+          <Text style={{ fontSize: 18 }}>{currency?.flag || "🇺🇸"}</Text>
+        ) : (
+          <Ionicons name="globe-outline" size={18} color={THEME.textSecondary} />
+        )}
       </View>
 
       <View style={{ flex: 1 }}>
@@ -56,7 +63,7 @@ export default function CurrencySelector({
             marginTop: 2,
           }}
         >
-          {code} — {currency?.name || "US Dollar"}
+          {code ? `${code} — ${currency?.name || "US Dollar"}` : "Choose currency"}
         </Text>
       </View>
 
