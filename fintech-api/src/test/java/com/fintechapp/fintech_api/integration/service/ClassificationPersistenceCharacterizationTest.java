@@ -236,7 +236,7 @@ class ClassificationPersistenceCharacterizationTest extends BaseIntegrationTest 
                     new CategorizationRuleService.Change(
                         tx.getId(), before, fingerprint(applied, after))))),
         saved.getChangesJson());
-    assertEquals(1, rules.undo(auth(user), batch.applicationId()).changed());
+    assertEquals(1, historicalApply.undo(auth(user), batch.applicationId()).changed());
     // Undo restores provenance, then recomputes display values. This fixture has no provider
     // category.
     assertEquals(

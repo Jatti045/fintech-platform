@@ -161,7 +161,6 @@ com.fintechapp.fintech_api.service.BudgetService	Existing mixed workflow/technic
 com.fintechapp.fintech_api.service.BudgetSuggestionService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 7
 com.fintechapp.fintech_api.service.CategorizationRuleService	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
 com.fintechapp.fintech_api.service.CategorizationRuleService$AccountScope	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
-com.fintechapp.fintech_api.service.CategorizationRuleService$ApplicationResult	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
 com.fintechapp.fintech_api.service.CategorizationRuleService$ApplicationView	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
 com.fintechapp.fintech_api.service.CategorizationRuleService$Change	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5
 com.fintechapp.fintech_api.service.CategorizationRuleService$Changes	Existing mixed workflow/technical service; migrate owning feature slice	Increment 5

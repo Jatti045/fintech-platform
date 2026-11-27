@@ -21,10 +21,8 @@ public class CategorizationRuleService {
   private final RuleApplicationRepository applications;
   private final TransactionRepository transactions;
   private final TransactionClassificationService classification;
-  private final FinancialCacheInvalidator cache;
   private final ObjectMapper mapper;
   private final UserRepository users;
-  private final BudgetRepository budgets;
   private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
   public CategorizationRuleService(
@@ -32,19 +30,15 @@ public class CategorizationRuleService {
       RuleApplicationRepository applications,
       TransactionRepository transactions,
       TransactionClassificationService classification,
-      FinancialCacheInvalidator cache,
       ObjectMapper mapper,
       UserRepository users,
-      BudgetRepository budgets,
       org.springframework.jdbc.core.JdbcTemplate jdbc) {
     this.rules = rules;
     this.applications = applications;
     this.transactions = transactions;
     this.classification = classification;
-    this.cache = cache;
     this.mapper = mapper;
     this.users = users;
-    this.budgets = budgets;
     this.jdbc = jdbc;
   }
 
@@ -107,8 +101,6 @@ public class CategorizationRuleService {
       String id, String ruleId, Instant createdAt, Instant undoneAt, int changed) {}
 
   public record AccountScope(String id, String label) {}
-
-  public record ApplicationResult(String applicationId, int changed) {}
 
   public String userId(AuthenticatedUser auth) {
     if (auth == null || auth.userId() == null || auth.userId().isBlank())
@@ -293,44 +285,6 @@ public class CategorizationRuleService {
   }
 
   @Transactional
-  public ApplicationResult undo(AuthenticatedUser auth, String id) {
-    String userId = userId(auth);
-    classification.lock(userId);
-    RuleApplication batch =
-        applications
-            .findByIdAndUser_Id(id, userId)
-            .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "Application not found"));
-    if (batch.getUndoneAt() != null) return new ApplicationResult(id, 0);
-    Changes changes = mapper.readValue(batch.getChangesJson(), Changes.class);
-    for (Change change : changes.changes()) {
-      Transaction tx =
-          transactions
-              .findByIdAndUser_Id(change.transactionId(), userId)
-              .orElseThrow(() ->
-                  error(HttpStatus.CONFLICT, "A transaction was removed; undo is unavailable"));
-      if (change.before().budgetId() != null
-          && budgets
-              .findByIdAndUser_Id(change.before().budgetId(), userId)
-              .filter(b -> Objects.equals(b.getCategory(), change.before().budgetCategory()))
-              .isEmpty())
-        throw error(HttpStatus.CONFLICT, "The original budget changed; undo is unavailable");
-      if (!fingerprint(tx).equals(change.afterFingerprint()))
-        throw error(
-            HttpStatus.CONFLICT,
-            "A transaction changed since application; undo would replace newer decisions");
-    }
-    for (Change change : changes.changes()) {
-      Transaction tx =
-          transactions.findByIdAndUser_Id(change.transactionId(), userId).orElseThrow();
-      restore(tx, change.before());
-      classification.classify(tx, false, false);
-    }
-    batch.setUndoneAt(Instant.now());
-    if (!changes.changes().isEmpty()) cache.evictFinancialDataAfterCommit(userId);
-    return new ApplicationResult(id, changes.changes().size());
-  }
-
-  @Transactional
   public State reset(AuthenticatedUser auth, String id, boolean automatic) {
     String userId = userId(auth);
     classification.lock(userId);
@@ -403,24 +357,6 @@ public class CategorizationRuleService {
         t.getBudgetOverrideId(),
         t.getBudgetOverrideCategory(),
         t.isRulesDisabled());
-  }
-
-  private void restore(Transaction t, State s) {
-    t.setName(s.name());
-    t.setCategory(s.category());
-    t.setLegacyClassification(s.legacy());
-    t.setLegacyBudgetCategory(s.legacyBudget());
-    t.setAppliedRuleId(s.ruleId());
-    t.setAppliedRuleVersion(s.ruleVersion());
-    t.setRuleTitle(s.ruleTitle());
-    t.setRuleDisplayName(s.ruleName());
-    t.setRuleCategory(s.ruleCategory());
-    t.setRuleBudgetCategory(s.ruleBudget());
-    t.setNameOverride(s.nameOverride());
-    t.setCategoryOverride(s.categoryOverride());
-    t.setBudgetOverrideId(s.budgetOverrideId());
-    t.setBudgetOverrideCategory(s.budgetOverrideCategory());
-    t.setRulesDisabled(s.rulesDisabled());
   }
 
   public String fingerprint(Transaction t) {

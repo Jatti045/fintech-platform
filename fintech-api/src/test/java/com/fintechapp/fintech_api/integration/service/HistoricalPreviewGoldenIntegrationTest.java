@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.fintechapp.fintech_api.categorization.infrastructure.HistoricalRuleApplication;
 import com.fintechapp.fintech_api.dto.auth.AuthenticatedUser;
 import com.fintechapp.fintech_api.dto.rules.RuleRequest;
 import com.fintechapp.fintech_api.integration.support.BaseIntegrationTest;
@@ -25,6 +26,7 @@ class HistoricalPreviewGoldenIntegrationTest extends BaseIntegrationTest {
   private static final String PATH = "/api/categorization-rules/";
   private static final Instant DATE = Instant.parse("2024-02-01T00:00:00Z");
 
+  @Autowired private HistoricalRuleApplication historicalApply;
   @Autowired private EntityManager entities;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private CategorizationRuleService rules;
@@ -139,8 +141,8 @@ class HistoricalPreviewGoldenIntegrationTest extends BaseIntegrationTest {
     originalBatch.setCreatedAt(DATE);
     originalBatch.setChangesJson(originalJournal);
     applications.saveAndFlush(originalBatch);
-    assertEquals(2, rules.undo(auth, originalBatch.getId()).changed());
-    assertEquals(0, rules.undo(auth, originalBatch.getId()).changed());
+    assertEquals(2, historicalApply.undo(auth, originalBatch.getId()).changed());
+    assertEquals(0, historicalApply.undo(auth, originalBatch.getId()).changed());
     assertEquals(
         "Manual name", transactionRepository.findById("golden-a").orElseThrow().getNameOverride());
     assertEquals(
