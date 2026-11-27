@@ -1,13 +1,12 @@
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { formatCurrency } from "@/utils/helper";
 import type { IFinancialReport } from "@/types/financialSummary/types";
-import DashboardCard from "./DashboardCard";
+import ProgressTrack from "@/components/global/ProgressTrack";
 import BudgetCategoryDetails from "./BudgetCategoryDetails";
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 
 /** Displays authoritative category limits, spending and remaining amounts without recomputing totals. */
 export default function BudgetOverview({
@@ -32,12 +31,16 @@ export default function BudgetOverview({
     totals.limit > 0 ? Math.round((totals.spent / totals.limit) * 100) : null;
   const color = totals.spent > totals.limit ? THEME.danger : THEME.primary;
   return (
-    <DashboardCard padding={14} style={{ marginBottom: 14 }}>
+    <View style={{ marginBottom: BRAND.spacing.lg, gap: BRAND.spacing.sm }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Budget category details"
-          accessibilityHint={expanded ? "Hides the category breakdown" : "Shows the category breakdown"}
+          accessibilityHint={
+            expanded
+              ? "Hides the category breakdown"
+              : "Shows the category breakdown"
+          }
           accessibilityState={{ expanded }}
           onPress={() => setExpanded((visible) => !visible)}
           style={{
@@ -47,18 +50,11 @@ export default function BudgetOverview({
             justifyContent: "center",
           }}
         >
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: THEME.subtleSurface,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Feather name="pie-chart" size={20} color={THEME.primary} />
-          </View>
+          <Feather
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={19}
+            color={THEME.primary}
+          />
         </TouchableOpacity>
         <TouchableOpacity
           accessibilityRole="button"
@@ -75,12 +71,7 @@ export default function BudgetOverview({
           <View style={{ flex: 1 }}>
             <Text
               accessibilityRole="header"
-              style={{
-                color: THEME.textPrimary,
-                fontSize: 16,
-                fontWeight: "700",
-                letterSpacing: -0.3,
-              }}
+              style={[TYPE.section, { color: THEME.textPrimary }]}
             >
               Monthly Budget
             </Text>
@@ -94,7 +85,7 @@ export default function BudgetOverview({
             >
               {report.budgets.length
                 ? `${formatCurrency(totals.spent, report.currency)} of ${formatCurrency(totals.limit, report.currency)} spent`
-                : "Give your month a plan"}
+                : "No limits set for this month"}
             </Text>
           </View>
           {percent != null && (
@@ -105,39 +96,15 @@ export default function BudgetOverview({
         </TouchableOpacity>
       </View>
       {report.budgets.length > 0 && (
-        <View
-          accessibilityRole="progressbar"
-          accessibilityValue={{
-            min: 0,
-            max: 100,
-            now: Math.max(0, Math.min(100, percent ?? 0)),
-            text:
-              percent == null
-                ? "No limit set"
-                : `${percent}% of monthly budget spent`,
-          }}
-          style={{
-            height: 11,
-            borderRadius: 6,
-            backgroundColor: THEME.border,
-            overflow: "hidden",
-            marginTop: 9,
-          }}
-        >
-          <LinearGradient
-            colors={[
-              color,
-              totals.spent > totals.limit ? THEME.danger : THEME.primaryHover,
-            ]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={{
-              height: 11,
-              borderRadius: 6,
-              width: `${Math.max(0, Math.min(100, percent ?? 0))}%`,
-            }}
-          />
-        </View>
+        <ProgressTrack
+          percent={percent ?? 0}
+          description={
+            percent == null
+              ? "No limit set"
+              : `${percent}% of monthly budget spent`
+          }
+          color={color}
+        />
       )}
       {report.budgets.length === 0 ? (
         <>
@@ -177,6 +144,6 @@ export default function BudgetOverview({
           </View>
         )
       )}
-    </DashboardCard>
+    </View>
   );
 }

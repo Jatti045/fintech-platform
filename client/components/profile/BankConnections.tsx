@@ -11,7 +11,6 @@ import { usePlaidHealth } from "@/hooks/plaid/usePlaidHealth";
 import type { BankConnectionsProps } from "@/types/profile/types";
 import type { IPlaidItem } from "@/types/plaid/types";
 
-
 export default function BankConnections({
   THEME: propTheme,
   canConnectBank,
@@ -28,8 +27,7 @@ export default function BankConnections({
   const theme = propTheme || reduxTheme;
   const Header = canConnectBank ? TouchableOpacity : View;
   const displayName = (name: string | null) => name || "Bank account";
-  const { syncingItemIds, retrySync } =
-    usePlaidHealth();
+  const { syncingItemIds, retrySync } = usePlaidHealth();
 
   const syncErrorRow = (item: IPlaidItem, name: string) => {
     const isSyncing = syncingItemIds.includes(item.id);
@@ -84,73 +82,99 @@ export default function BankConnections({
       style={{
         backgroundColor: theme.surface,
         borderRadius: BRAND.radius.card,
-        borderWidth: 1,
-        borderColor: theme.border,
-        padding: 16,
+        padding: BRAND.spacing.md,
         marginBottom: 8,
       }}
     >
       {/* ── Row 1: Bank Connections Header ────────────────────────────── */}
-      <Header
-        {...(canConnectBank ? {
-          activeOpacity: 0.7,
-          onPress: onLinkBank,
-          disabled: linking,
-          accessibilityRole: "button" as const,
-          accessibilityLabel: "Connect a bank account",
-        } : {})}
-        style={{ flexDirection: "row", alignItems: "center", minHeight: 48 }}
-      >
-        <View
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            backgroundColor: accentSurface(theme, hexToRgba(theme.primary, 0.12)),
-            borderWidth: 1,
-            borderColor: hexToRgba(theme.primary, 0.25),
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: 12,
-          }}
+      {canConnectBank && (
+        <Header
+          {...(canConnectBank
+            ? {
+                activeOpacity: 0.7,
+                onPress: onLinkBank,
+                disabled: linking,
+                accessibilityRole: "button" as const,
+                accessibilityLabel: "Connect a bank account",
+              }
+            : {})}
+          style={{ flexDirection: "row", alignItems: "center", minHeight: 48 }}
         >
-          <Ionicons name="business" size={18} color={theme.primary} />
-        </View>
-
-        <View style={{ flex: 1 }}>
-          <Text
+          <View
             style={{
-              color: theme.textPrimary,
-              fontSize: 15,
-              fontWeight: "700",
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              backgroundColor: accentSurface(
+                theme,
+                hexToRgba(theme.primary, 0.12),
+              ),
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 12,
             }}
           >
-            Bank Connections
-          </Text>
-          {canConnectBank && (
+            <Ionicons name="business" size={18} color={theme.primary} />
+          </View>
+
+          <View style={{ flex: 1 }}>
             <Text
-              style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}
+              style={{
+                color: theme.textPrimary,
+                fontSize: 15,
+                fontWeight: "700",
+              }}
             >
-              Auto-sync your transactions securely
+              Connect a bank account
             </Text>
-          )}
+            {canConnectBank && (
+              <Text
+                style={{
+                  color: theme.textSecondary,
+                  fontSize: 12,
+                  marginTop: 2,
+                }}
+              >
+                Auto-sync your transactions securely
+              </Text>
+            )}
+          </View>
+
+          {canConnectBank &&
+            (linking ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : (
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={theme.textSecondary}
+              />
+            ))}
+        </Header>
+      )}
+
+      {itemsError ? (
+        <View style={{ marginTop: 16, gap: 8 }}>
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{ color: theme.danger }}
+          >
+            Could not refresh bank connections. Existing connections may be out
+            of date.
+          </Text>
+          {onRetry ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Retry bank connections"
+              disabled={loadingItems}
+              onPress={onRetry}
+              style={{ minHeight: 48, justifyContent: "center" }}
+            >
+              <Text style={{ color: theme.primary }}>Try again</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
-
-        {canConnectBank && (linking ? (
-          <ActivityIndicator size="small" color={theme.primary} />
-        ) : (
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color={theme.textSecondary}
-          />
-        ))}
-      </Header>
-
-      {itemsError ? <View style={{ marginTop: 16, gap: 8 }}>
-        <Text accessibilityLiveRegion="polite" style={{ color: theme.danger }}>Could not refresh bank connections. Existing connections may be out of date.</Text>
-        {onRetry ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retry bank connections" disabled={loadingItems} onPress={onRetry} style={{ minHeight: 48, justifyContent: "center" }}><Text style={{ color: theme.primary }}>Try again</Text></TouchableOpacity> : null}
-      </View> : null}
+      ) : null}
       {/* ── Divider & Row 2: Connected Items or Empty State ────────────── */}
       {loadingItems && items.length === 0 ? (
         <View
@@ -200,7 +224,10 @@ export default function BankConnections({
                       width: 34,
                       height: 34,
                       borderRadius: 10,
-                      backgroundColor: accentSurface(theme, hexToRgba(theme.primary, 0.1)),
+                      backgroundColor: accentSurface(
+                        theme,
+                        hexToRgba(theme.primary, 0.1),
+                      ),
                       alignItems: "center",
                       justifyContent: "center",
                       marginRight: 10,
@@ -228,19 +255,34 @@ export default function BankConnections({
                         marginTop: 1,
                       }}
                     >
-                      {item.status === "REQUIRES_REAUTH" ? "Reconnect required" : "Connected"} · {formatDate(item.createdAt)}
+                      {item.status === "REQUIRES_REAUTH"
+                        ? "Reconnect required"
+                        : "Connected"}{" "}
+                      · {formatDate(item.createdAt)}
                       {item.lastSyncedAt
                         ? ` · Last synced ${formatRelativeTime(item.lastSyncedAt)}`
-                      : ""}
+                        : ""}
                     </Text>
-                    {item.syncStatus !== "SUCCEEDED" && item.syncStatus !== "ACTION_REQUIRED" && (
-                      <Text style={{ color: theme.primary, fontSize: 11, marginTop: 2 }}>
-                        {item.syncStatus === "QUEUED" ? "Sync queued"
-                          : item.syncStatus === "SYNCING" ? "Syncing transactions"
-                          : item.syncStatus === "RETRYING" ? "Sync failed; retry scheduled"
-                          : item.syncStatus === "FAILED" ? "Sync failed; tap to retry" : ""}
-                      </Text>
-                    )}
+                    {item.syncStatus !== "SUCCEEDED" &&
+                      item.syncStatus !== "ACTION_REQUIRED" && (
+                        <Text
+                          style={{
+                            color: theme.primary,
+                            fontSize: 11,
+                            marginTop: 2,
+                          }}
+                        >
+                          {item.syncStatus === "QUEUED"
+                            ? "Sync queued"
+                            : item.syncStatus === "SYNCING"
+                              ? "Syncing transactions"
+                              : item.syncStatus === "RETRYING"
+                                ? "Sync failed; retry scheduled"
+                                : item.syncStatus === "FAILED"
+                                  ? "Sync failed; tap to retry"
+                                  : ""}
+                        </Text>
+                      )}
                   </View>
 
                   <TouchableOpacity
@@ -248,7 +290,10 @@ export default function BankConnections({
                     disabled={isDisconnecting}
                     accessibilityRole="button"
                     accessibilityLabel={`Disconnect ${name}`}
-                    accessibilityState={{ busy: isDisconnecting, disabled: isDisconnecting }}
+                    accessibilityState={{
+                      busy: isDisconnecting,
+                      disabled: isDisconnecting,
+                    }}
                     activeOpacity={0.7}
                     style={{
                       minHeight: 48,
@@ -267,12 +312,14 @@ export default function BankConnections({
                         justifyContent: "center",
                       }}
                     >
-                      <Text style={{
-                        color: theme.danger,
-                        fontSize: 12,
-                        fontWeight: "700",
-                        opacity: isDisconnecting ? 0 : 1,
-                      }}>
+                      <Text
+                        style={{
+                          color: theme.danger,
+                          fontSize: 12,
+                          fontWeight: "700",
+                          opacity: isDisconnecting ? 0 : 1,
+                        }}
+                      >
                         Disconnect
                       </Text>
                       {isDisconnecting && (
@@ -294,9 +341,9 @@ export default function BankConnections({
       ) : itemsError ? null : (
         <View
           style={{
-            marginTop: 12,
-            paddingTop: 10,
-            borderTopWidth: 1,
+            marginTop: canConnectBank ? 12 : 0,
+            paddingTop: canConnectBank ? 10 : 0,
+            borderTopWidth: canConnectBank ? 1 : 0,
             borderTopColor: theme.border,
           }}
         >

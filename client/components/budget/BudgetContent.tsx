@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { formatCurrency } from "@/utils/helper";
 import { useFinancialReport } from "@/hooks/reporting/useFinancialReport";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import BudgetHalo from "./BudgetHalo";
 import BudgetIncomeSummary from "./BudgetIncomeSummary";
 import BudgetReservoirRow from "./BudgetReservoirRow";
@@ -60,17 +60,16 @@ export default function BudgetContent({
   const isSearching = searchQuery.trim().length > 0;
 
   const reportStatus = (reporting.error || reporting.stale) && (
-    <DashboardCard padding={14} style={{ marginBottom: 14 }}>
-      <DashboardState
-        error={Boolean(reporting.error)}
-        message={
-          reporting.error
-            ? "Cached report · Refresh failed. Your last available figures are shown."
-            : "Cached report · Updating your monthly figures…"
-        }
-        onRetry={reporting.refetch}
-      />
-    </DashboardCard>
+    <DashboardState
+      compact
+      error={Boolean(reporting.error)}
+      message={
+        reporting.error
+          ? "Cached report · Refresh failed. Your last available figures are shown."
+          : "Cached report · Updating your monthly figures…"
+      }
+      onRetry={reporting.refetch}
+    />
   );
   if (!report)
     return (
@@ -156,28 +155,12 @@ export default function BudgetContent({
           marginBottom: 10,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <View
-            style={{
-              width: 18,
-              height: 3,
-              borderRadius: 1.5,
-              backgroundColor: THEME.primary,
-              marginRight: 8,
-            }}
-          />
-          <Text
-            style={{
-              color: THEME.textPrimary,
-              fontSize: 14.5,
-              fontWeight: "700",
-              letterSpacing: 0.5,
-              textTransform: "uppercase",
-            }}
-          >
-            CATEGORIES
-          </Text>
-        </View>
+        <Text
+          accessibilityRole="header"
+          style={[TYPE.section, { color: THEME.textPrimary }]}
+        >
+          Categories
+        </Text>
 
         <Text
           style={{
@@ -218,10 +201,10 @@ export default function BudgetContent({
           )}
         </View>
       )}
-      {/* Individually styled category cards retain selection and swipe actions. */}
+
       {limited.length > 0 && (
         <View style={{ marginBottom: 4 }}>
-          {categoriesToShow.map((budget, index) => {
+          {categoriesToShow.map((budget) => {
             return (
               <BudgetReservoirRow
                 key={budget.id}

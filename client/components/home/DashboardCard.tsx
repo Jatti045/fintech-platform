@@ -1,7 +1,6 @@
-import { isDarkPalette } from "@/constants/ThemePalettes";
 import React from "react";
-import { View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
-import { hexToRgba } from "@/utils/helper";
+import { View, type StyleProp, type ViewStyle } from "react-native";
+import { BRAND } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 
 export interface DashboardCardProps {
@@ -13,34 +12,23 @@ export interface DashboardCardProps {
   paddingVertical?: number;
 }
 
-/**
- * Minimal, premium surface container.
- * Dynamically binds to the active theme's surface and border tokens.
- */
 export default function DashboardCard({
   children,
   style,
-  radius = 18,
+  radius = BRAND.radius.card,
   padding,
-  paddingHorizontal,
-  paddingVertical,
+  paddingHorizontal = padding,
+  paddingVertical = padding,
 }: DashboardCardProps) {
   const { THEME } = useTheme();
-
   return (
     <View
       style={[
-        styles.card,
         {
           backgroundColor: THEME.surface,
-          ...(isDarkPalette(THEME) ? { shadowColor: THEME.sheetBackdrop } : {}),
-          borderColor: hexToRgba(THEME.border, 0.25),
           borderRadius: radius,
-          padding: padding !== undefined ? padding : undefined,
-          paddingHorizontal:
-            paddingHorizontal !== undefined ? paddingHorizontal : padding,
-          paddingVertical:
-            paddingVertical !== undefined ? paddingVertical : padding,
+          paddingHorizontal,
+          paddingVertical,
         },
         style,
       ]}
@@ -49,14 +37,3 @@ export default function DashboardCard({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    shadowColor: "#072B20",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-});

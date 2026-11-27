@@ -38,18 +38,9 @@ export default React.memo(function MonthItem({
           alignItems: "center",
           opacity: scrollX.interpolate({
             inputRange: range,
-            outputRange: [0.3, 1, 0.3],
+            outputRange: [0.85, 1, 0.85],
             extrapolate: "clamp",
           }),
-          transform: [
-            {
-              scale: scrollX.interpolate({
-                inputRange: range,
-                outputRange: [0.88, 1, 0.88],
-                extrapolate: "clamp",
-              }),
-            },
-          ],
         }}
       >
         <Text

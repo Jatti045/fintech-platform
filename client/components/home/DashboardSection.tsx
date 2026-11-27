@@ -1,9 +1,8 @@
 import React, { PropsWithChildren } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
-import { useTheme } from "@/hooks/useRedux";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import DashboardCard from "./DashboardCard";
-import { BRAND } from "@/constants/ThemePalettes";
+import { useTheme } from "@/hooks/useRedux";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 
 export default function DashboardSection({
   title,
@@ -17,29 +16,22 @@ export default function DashboardSection({
 }>) {
   const { THEME } = useTheme();
   return (
-    <DashboardCard
-      paddingHorizontal={14}
-      paddingVertical={8}
-      style={{ marginBottom: 14 }}
-    >
+    <View style={{ marginBottom: BRAND.spacing.lg }}>
       <View
         style={{
           flexDirection: "row",
           flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "space-between",
+          minHeight: BRAND.touchTarget,
           gap: BRAND.spacing.sm,
-          marginBottom: 0,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderColor: THEME.border,
         }}
       >
         <Text
           accessibilityRole="header"
-          style={{
-            color: THEME.textPrimary,
-            fontSize: 17,
-            fontWeight: "700",
-            letterSpacing: -0.4,
-          }}
+          style={[TYPE.section, { color: THEME.textPrimary, flexShrink: 1 }]}
         >
           {title}
         </Text>
@@ -52,19 +44,22 @@ export default function DashboardSection({
               minHeight: BRAND.touchTarget,
               flexDirection: "row",
               alignItems: "center",
-              gap: 3,
+              gap: BRAND.spacing.xs,
             }}
           >
             <Text
-              style={{ color: THEME.primary, fontSize: 13, fontWeight: "700" }}
+              style={[
+                TYPE.caption,
+                { color: THEME.primary, fontWeight: "600" },
+              ]}
             >
-              See All
+              See all
             </Text>
-            <Feather name="chevron-right" size={18} color={THEME.primary} />
+            <Feather name="arrow-right" size={15} color={THEME.primary} />
           </TouchableOpacity>
         )}
       </View>
       {children}
-    </DashboardCard>
+    </View>
   );
 }

@@ -24,7 +24,7 @@ import calendarReducer from "@/store/slices/calendarSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import api from "@/store/api/apiSlice";
 import {
-  ActivityIndicator,
+  View,
   ScrollView,
   Text,
   TextInput,
@@ -35,7 +35,6 @@ import type { IBudget } from "@/types/budget/types";
 const textMock = Text as unknown as jest.Mock;
 const textInputMock = TextInput as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
-const activityIndicatorMock = ActivityIndicator as unknown as jest.Mock;
 
 jest.mock("@/api/budget", () => ({
   __esModule: true,
@@ -211,7 +210,7 @@ function renderedText(matches: string) {
 const searchInput = () =>
   lastProps(
     textInputMock,
-    (props) => props.placeholder === "Search budgets...",
+    (props) => props.accessibilityLabel === "Search budgets",
   );
 
 const newBudgetButton = () =>
@@ -245,7 +244,6 @@ beforeEach(() => {
   textMock.mockClear();
   textInputMock.mockClear();
   touchableOpacityMock.mockClear();
-  activityIndicatorMock.mockClear();
 });
 
 describe("BudgetScreen", () => {
@@ -257,9 +255,14 @@ describe("BudgetScreen", () => {
     // the suite).
     const gate = gatedResponse({ success: true, data: [] });
     mockedFetchAll.mockReturnValue(gate.promise);
-    const { store } = await setup([], { awaitData: false });
+    const { store, tree } = await setup([], { awaitData: false });
 
-    expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
+    expect(renderedText("Loading your budgets")).toBe(true);
+    expect(
+      tree.root
+        .findAllByType(View)
+        .some((node) => node.props.accessibilityState?.busy === true),
+    ).toBe(true);
 
     renderer.act(() => {
       gate.resolve({ success: true, data: [] });
@@ -280,7 +283,7 @@ describe("BudgetScreen", () => {
     expect(renderedText("Set up my month")).toBe(true);
   });
 
-  it("renders the header, halo, trend card, and budget rows", async () => {
+  it("renders the heading, remaining funds, and budget rows", async () => {
     await setup([
       makeBudget({ id: "a", category: "Food" }),
       makeBudget({ id: "b", category: "Transport" }),
@@ -288,8 +291,8 @@ describe("BudgetScreen", () => {
 
     expect(renderedText("Budgets")).toBe(true);
     expect(renderedText("Total budgeted")).toBe(true); // BudgetHalo vitals
-    expect(renderedText("Remaining")).toBe(true); // BudgetTrendCard vitals
-    expect(renderedText("CATEGORIES")).toBe(true);
+    expect(renderedText("Left in your budget")).toBe(true);
+    expect(renderedText("Categories")).toBe(true);
     expect(renderedText("Food")).toBe(true);
     expect(renderedText("Transport")).toBe(true);
   });

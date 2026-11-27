@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 
 interface Props extends TextInputProps {
@@ -36,11 +36,7 @@ const BrandInput = forwardRef<TextInput, Props>(function BrandInput(
   const toggleLabel = label.toLowerCase();
   return (
     <View style={{ gap: BRAND.spacing.sm }}>
-      <Text
-        style={{ color: THEME.textPrimary, fontSize: 14, fontWeight: "600" }}
-      >
-        {label}
-      </Text>
+      <Text style={[TYPE.label, { color: THEME.textPrimary }]}>{label}</Text>
       <View style={{ position: "relative" }}>
         <Input
           {...props}
@@ -61,12 +57,12 @@ const BrandInput = forwardRef<TextInput, Props>(function BrandInput(
           }}
           style={[
             {
-              minHeight: 54,
-              paddingVertical: 15,
+              minHeight: BRAND.touchTarget,
+              paddingVertical: 12,
               paddingLeft: BRAND.spacing.md,
               paddingRight: password ? 56 : BRAND.spacing.md,
               borderRadius: BRAND.radius.input,
-              borderWidth: focused ? 2 : 1,
+              borderWidth: 1,
               borderColor: focused ? THEME.primary : THEME.border,
               backgroundColor: THEME.inputBackground,
               color: THEME.textPrimary,

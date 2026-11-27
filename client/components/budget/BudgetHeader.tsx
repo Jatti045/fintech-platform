@@ -1,11 +1,7 @@
 import React from "react";
-import {
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  StyleSheet,
-} from "react-native";
+import { Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
+import SearchBar from "@/components/global/SearchBar";
 import { Feather } from "@expo/vector-icons";
 import { useAppDispatch, useAppSelector, useTheme } from "@/hooks/useRedux";
 import { setMonthYear } from "@/store/slices/calendarSlice";
@@ -48,40 +44,14 @@ export default function BudgetHeader({
           />
         </View>
       </View>
-      <Text style={[styles.subtitle, { color: THEME.textSecondary }]}>
-        Plan, track and stay in control of your spending.
-      </Text>
       <View style={styles.tools}>
         {showSearch && (
-          <View
-            style={[
-              styles.search,
-              { backgroundColor: THEME.surface, borderColor: THEME.border },
-            ]}
-          >
-            <Feather name="search" size={17} color={THEME.textSecondary} />
-            <TextInput
-              accessibilityLabel="Search budgets"
-              placeholder="Search budgets..."
-              value={searchQuery}
-              onChangeText={onSearchChange}
-              autoCorrect={false}
-              autoCapitalize="none"
-              placeholderTextColor={THEME.placeholderText}
-              selectionColor={THEME.primary}
-              style={[styles.input, { color: THEME.textPrimary }]}
-            />
-            {!!searchQuery && (
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Clear budget search"
-                onPress={() => onSearchChange("")}
-                style={styles.clear}
-              >
-                <Feather name="x" size={18} color={THEME.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
+          <SearchBar
+            placeholder="Search budgets"
+            clearLabel="Clear budget search"
+            searchQuery={searchQuery}
+            setSearchQuery={onSearchChange}
+          />
         )}
         {onSetup && (
           <TouchableOpacity
@@ -103,51 +73,28 @@ export default function BudgetHeader({
   );
 }
 const styles = StyleSheet.create({
-  header: { marginBottom: 18 },
+  header: { marginBottom: BRAND.spacing.sm },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
   },
-  title: { flexShrink: 1, maxWidth: "60%", fontSize: 32, fontWeight: "800", letterSpacing: -1 },
-  subtitle: { fontSize: 13, lineHeight: 20, marginTop: 5, marginBottom: 14 },
+  title: { ...TYPE.screen, flexShrink: 1, maxWidth: "60%" },
   tools: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
-  },
-  search: {
-    flex: 1,
-    minWidth: 140,
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingLeft: 12,
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 48,
-    paddingHorizontal: 10,
-    fontSize: 13,
-  },
-  clear: {
-    width: 44,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
+    gap: BRAND.spacing.sm,
+    marginTop: BRAND.spacing.sm,
   },
   setup: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    minHeight: 48,
+    minHeight: BRAND.touchTarget,
     paddingHorizontal: 12,
-    borderRadius: 14,
+    borderRadius: BRAND.radius.input,
   },
 });

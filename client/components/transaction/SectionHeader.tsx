@@ -1,7 +1,7 @@
 import React from "react";
-import { View, Text } from "react-native";
+import { StyleSheet, View, Text } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { formatCurrency } from "@/utils/helper";
 
 const SectionHeader = React.memo(function SectionHeader({
@@ -22,13 +22,9 @@ const SectionHeader = React.memo(function SectionHeader({
         justifyContent: "space-between",
         alignItems: "center",
         gap: BRAND.spacing.sm,
-        backgroundColor: THEME.subtleSurface,
-        borderTopLeftRadius: BRAND.radius.card,
-        borderTopRightRadius: BRAND.radius.card,
-        borderWidth: 1,
-        borderBottomWidth: 0,
+        borderTopWidth: StyleSheet.hairlineWidth,
         borderColor: THEME.border,
-        padding: BRAND.spacing.md,
+        paddingVertical: BRAND.spacing.sm,
         marginTop: BRAND.spacing.md,
       }}
     >
@@ -36,8 +32,7 @@ const SectionHeader = React.memo(function SectionHeader({
         accessibilityRole="header"
         style={{
           color: THEME.textPrimary,
-          fontSize: 15,
-          fontWeight: "700",
+          ...TYPE.label,
           flexShrink: 1,
         }}
       >

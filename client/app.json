@@ -37,7 +37,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.budgee.finance",
-      "versionCode": 74,
+      "versionCode": 75,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -61,7 +61,7 @@
           "image": "./assets/fundleaf-brand-assets/splash-mark.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#F7FAF8",
+          "backgroundColor": "#F7F8F4",
           "dark": {
             "image": "./assets/fundleaf-brand-assets/splash-mark.png",
             "backgroundColor": "#121212"

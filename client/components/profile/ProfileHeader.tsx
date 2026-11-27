@@ -1,13 +1,10 @@
-import { BRAND, accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
-
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
-import { hexToRgba } from "@/utils/colorUtils";
 import ProfileAvatar from "./ProfileAvatar";
 import type { ProfileHeaderProps } from "@/types/profile/types";
-
 
 export default function ProfileHeader({
   THEME: propTheme,
@@ -19,23 +16,9 @@ export default function ProfileHeader({
 }: ProfileHeaderProps) {
   const { THEME: reduxTheme } = useTheme();
   const theme = propTheme || reduxTheme;
-  const displayName = user?.username || "Your account";
-  const displayEmail = user?.email || "Account details unavailable";
 
   return (
-    <View
-      style={{
-        backgroundColor: theme.surface,
-        borderRadius: BRAND.radius.card,
-        borderWidth: 1,
-        borderColor: theme.border,
-        padding: 16,
-        marginBottom: 8,
-        flexDirection: "row",
-        alignItems: "center",
-      }}
-    >
-      {/* Left: Avatar */}
+    <View style={[styles.identity, { borderColor: theme.border }]}>
       <ProfileAvatar
         THEME={theme}
         user={user}
@@ -44,80 +27,41 @@ export default function ProfileHeader({
         onPickImage={onPickImage}
         onDeleteImage={onDeleteImage}
       />
-
-      {/* Middle: Details */}
-      <View style={{ flex: 1, marginLeft: 16, justifyContent: "center" }}>
-        <Text
-          numberOfLines={1}
-          style={{
-            color: theme.textPrimary,
-            fontSize: 18,
-            fontWeight: "800",
-            letterSpacing: -0.3,
-          }}
-        >
-          {displayName}
+      <View style={styles.details}>
+        <Text style={[TYPE.section, { color: theme.textPrimary }]}>
+          {user?.username || "Your account"}
         </Text>
-        <Text
-          numberOfLines={1}
-          style={{
-            color: theme.textSecondary,
-            fontSize: 13,
-            marginTop: 2,
-            marginBottom: 8,
-          }}
-        >
-          {displayEmail}
+        <Text style={[TYPE.caption, { color: theme.textSecondary }]}>
+          {user?.email || "Account details unavailable"}
         </Text>
-
-        {/* Fundleaf member pill */}
-        <View
-          style={{
-            alignSelf: "flex-start",
-            flexDirection: "row",
-            alignItems: "center",
-            borderRadius: 999,
-            paddingHorizontal: 9,
-            paddingVertical: 3,
-            backgroundColor: accentSurface(theme, hexToRgba(theme.primary, 0.08)),
-            borderWidth: 1,
-            borderColor: hexToRgba(theme.primary, 0.3),
-          }}
-        >
-          <Feather
-            name="shield"
-            size={11}
-            color={theme.primary}
-            style={{ marginRight: 5 }}
-          />
-          <Text
-            style={{
-              color: theme.textPrimary,
-              fontSize: 11,
-              fontWeight: "700",
-              letterSpacing: -0.1,
-            }}
-          >
-            Fundleaf member
-          </Text>
-        </View>
       </View>
-
-      {/* Far Right: Interactive chevron */}
       <TouchableOpacity
         onPress={onPickImage}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel="Change profile picture"
         disabled={uploading || deleting}
-        style={{ minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center" }}
+        style={styles.edit}
       >
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color={theme.textSecondary}
-        />
+        <Feather name="edit-2" size={18} color={theme.textSecondary} />
       </TouchableOpacity>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  identity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: BRAND.spacing.sm,
+    paddingVertical: BRAND.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  details: { flex: 1, minWidth: 0, gap: BRAND.spacing.xs },
+  edit: {
+    width: BRAND.touchTarget,
+    minHeight: BRAND.touchTarget,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

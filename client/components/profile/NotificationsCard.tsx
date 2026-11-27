@@ -37,9 +37,7 @@ export default function NotificationsCard({
       style={{
         backgroundColor: THEME.surface,
         borderRadius: BRAND.radius.card,
-        borderWidth: 1,
-        borderColor: THEME.border,
-        padding: 16,
+        padding: BRAND.spacing.md,
         marginBottom: 8,
       }}
     >
@@ -50,9 +48,10 @@ export default function NotificationsCard({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.12)),
-            borderWidth: 1,
-            borderColor: hexToRgba(THEME.primary, 0.25),
+            backgroundColor: accentSurface(
+              THEME,
+              hexToRgba(THEME.primary, 0.12),
+            ),
             alignItems: "center",
             justifyContent: "center",
             marginRight: 12,
@@ -79,9 +78,7 @@ export default function NotificationsCard({
               lineHeight: 16,
             }}
           >
-            {notificationPermissionDenied
-              ? "Notifications are off for Fundleaf in device settings. Turn them on there to receive reminders."
-              : "Get notified about recurring and upcoming purchases."}
+            Get reminders to log purchases.
           </Text>
         </View>
 
@@ -113,9 +110,10 @@ export default function NotificationsCard({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.12)),
-            borderWidth: 1,
-            borderColor: hexToRgba(THEME.primary, 0.25),
+            backgroundColor: accentSurface(
+              THEME,
+              hexToRgba(THEME.primary, 0.12),
+            ),
             alignItems: "center",
             justifyContent: "center",
             marginRight: 12,
@@ -142,9 +140,7 @@ export default function NotificationsCard({
               lineHeight: 16,
             }}
           >
-            {notificationPermissionDenied
-              ? "Notifications are off for Fundleaf in device settings. Turn them on there to receive reminders."
-              : "Get notified about upcoming bills and payments."}
+            Get reminders before upcoming bills.
           </Text>
         </View>
 
@@ -159,6 +155,16 @@ export default function NotificationsCard({
       </View>
 
       {/* ── Open Settings Button ──────────────────────────────────────── */}
+      {notificationPermissionDenied && (
+        <View style={{ marginTop: BRAND.spacing.md }}>
+          <Text
+            style={{ color: THEME.textSecondary, fontSize: 12, lineHeight: 16 }}
+          >
+            Notifications are off for Fundleaf. Enable them in device settings
+            to receive reminders.
+          </Text>
+        </View>
+      )}
       <TouchableOpacity
         onPress={onOpenSettings}
         activeOpacity={0.75}
@@ -183,7 +189,9 @@ export default function NotificationsCard({
           color={THEME.primary}
           style={{ marginRight: 8 }}
         />
-        <Text style={{ color: THEME.textPrimary, fontWeight: "700", fontSize: 13 }}>
+        <Text
+          style={{ color: THEME.textPrimary, fontWeight: "700", fontSize: 13 }}
+        >
           Open Settings
         </Text>
       </TouchableOpacity>

@@ -16,7 +16,6 @@ import ModalCloseButton from "../../global/modalCloseButton";
 import { useTheme } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { validateResetPasswordForm } from "@/utils/validation";
-import { LinearGradient } from "expo-linear-gradient";
 
 export interface ResetPasswordModalProps {
   visible: boolean;
@@ -24,10 +23,7 @@ export interface ResetPasswordModalProps {
   email: string;
   otp: string;
   /** Invoked with the new password pair; resolves `true` on success. */
-  onSubmit: (
-    newPassword: string,
-    confirmPassword: string,
-  ) => Promise<boolean>;
+  onSubmit: (newPassword: string, confirmPassword: string) => Promise<boolean>;
 }
 
 /**
@@ -116,7 +112,10 @@ function ResetPasswordModal({
           </View>
           <KeyboardAvoidingView
             behavior="padding"
-            style={{ flex: 1, backgroundColor: sheetSurface(THEME, THEME.background) }}
+            style={{
+              flex: 1,
+              backgroundColor: sheetSurface(THEME, THEME.background),
+            }}
           >
             <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
               <View className="flex-1 px-4">
@@ -178,11 +177,11 @@ function ResetPasswordModal({
                     accessibilityState={{ disabled: isSubmitting }}
                   >
                     <View>
-                      <LinearGradient
-                        colors={[THEME.primary, THEME.secondary]}
-                        start={[0, 0]}
-                        end={[1, 1]}
+                      <View
                         style={{
+                          backgroundColor: THEME.primary,
+                          minHeight: 48,
+                          justifyContent: "center",
                           paddingVertical: 12,
                           borderRadius: 8,
                           alignItems: "center",
@@ -203,7 +202,7 @@ function ResetPasswordModal({
                             Save New Password
                           </Text>
                         )}
-                      </LinearGradient>
+                      </View>
                     </View>
                   </TouchableWithoutFeedback>
                 </View>
@@ -217,4 +216,3 @@ function ResetPasswordModal({
 }
 
 export default ResetPasswordModal;
-

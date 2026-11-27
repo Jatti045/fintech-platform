@@ -36,5 +36,5 @@ test("budget daily allowance uses day one of the UTC reporting month", () => {
 
 test("budget header defaults to the UTC reporting year", () => {
   expect(texts(<BudgetHalo budgets={[]} monthLabel="January" currencyCode="USD" />))
-    .toContain("JANUARY 2027");
+    .toContain("January 2027");
 });

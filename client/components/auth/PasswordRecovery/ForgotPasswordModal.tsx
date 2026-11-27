@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { getModalHeight, MODAL_BORDER_RADIUS } from "@/constants/appConfig";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
 import { validateEmail } from "@/utils/validation";
@@ -98,7 +97,10 @@ function ForgotPasswordModal({
           </View>
           <KeyboardAvoidingView
             behavior="padding"
-            style={{ flex: 1, backgroundColor: sheetSurface(THEME, THEME.background) }}
+            style={{
+              flex: 1,
+              backgroundColor: sheetSurface(THEME, THEME.background),
+            }}
           >
             <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
               <View className="flex-1 px-4 ">
@@ -142,11 +144,11 @@ function ForgotPasswordModal({
                     accessibilityState={{ disabled: isSubmitting }}
                     style={{ opacity: isSubmitting ? 0.6 : 1 }}
                   >
-                    <LinearGradient
-                      colors={[THEME.primary, THEME.secondary]}
-                      start={[0, 0]}
-                      end={[1, 1]}
+                    <View
                       style={{
+                        backgroundColor: THEME.primary,
+                        minHeight: 48,
+                        justifyContent: "center",
                         paddingVertical: 12,
                         borderRadius: 8,
                         alignItems: "center",
@@ -167,7 +169,7 @@ function ForgotPasswordModal({
                           Send OTP
                         </Text>
                       )}
-                    </LinearGradient>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>

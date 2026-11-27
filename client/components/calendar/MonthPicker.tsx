@@ -37,7 +37,8 @@ export default function MonthPicker({ value, onChange }: MonthPickerProps) {
   const selected = monthIndex(value);
   const selectedIndex = Math.max(0, latest - selected);
   const count = Math.max(history, selectedIndex + HISTORY_CHUNK);
-  const itemWidth = Math.min(104 * Math.max(1, fontScale), width * 0.66);
+  const widthPerSlot = fontScale > 1.3 ? width * 0.66 : width / 3;
+  const itemWidth = Math.min(104 * Math.max(1, fontScale), widthPerSlot);
   const height = Math.ceil(58 * Math.max(1, fontScale));
   const data = useMemo(() => ({ latest, count }), [latest, count]);
   // Keep the future-month boundary fresh across midnight and app suspension.

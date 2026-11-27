@@ -13,9 +13,10 @@ import {
   type BottomSheetBackdropProps,
   type BottomSheetBackgroundProps,
 } from "@gorhom/bottom-sheet";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND, sheetSurface } from "@/constants/ThemePalettes";
+import { BRAND, TYPE, sheetSurface } from "@/constants/ThemePalettes";
 
 export const SheetInputContext = createContext(false);
 const activeSheets: symbol[] = [];
@@ -155,27 +156,21 @@ export default function FundleafSheet({
   );
   const handle = useCallback(
     () => (
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={`Dismiss ${title}`}
-        accessibilityState={{ disabled: busy }}
-        disabled={busy}
-        onPress={requestClose}
-        onAccessibilityEscape={requestClose}
-        style={{ height: 44, alignItems: "center", justifyContent: "center" }}
+      <View
+        aria-hidden
+        style={{ height: 24, alignItems: "center", justifyContent: "center" }}
       >
         <View
-          accessible={false}
           style={{
-            width: 38,
-            height: 5,
-            borderRadius: 3,
+            width: 32,
+            height: 4,
+            borderRadius: 2,
             backgroundColor: THEME.sheetHandle,
           }}
         />
-      </TouchableOpacity>
+      </View>
     ),
-    [THEME.sheetHandle, busy, requestClose, title],
+    [THEME.sheetHandle],
   );
   return (
     <BottomSheetModal
@@ -198,8 +193,8 @@ export default function FundleafSheet({
       backdropComponent={backdrop}
       backgroundStyle={{
         backgroundColor: sheetSurface(THEME),
-        borderTopLeftRadius: BRAND.radius.card,
-        borderTopRightRadius: BRAND.radius.card,
+        borderTopLeftRadius: BRAND.radius.sheet,
+        borderTopRightRadius: BRAND.radius.sheet,
       }}
       handleComponent={handle}
       onChange={(index) => {
@@ -217,21 +212,47 @@ export default function FundleafSheet({
           accessibilityViewIsModal
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
-            paddingHorizontal: 20,
+            paddingHorizontal: BRAND.spacing.md,
             paddingBottom: Math.max(insets.bottom, 20) + 12,
-            gap: 16,
+            gap: BRAND.spacing.md,
           }}
         >
-          <Text
-            accessibilityRole="header"
+          <View
             style={{
-              color: THEME.textPrimary,
-              fontSize: 24,
-              fontWeight: "700",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: BRAND.spacing.sm,
             }}
           >
-            {title}
-          </Text>
+            <Text
+              accessibilityRole="header"
+              style={[TYPE.section, { flex: 1, color: THEME.textPrimary }]}
+            >
+              {title}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={`Dismiss ${title}`}
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
+              onPress={requestClose}
+              onAccessibilityEscape={requestClose}
+              style={{
+                width: BRAND.touchTarget,
+                minHeight: BRAND.touchTarget,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: BRAND.radius.button,
+                backgroundColor: THEME.subtleSurface,
+              }}
+            >
+              <Feather
+                name="x"
+                size={18}
+                color={busy ? THEME.textDisabled : THEME.textPrimary}
+              />
+            </TouchableOpacity>
+          </View>
           {children}
         </BottomSheetScrollView>
       </SheetInputContext.Provider>

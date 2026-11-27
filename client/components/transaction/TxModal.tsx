@@ -130,8 +130,16 @@ function TransactionModal({
     }
     prevOpenRef.current = openSheet;
   }, [
-    openSheet, clearCreateSubmission, onClose, setTxName, setTxAmount,
-    setTxSelectedCategoryAndId, setTxDate, setTxCurrency, setType, userCurrency,
+    openSheet,
+    clearCreateSubmission,
+    onClose,
+    setTxName,
+    setTxAmount,
+    setTxSelectedCategoryAndId,
+    setTxDate,
+    setTxCurrency,
+    setType,
+    userCurrency,
   ]);
 
   // Populate fields when editingTransaction is provided
@@ -173,8 +181,14 @@ function TransactionModal({
       }
     }
   }, [
-    editingTransaction, userCurrency, setTxName, setTxAmount, setTxCurrency,
-    setTxDate, setTxSelectedCategoryAndId, setType,
+    editingTransaction,
+    userCurrency,
+    setTxName,
+    setTxAmount,
+    setTxCurrency,
+    setTxDate,
+    setTxSelectedCategoryAndId,
+    setType,
   ]);
 
   // Show a live conversion preview when amount or currency changes
@@ -242,7 +256,11 @@ function TransactionModal({
   // New drafts are disposable. Only edits to an existing transaction require
   // confirmation; use the same policy for gestures, Back, backdrop and Cancel.
   const protectedDirty = Boolean(editingTransaction) && dirty;
-  const close = useSheetDismiss(() => setOpenSheet(false), protectedDirty, saving);
+  const close = useSheetDismiss(
+    () => setOpenSheet(false),
+    protectedDirty,
+    saving,
+  );
   return (
     <FundleafSheet
       visible={openSheet}
@@ -295,7 +313,7 @@ function TransactionModal({
               <Text
                 style={{
                   color: active ? THEME.onPrimary : THEME.textSecondary,
-                  fontWeight: "800",
+                  fontWeight: "700",
                   fontSize: 14,
                 }}
               >
@@ -306,12 +324,12 @@ function TransactionModal({
         })}
       </View>
 
-      <View className="flex-1 gap-6">
+      <View style={{ gap: BRAND.spacing.md }}>
         {/* Name Input (simplified + example) */}
         <View>
           <BrandInput
             label="Name"
-            placeholder="e.g., Coffee at Joe's, Grocery shopping"
+            placeholder="Merchant or description"
             value={txName}
             onChangeText={(v) => {
               setDirty(true);
@@ -321,18 +339,12 @@ function TransactionModal({
             editable={!saving}
             autoCapitalize="sentences"
           />
-          <Text
-            style={{ color: THEME.textSecondary, marginTop: 6 }}
-            className="text-sm"
-          >
-            Tip: Use a short descriptive name — store, merchant or note.
-          </Text>
         </View>
         {/* Amount Input (simplified + example) */}
         <View>
           <BrandInput
             label="Amount"
-            placeholder="e.g., 4.50 or 120.00"
+            placeholder="0.00"
             value={txAmount}
             onChangeText={(v) => {
               setDirty(true);
@@ -342,13 +354,6 @@ function TransactionModal({
             editable={!saving}
             keyboardType="decimal-pad"
           />
-          <Text
-            style={{ color: THEME.textSecondary, marginTop: 6 }}
-            className="text-sm"
-          >
-            Tip: Enter the numeric amount without currency symbol. Use a dot for
-            decimals.
-          </Text>
 
           {type === TransactionType.EXPENSE && (
             <View
@@ -429,9 +434,6 @@ function TransactionModal({
                 flexWrap: "wrap",
               }}
             >
-              <Text style={{ fontSize: 18 }}>
-                {getCurrencyByCode(txCurrency)?.flag}
-              </Text>
               <Text style={{ color: THEME.textPrimary, fontWeight: "600" }}>
                 {txCurrency}
               </Text>

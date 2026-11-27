@@ -66,8 +66,7 @@ export const useBudgetScreen = () => {
   const [openSetup, setOpenSetup] = useState(false);
   const [editingBudget, setEditingBudget] = useState<IBudget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  /** Budget whose drawer is expanded AND feeds the oscilloscope. */
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>();
 
   const isSearching = searchQuery.trim().length > 0;
   const isInitialLoading = isLoading && budgets.length === 0 && !isSearching;
@@ -98,13 +97,14 @@ export const useBudgetScreen = () => {
     };
   }, [filteredBudgets]);
 
-  // The selected budget follows `selectedId`; when that budget is no longer
-  // visible (e.g. filtered out by search) it falls back to the first visible
-  // one. This single derived value drives both the trend card and the row's
-  // expanded state, so no effect is needed to keep the selection in sync.
+  // A deliberate collapse stays closed. Otherwise follow the first visible
+  // budget when the initial selection or search changes.
   const selectedBudget = useMemo(
     () =>
-      filteredBudgets.find((b) => b.id === selectedId) ?? filteredBudgets[0],
+      selectedId === null
+        ? undefined
+        : (filteredBudgets.find((b) => b.id === selectedId) ??
+          filteredBudgets[0]),
     [filteredBudgets, selectedId],
   );
 
@@ -120,9 +120,12 @@ export const useBudgetScreen = () => {
 
   // ── Stable callbacks ──────────────────────────────────────────────────
 
-  const handleToggle = useCallback((budget: IBudget) => {
-    setSelectedId(budget.id);
-  }, []);
+  const handleToggle = useCallback(
+    (budget: IBudget) => {
+      setSelectedId(selectedBudget?.id === budget.id ? null : budget.id);
+    },
+    [selectedBudget?.id],
+  );
 
   const handleEditPress = useCallback((budget: IBudget) => {
     setEditingBudget(budget);

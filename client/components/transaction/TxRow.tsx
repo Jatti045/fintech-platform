@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { BRAND } from "@/constants/ThemePalettes";
-import { Feather } from "@expo/vector-icons";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { useBudgets, useTheme } from "@/hooks/useRedux";
 import { capitalizeFirst, formatCurrency } from "@/utils/helper";
 import { safeAmount } from "../../utils/transaction/helpers";
 import type { TransactionItem } from "../../types/transaction/types";
 import { hapticHeavy } from "@/utils/haptics";
+import ActivityIcon from "@/components/home/ActivityIcon";
 import SwipeableRow from "@/components/global/SwipeableRow";
 
 function formatRowDate(dateStr?: string | Date): string {
@@ -122,7 +122,7 @@ const TransactionRow = React.memo(function TransactionRow({
   const tone = tx.isTransfer
     ? THEME.textSecondary
     : isExpense
-      ? THEME.danger
+      ? THEME.textPrimary
       : THEME.success;
 
   return (
@@ -146,14 +146,11 @@ const TransactionRow = React.memo(function TransactionRow({
           else if (event.nativeEvent.actionName === "activate") onEdit(tx);
         }}
         style={{
-          backgroundColor: THEME.surface,
-          borderLeftWidth: 1,
-          borderRightWidth: 1,
+          backgroundColor: THEME.background,
+          borderBottomWidth: StyleSheet.hairlineWidth,
           borderColor: THEME.border,
-          borderBottomWidth: isLast ? 1 : StyleSheet.hairlineWidth,
-          borderBottomLeftRadius: isLast ? BRAND.radius.card : 0,
-          borderBottomRightRadius: isLast ? BRAND.radius.card : 0,
-          padding: BRAND.spacing.md,
+          minHeight: 56,
+          paddingVertical: BRAND.spacing.sm,
         }}
       >
         <View
@@ -173,28 +170,11 @@ const TransactionRow = React.memo(function TransactionRow({
               flexBasis: 150,
             }}
           >
-            <View
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 12,
-                backgroundColor: THEME.subtleSurface,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Feather
-                name={
-                  tx.isTransfer
-                    ? "repeat"
-                    : isExpense
-                      ? "arrow-up-right"
-                      : "arrow-down-left"
-                }
-                size={18}
-                color={tx.isTransfer ? THEME.textSecondary : THEME.primary}
-              />
-            </View>
+            <ActivityIcon
+              category={displayCategory || "General"}
+              income={!isExpense}
+              transfer={tx.isTransfer}
+            />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text
                 style={{
@@ -224,9 +204,7 @@ const TransactionRow = React.memo(function TransactionRow({
           <Text
             style={{
               color: tone,
-              fontWeight: "700",
-              fontSize: 17,
-              fontVariant: ["tabular-nums"],
+              ...TYPE.amount,
               textAlign: "right",
               flexShrink: 1,
               maxWidth: "100%",

@@ -1,130 +1,75 @@
-import { accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
-import { hexToRgba } from "@/utils/colorUtils";
 import { THEME_OPTIONS } from "@/utils/profile/profileService";
 import type { ThemeSwitcherProps } from "@/types/profile/types";
 
+const icons = { System: "smartphone", Light: "sun", Dark: "moon" } as const;
 
 export default function ThemeSwitcher({
   selectedTheme,
   onThemeSelect,
 }: ThemeSwitcherProps) {
   const { THEME } = useTheme();
-
   return (
-    <View>
-      {/* Header Row */}
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <View
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            backgroundColor: accentSurface(THEME, hexToRgba(THEME.primary, 0.12)),
-            borderWidth: 1,
-            borderColor: hexToRgba(THEME.primary, 0.25),
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: 12,
-          }}
-        >
-          <Ionicons name="color-palette" size={18} color={THEME.primary} />
-        </View>
-
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              color: THEME.textPrimary,
-              fontSize: 15,
-              fontWeight: "700",
-            }}
+    <View style={[styles.options, { backgroundColor: THEME.subtleSurface }]}>
+      {THEME_OPTIONS.map(({ name }) => {
+        const selected = selectedTheme === name;
+        const color = selected ? THEME.textPrimary : THEME.textSecondary;
+        return (
+          <TouchableOpacity
+            key={name}
+            activeOpacity={0.75}
+            onPress={() => onThemeSelect(name)}
+            accessibilityRole="button"
+            accessibilityLabel={`${name} theme`}
+            accessibilityState={{ selected }}
+            style={[
+              styles.option,
+              {
+                backgroundColor: selected ? THEME.accentSurface : "transparent",
+              },
+            ]}
           >
-            Appearance
-          </Text>
-          <Text
-            style={{ color: THEME.textSecondary, fontSize: 12, marginTop: 2 }}
-          >
-            Choose your preferred theme
-          </Text>
-        </View>
-      </View>
-
-      {/* Appearance options */}
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: 8,
-          marginTop: 14,
-        }}
-      >
-        {THEME_OPTIONS.map((opt) => {
-          const isActive = selectedTheme === opt.name;
-          return (
-            <TouchableOpacity
-              key={opt.name}
-              activeOpacity={0.8}
-              onPress={() => onThemeSelect(opt.name)}
-              accessibilityRole="button"
-              accessibilityLabel={`${opt.name} theme`}
-              accessibilityState={{ selected: isActive }}
-              style={{
-                alignItems: "center",
-                paddingVertical: 10,
-                paddingHorizontal: 4,
-                borderRadius: 14,
-                borderWidth: isActive ? 1.5 : 1,
-                borderColor: isActive ? THEME.primary : THEME.border,
-                backgroundColor: isActive
-                  ? THEME.surfaceHover
-                  : THEME.inputBackground,
-                minWidth: 76,
-                flexGrow: 1,
-                minHeight: 80,
-              }}
+            <Feather
+              name={selected ? "check" : icons[name]}
+              size={16}
+              color={color}
+            />
+            <Text
+              style={[
+                TYPE.caption,
+                { color, fontWeight: selected ? "700" : "500", flexShrink: 1 },
+              ]}
             >
-              {/* Icon Circle */}
-              <View
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  backgroundColor: isActive
-                    ? THEME.primary
-                    : hexToRgba(THEME.textSecondary, 0.08),
-                  borderWidth: isActive ? 0 : 1,
-                  borderColor: THEME.border,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: 6,
-                }}
-              >
-                <Ionicons
-                  name={isActive ? "checkmark" : (opt.icon as any)}
-                  size={15}
-                  color={isActive ? THEME.onPrimary : THEME.primary}
-                />
-              </View>
-
-              {/* Theme Name */}
-              <Text
-                style={{
-                  color: isActive ? THEME.textPrimary : THEME.textSecondary,
-                  fontWeight: isActive ? "700" : "500",
-                  fontSize: 12,
-                }}
-              >
-                {opt.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+              {name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  options: {
+    borderRadius: BRAND.radius.input,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: BRAND.spacing.xs,
+    padding: BRAND.spacing.xs,
+  },
+  option: {
+    flexGrow: 1,
+    flexBasis: 84,
+    flexDirection: "row",
+    gap: BRAND.spacing.xs,
+    paddingHorizontal: BRAND.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: BRAND.touchTarget,
+    borderRadius: 7,
+  },
+});

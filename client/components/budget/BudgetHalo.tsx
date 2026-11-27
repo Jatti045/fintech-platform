@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
-import { Text, View, useWindowDimensions } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
-import Svg, { Circle } from "react-native-svg";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
+import ProgressTrack from "@/components/global/ProgressTrack";
 import DashboardCard from "@/components/home/DashboardCard";
 import { formatCurrency } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
@@ -31,8 +32,8 @@ const BudgetHalo = React.memo(function BudgetHalo({
   const { THEME } = useTheme();
   const displayYear = year ?? new Date().getUTCFullYear();
   const formattedHeaderMonth = monthLabel.includes(String(displayYear))
-    ? monthLabel.toUpperCase()
-    : `${monthLabel} ${displayYear}`.toUpperCase();
+    ? monthLabel
+    : `${monthLabel} ${displayYear}`;
   const stats = useMemo(() => {
     let totalLimit = 0;
     let totalSpent = 0;
@@ -83,184 +84,114 @@ const BudgetHalo = React.memo(function BudgetHalo({
     : stats.utilization >= 0.8
       ? THEME.warning
       : THEME.primary;
-  const { width, fontScale } = useWindowDimensions();
-  const compact = width < 600 || fontScale > 1.2;
   const percentage =
     stats.totalLimit > 0
       ? Math.round((stats.totalSpent / stats.totalLimit) * 100)
       : null;
-  const categorySummary = `${stats.categoriesWithLimits} of ${stats.budgetCount} categories have limits · ${stats.onTrack} on track · ${stats.nearLimit} near / without limits · ${stats.overLimit} over limit`;
-  const diameter = width < 600 ? 90 : 108;
-  const radius = (diameter - 9) / 2;
-  const circumference = 2 * Math.PI * radius;
-  return (
-    <DashboardCard padding={16} style={{ marginBottom: 16 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-        <View
-          accessibilityRole="progressbar"
-          accessibilityLabel="Overall budget progress"
-          accessibilityValue={{
-            min: 0,
-            max: 100,
-            now: Math.round(stats.utilization * 100),
-            text:
-              percentage == null
-                ? "No budget limits set"
-                : `${percentage}% of limits used${overspent ? ", over budget" : ""}`,
-          }}
-          style={{ width: diameter, height: diameter, flexShrink: 0 }}
-        >
-          <Svg
-            width={diameter}
-            height={diameter}
-            viewBox={`0 0 ${diameter} ${diameter}`}
-          >
-            <Circle
-              cx={diameter / 2}
-              cy={diameter / 2}
-              r={radius}
-              stroke={THEME.border}
-              strokeWidth={9}
-              fill="none"
-            />
-            {stats.utilization > 0 && (
-              <Circle
-                cx={diameter / 2}
-                cy={diameter / 2}
-                r={radius}
-                stroke={tone}
-                strokeWidth={9}
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray={`${circumference} ${circumference}`}
-                strokeDashoffset={circumference * (1 - stats.utilization)}
-                rotation={-90}
-                origin={`${diameter / 2}, ${diameter / 2}`}
-              />
-            )}
-          </Svg>
-          <View
-            pointerEvents="none"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: THEME.textPrimary,
-                fontSize: 23,
-                fontWeight: "800",
-                letterSpacing: -0.7,
-              }}
-            >
-              {percentage == null ? "—" : `${percentage}%`}
-            </Text>
-            <Text style={{ color: THEME.textSecondary, fontSize: 10 }}>
-              {percentage == null ? "no limits" : "of budget"}
-            </Text>
-          </View>
-        </View>
-        <View
-          style={{
-            flex: 1,
-            minWidth: 0,
-            borderLeftWidth: 1,
-            borderLeftColor: THEME.border,
-            paddingLeft: 16,
-          }}
-        >
-          <Text
-            accessibilityRole="header"
-            style={{
-              color: THEME.textPrimary,
-              fontSize: 19,
-              fontWeight: "700",
-              letterSpacing: -0.5,
-            }}
-          >
-            Monthly Summary
-          </Text>
-          <Text
-            style={{ color: THEME.textSecondary, fontSize: 10, marginTop: 6 }}
-          >
-            {formattedHeaderMonth}
-          </Text>
-          {!compact && metrics()}
-        </View>
-      </View>
-      {compact && metrics()}
-      <Text
-        style={{
-          color: overspent ? THEME.danger : THEME.textSecondary,
-          fontSize: 11,
-          lineHeight: 17,
-          marginTop: 10,
-        }}
-      >
-        {stats.totalLimit <= 0
-          ? `No budget limits set · ${categorySummary}`
-          : overspent
-            ? `Over budget by ${formatCurrency(stats.totalSpent - stats.totalLimit, currencyCode)} · ${categorySummary}`
-            : categorySummary}
-      </Text>
-    </DashboardCard>
-  );
+  const progressText =
+    percentage == null
+      ? "No budget limits set"
+      : `${percentage}% of limits used${overspent ? ", over budget" : ""}`;
+  const hasLimits = percentage != null;
 
-  function metrics() {
-    return (
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          gap: 8,
-          marginTop: compact ? 16 : 12,
-        }}
+  return (
+    <DashboardCard
+      padding={BRAND.spacing.md}
+      style={{ marginBottom: BRAND.spacing.lg, gap: BRAND.spacing.md }}
+    >
+      <View style={styles.line}>
+        <Text
+          accessibilityRole="header"
+          style={[TYPE.label, { color: THEME.textSecondary }]}
+        >
+          {overspent
+            ? "Over budget"
+            : hasLimits
+              ? "Left in your budget"
+              : "Monthly spending"}
+        </Text>
+        <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
+          {formattedHeaderMonth}
+        </Text>
+      </View>
+      <Text
+        style={[
+          TYPE.total,
+          { color: overspent ? THEME.danger : THEME.textPrimary },
+        ]}
       >
+        {formatCurrency(
+          hasLimits ? stats.remaining : stats.totalSpent,
+          currencyCode,
+        )}
+      </Text>
+      <View style={styles.summary}>
+        <View style={styles.line}>
+          <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
+            {progressText}
+          </Text>
+          <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
+            {stats.categoriesWithLimits} of {stats.budgetCount} categories
+            budgeted
+          </Text>
+        </View>
+        <ProgressTrack
+          percent={Math.round(stats.utilization * 100)}
+          label="Overall budget progress"
+          description={progressText}
+          color={tone}
+        />
+      </View>
+      <View style={[styles.figures, { borderColor: THEME.border }]}>
         {[
-          { label: "Total budgeted", amount: stats.totalLimit },
           { label: "Spent", amount: stats.totalSpent },
-          { label: "Remaining", amount: stats.remaining },
-        ].map((item, index) => (
-          <View
-            key={item.label}
-            style={{
-              flexGrow: 1,
-              flexBasis: 110,
-              minWidth: 110,
-              borderLeftWidth: index ? 1 : 0,
-              borderLeftColor: THEME.border,
-              paddingLeft: index ? 8 : 0,
-            }}
-          >
-            <Text style={{ color: THEME.textSecondary, fontSize: 11 }}>
-              {item.label}
+          { label: "Total budgeted", amount: stats.totalLimit },
+          ...(!hasLimits
+            ? [{ label: "Unallocated difference", amount: stats.remaining }]
+            : []),
+        ].map(({ label, amount }) => (
+          <View key={label} style={styles.figure}>
+            <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
+              {label}
             </Text>
-            <Text
-              style={{
-                color:
-                  index === 2
-                    ? item.amount < 0
-                      ? THEME.danger
-                      : THEME.primary
-                    : THEME.textPrimary,
-                fontSize: 17,
-                fontWeight: "700",
-                fontVariant: ["tabular-nums"],
-                marginTop: 5,
-              }}
-            >
-              {formatCurrency(item.amount, currencyCode)}
+            <Text style={[TYPE.amount, { color: THEME.textPrimary }]}>
+              {formatCurrency(amount, currencyCode)}
             </Text>
           </View>
         ))}
       </View>
-    );
-  }
+      <Text
+        style={[
+          TYPE.caption,
+          { color: overspent ? THEME.danger : THEME.textSecondary },
+        ]}
+      >
+        {overspent
+          ? `Over budget by ${formatCurrency(-stats.remaining, currencyCode)} · `
+          : ""}
+        {stats.onTrack} on track · {stats.nearLimit} near or without limits ·{" "}
+        {stats.overLimit} over limit
+      </Text>
+    </DashboardCard>
+  );
 });
+
+const styles = StyleSheet.create({
+  line: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: BRAND.spacing.sm,
+  },
+  summary: { gap: BRAND.spacing.sm },
+  figures: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: BRAND.spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: BRAND.spacing.md,
+  },
+  figure: { flexGrow: 1, flexBasis: 110, gap: BRAND.spacing.xs },
+});
+
 export default BudgetHalo;

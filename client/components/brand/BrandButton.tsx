@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 
 interface Props {
   label: string;
   loadingLabel?: string;
   loading?: boolean;
   disabled?: boolean;
+  tone?: "primary" | "secondary";
   onPress: () => void;
 }
 
@@ -16,12 +17,20 @@ export default function BrandButton({
   loadingLabel,
   loading,
   disabled,
+  tone = "primary",
   onPress,
 }: Props) {
   const { THEME } = useTheme();
   const [pressed, setPressed] = useState(false);
   const blocked = !!(disabled || loading);
-  const foreground = blocked ? THEME.textDisabled : THEME.onPrimary;
+  const primary = tone === "primary";
+  const fill = primary ? THEME.primary : THEME.subtleSurface;
+  const pressFill = primary ? THEME.primaryHover : THEME.surfaceHover;
+  const foreground = blocked
+    ? THEME.textDisabled
+    : primary
+      ? THEME.onPrimary
+      : THEME.textPrimary;
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -35,15 +44,15 @@ export default function BrandButton({
       onPressOut={() => setPressed(false)}
       activeOpacity={0.85}
       style={{
-        minHeight: 54,
+        minHeight: BRAND.touchTarget,
         borderRadius: BRAND.radius.button,
         backgroundColor: blocked
           ? THEME.disabledBackground
           : pressed
-            ? THEME.primaryHover
-            : THEME.primary,
+            ? pressFill
+            : fill,
         paddingHorizontal: BRAND.spacing.md,
-        paddingVertical: BRAND.spacing.md,
+        paddingVertical: 12,
         justifyContent: "center",
       }}
     >
@@ -59,8 +68,8 @@ export default function BrandButton({
         <Text
           style={{
             color: foreground,
-            fontSize: 16,
-            fontWeight: "700",
+            ...TYPE.label,
+            flexShrink: 1,
             textAlign: "center",
           }}
         >

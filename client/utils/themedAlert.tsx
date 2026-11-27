@@ -95,23 +95,20 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
           <View
             style={[
               styles.alertContainer,
-              { backgroundColor: sheetSurface(THEME), borderColor: THEME.border },
+              {
+                backgroundColor: sheetSurface(THEME),
+                borderColor: THEME.border,
+              },
             ]}
           >
             {/* Title */}
-            <Text
-              style={[styles.title, { color: THEME.textPrimary }]}
-              numberOfLines={2}
-            >
+            <Text style={[styles.title, { color: THEME.textPrimary }]}>
               {alertOptions?.title}
             </Text>
 
             {/* Message */}
             {alertOptions?.message && (
-              <Text
-                style={[styles.message, { color: THEME.textSecondary }]}
-                numberOfLines={4}
-              >
+              <Text style={[styles.message, { color: THEME.textSecondary }]}>
                 {alertOptions.message}
               </Text>
             )}
@@ -190,11 +187,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   title: {
     fontSize: 18,

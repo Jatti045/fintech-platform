@@ -76,7 +76,9 @@ it.each([[320,1],[820,1],[320,2]])("fits %s px and font scale %s without shrinki
  expect(dock.props.style.height).toBe(getFloatingTabBarHeight(fontScale));expect(dock.props.style.maxWidth).toBe(FLOATING_TAB_BAR.maxWidth);
  const items=tree.root.findAllByType(Animated.View).filter(n=>n.props.layout);
  const minWidths=items.reduce((sum,n)=>sum+n.props.style.minWidth,0);
- expect(minWidths).toBeLessThanOrEqual(Math.min(560,width-40)-14);
+ expect(minWidths).toBeLessThanOrEqual(
+   Math.min(FLOATING_TAB_BAR.maxWidth, width - FLOATING_TAB_BAR.margin * 2) - dock.props.style.padding * 2,
+ );
  expect(items.every(n=>n.props.layout.duration===200&&n.props.layout.reduceMotion==="system")).toBe(true);
  act(()=>tree.unmount());
 });

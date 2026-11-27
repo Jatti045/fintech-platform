@@ -98,7 +98,7 @@ it.each(["Light", "Dark"])(
       .findAllByType(Text)
       .find((node) =>
         Array.isArray(node.props.children) &&
-        node.props.children.join("") === "Your money, in detail · CAD",
+        node.props.children.join("") === "Reporting currency · CAD",
       );
     expect(headingBlock.children[0]).toBe(titleRow);
     expect(headingBlock.children[1]).toBe(subtitle);

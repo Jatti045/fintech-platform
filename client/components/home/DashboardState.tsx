@@ -1,60 +1,79 @@
 import React from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 
-/** Shared async feedback for independent Home sections; never renders invented amounts. */
 export default function DashboardState({
   loading,
   error,
   message,
   onRetry,
+  compact = false,
 }: {
   loading?: boolean;
   error?: boolean;
   message: string;
   onRetry?: () => void;
+  compact?: boolean;
 }) {
   const { THEME } = useTheme();
+
   return (
     <View
       accessibilityLiveRegion="polite"
-      style={{ paddingVertical: BRAND.spacing.md, gap: BRAND.spacing.sm }}
+      accessibilityState={{ busy: Boolean(loading) }}
+      style={{
+        paddingVertical: compact ? BRAND.spacing.sm : BRAND.spacing.md,
+        gap: BRAND.spacing.sm,
+      }}
     >
       {loading && (
-        <View accessibilityLabel={message} accessibilityState={{ busy: true }}>
-          <ActivityIndicator color={THEME.primary} />
+        <View
+          pointerEvents="none"
+          aria-hidden
+          style={{ gap: BRAND.spacing.sm }}
+        >
           <View
-            accessible={false}
             style={{
-              height: 12,
-              borderRadius: 6,
-              width: "60%",
+              height: 14,
+              borderRadius: 4,
+              width: "42%",
               backgroundColor: THEME.surfaceHover,
-              marginTop: BRAND.spacing.md,
             }}
           />
           <View
-            accessible={false}
             style={{
               height: 32,
-              borderRadius: 8,
-              width: "85%",
+              borderRadius: BRAND.radius.input,
+              width: "70%",
               backgroundColor: THEME.surfaceHover,
-              marginTop: BRAND.spacing.sm,
             }}
           />
         </View>
       )}
-      <Text
+      <View
         style={{
-          color: error ? THEME.danger : THEME.textSecondary,
-          fontSize: 14,
-          lineHeight: 21,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: BRAND.spacing.sm,
         }}
       >
-        {message}
-      </Text>
+        {error && (
+          <Feather name="alert-circle" size={16} color={THEME.danger} />
+        )}
+        <Text
+          style={[
+            compact ? TYPE.caption : TYPE.body,
+            {
+              color: error ? THEME.danger : THEME.textSecondary,
+              flexShrink: 1,
+            },
+          ]}
+        >
+          {message}
+        </Text>
+      </View>
       {error && onRetry && (
         <TouchableOpacity
           accessibilityRole="button"
@@ -66,9 +85,7 @@ export default function DashboardState({
             alignSelf: "flex-start",
           }}
         >
-          <Text style={{ color: THEME.primary, fontWeight: "700" }}>
-            Try again
-          </Text>
+          <Text style={[TYPE.label, { color: THEME.primary }]}>Try again</Text>
         </TouchableOpacity>
       )}
     </View>

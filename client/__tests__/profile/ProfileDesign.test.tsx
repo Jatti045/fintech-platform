@@ -59,7 +59,7 @@ it.each(["Light", "Dark"])(
     expect(text).toContain("Your account");
     expect(text).toContain("FL");
     expect(text).not.toContain("james.attia@gmail.com");
-    expect(text).toContain("Fundleaf member");
+    expect(text).toContain("Account details unavailable");
     act(() => tree.unmount());
   },
 );

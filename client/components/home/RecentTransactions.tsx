@@ -100,8 +100,7 @@ export default function RecentTransactions({
               accessibilityLabel={`${tx.name || "Transaction"}, ${transfer ? "Transfer" : category}, ${sign}${formatCurrency(Math.abs(amount), currency)}, ${formatTxDate(tx.date)}`}
               style={{
                 paddingVertical: 8,
-                paddingBottom: i === recent.length - 1 ? 6 : 0,
-                minHeight: 48,
+                minHeight: 56,
               }}
             >
               <View
@@ -143,7 +142,7 @@ export default function RecentTransactions({
                         marginTop: 2,
                       }}
                     >
-                      {transfer ? "Transfer · " : ""}
+                      {transfer ? "Transfer" : category} ·{" "}
                       {formatTxDate(tx.date)}
                     </Text>
                   </View>
@@ -156,7 +155,7 @@ export default function RecentTransactions({
                     fontVariant: ["tabular-nums"],
                     textAlign: "right",
                     flexShrink: 1,
-                    maxWidth: "100%",
+                    maxWidth: "52%",
                   }}
                 >
                   {sign}

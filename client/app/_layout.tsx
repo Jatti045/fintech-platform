@@ -105,7 +105,7 @@ export function AppRoutes() {
       >
         <View style={{ gap: 12 }}>
           <BrandButton label="Try again" onPress={() => void loadAccountProfile()} />
-          <BrandButton label="Sign out" onPress={() => void dispatch(logoutUser())} />
+          <BrandButton tone="secondary" label="Sign out" onPress={() => void dispatch(logoutUser())} />
         </View>
       </AuthScreen>
     );

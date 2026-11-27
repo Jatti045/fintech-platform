@@ -30,7 +30,11 @@ export default function TransactionScreen() {
   const {
     displayTransactions,
     budgets,
-    categories, categoriesLoading, categoriesError, requestCategories, retryCategories,
+    categories,
+    categoriesLoading,
+    categoriesError,
+    requestCategories,
+    retryCategories,
     monthlyIncome,
     actualIncome,
     expectedIncome,
@@ -74,11 +78,11 @@ export default function TransactionScreen() {
         renderSectionHeader={renderSectionHeader}
         renderItem={renderItem}
         contentContainerStyle={{
-          paddingBottom: 120,
+          paddingBottom: BRAND.spacing.xl,
           paddingTop: BRAND.spacing.sm,
           paddingHorizontal: BRAND.spacing.md,
           width: "100%",
-          maxWidth: 760,
+          maxWidth: BRAND.pageWidth,
           alignSelf: "center",
         }}
         keyboardShouldPersistTaps="handled"
@@ -98,7 +102,6 @@ export default function TransactionScreen() {
         }
         ListHeaderComponent={
           <View>
-            {" "}
             <TransactionHeader
               displayTransactions={displayTransactions}
               month={month}
@@ -123,6 +126,7 @@ export default function TransactionScreen() {
               onMaxAmountChange={setMaxAmount}
               onClearFilters={clearFilters}
             />
+            <AddNewTransactionButton setOpenSheet={setOpenSheet} />
             <LastSynced />
           </View>
         }
@@ -135,9 +139,6 @@ export default function TransactionScreen() {
         editingTransaction={editingTransaction}
         onClose={handleModalClose}
       />
-
-      {/* Floating action button */}
-      <AddNewTransactionButton setOpenSheet={setOpenSheet} />
 
       {/* Full-screen loader overlay */}
       {isLoaderVisible ? <Loader msg={loaderMessage} /> : null}

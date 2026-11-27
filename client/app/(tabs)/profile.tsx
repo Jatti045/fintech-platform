@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import RulesManager from "@/components/rules/RulesManager";
 import React, { useState } from "react";
 import {
@@ -7,7 +7,6 @@ import {
   Text,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -91,10 +90,10 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
           style={{ flex: 1 }}
           contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: 40,
+            paddingHorizontal: BRAND.spacing.md,
+            paddingBottom: BRAND.spacing.xl,
             width: "100%",
-            maxWidth: 760,
+            maxWidth: BRAND.pageWidth,
             alignSelf: "center",
           }}
           refreshControl={
@@ -107,31 +106,15 @@ export default function ProfileScreen() {
             />
           }
         >
-          {/* ── Screen Header ────────────────────────────────────────────── */}
-          <View style={{ paddingTop: 8, marginBottom: 16 }}>
-            <Text
-              style={{
-                color: THEME.textPrimary,
-                fontSize: 28,
-                fontWeight: "800",
-                letterSpacing: -0.5,
-              }}
-            >
-              Profile
-            </Text>
-            <Text
-              style={{
-                color: THEME.textSecondary,
-                fontSize: 13.5,
-                fontWeight: "400",
-                marginTop: 2,
-              }}
-            >
-              Manage your account and preferences
-            </Text>
-          </View>
-
-          {/* ── Profile / Account Card ───────────────────────────────────── */}
+          <Text
+            accessibilityRole="header"
+            style={[
+              TYPE.screen,
+              { color: THEME.textPrimary, marginTop: BRAND.spacing.sm },
+            ]}
+          >
+            Profile
+          </Text>
           <ProfileHeader
             THEME={THEME}
             user={user}
@@ -142,10 +125,7 @@ export default function ProfileScreen() {
           />
 
           {/* ── Bank Connections Section ─────────────────────────────────── */}
-          <ProfileSectionHeader
-            title="Connected accounts"
-            subtitle="Manage your connections"
-          />
+          <ProfileSectionHeader title="Connected accounts" />
           <BankConnections
             THEME={THEME}
             linking={linking}
@@ -160,17 +140,12 @@ export default function ProfileScreen() {
           />
 
           {/* ── Preferences Section ──────────────────────────────────────── */}
-          <ProfileSectionHeader
-            title="Appearance & currency"
-            subtitle="Personalize your experience"
-          />
+          <ProfileSectionHeader title="Appearance & currency" />
           <View
             style={{
               backgroundColor: THEME.surface,
               borderRadius: BRAND.radius.card,
-              borderWidth: 1,
-              borderColor: THEME.border,
-              padding: 16,
+              padding: BRAND.spacing.md,
               marginBottom: 8,
             }}
           >
@@ -196,10 +171,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* ── Notifications Section ────────────────────────────────────── */}
-          <ProfileSectionHeader
-            title="Notifications"
-            subtitle="Stay on top of your finances"
-          />
+          <ProfileSectionHeader title="Notifications" />
           <NotificationsCard
             purchaseRemindersEnabled={purchaseRemindersEnabled}
             billRemindersEnabled={billRemindersEnabled}
@@ -209,16 +181,10 @@ export default function ProfileScreen() {
             onOpenSettings={openNotificationSettings}
           />
 
-          <ProfileSectionHeader
-            title="Privacy"
-            subtitle="Control external AI processing"
-          />
+          <ProfileSectionHeader title="Privacy" />
           <AiPrivacyPreference />
           {/* ── Income Section ───────────────────────────────────────────── */}
-          <ProfileSectionHeader
-            title="Income"
-            subtitle="Set your planning baseline"
-          />
+          <ProfileSectionHeader title="Income" />
           <MonthlyIncome
             THEME={THEME}
             input={monthlyIncomeInput}
@@ -233,61 +199,25 @@ export default function ProfileScreen() {
           />
 
           {/* ── Security & Account Section ───────────────────────────────── */}
-          <ProfileSectionHeader
-            title="Security & account"
-            subtitle="Manage your login and data"
+          <ProfileSectionHeader title="Security & account" />
+          <SettingsList
+            THEME={THEME}
+            items={[
+              {
+                title: "Manage transaction rules",
+                icon: "options-outline",
+                onPress: () => setRulesOpen(true),
+              },
+              ...settingsItems,
+            ]}
           />
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Manage transaction rules"
-            onPress={() => setRulesOpen(true)}
-            style={{
-              padding: 16,
-              minHeight: 48,
-              backgroundColor: THEME.surface,
-              borderWidth: 1,
-              borderColor: THEME.border,
-              borderRadius: BRAND.radius.card,
-              marginBottom: 12,
-            }}
-          >
-            <Text style={{ color: THEME.primary }}>
-              Manage transaction rules
-            </Text>
-          </TouchableOpacity>
-          <SettingsList THEME={THEME} items={settingsItems} />
           <ProfileSectionHeader title="About" />
-          <View
-            style={{
-              padding: 20,
-              borderRadius: BRAND.radius.card,
-              borderWidth: 1,
-              borderColor: THEME.border,
-              backgroundColor: THEME.surface,
-              gap: 8,
-            }}
-          >
-            <Text
-              style={{
-                color: THEME.textPrimary,
-                fontSize: 20,
-                fontWeight: "800",
-              }}
-            >
-              Fundleaf
-            </Text>
-            <Text style={{ color: THEME.textSecondary }}>
-              Your money, your control.
-            </Text>
-            <Text style={{ color: THEME.textSecondary, fontSize: 13 }}>
-              Open-source personal finance and budgeting.
-            </Text>
-            {Constants.expoConfig?.version ? (
-              <Text style={{ color: THEME.textSecondary, fontSize: 12 }}>
-                Version {Constants.expoConfig.version}
-              </Text>
-            ) : null}
-          </View>
+          <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
+            Fundleaf
+            {Constants.expoConfig?.version
+              ? ` · Version ${Constants.expoConfig.version}`
+              : ""}
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
 

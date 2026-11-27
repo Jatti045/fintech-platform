@@ -1,69 +1,89 @@
 import React, { useState } from "react";
-import { TextInput, TouchableOpacity, View } from "react-native";
+import { StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { BRAND } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 
 type Props = {
   searchQuery: string;
-  setSearchQuery: (val: string) => void;
-  /** Placeholder text shown when the input is empty. */
+  setSearchQuery: (value: string) => void;
   placeholder?: string;
+  clearLabel?: string;
 };
 
-/**
- * Modern search bar with enhanced visual design and smooth interactions.
- * Used on the Transaction and Budget screens.
- */
 export default function SearchBar({
   searchQuery,
   setSearchQuery,
-  placeholder = "Search...",
+  placeholder = "Search",
+  clearLabel = "Clear search",
 }: Props) {
   const { THEME } = useTheme();
-  const [isFocused, setIsFocused] = useState(false);
-
+  const [focused, setFocused] = useState(false);
   return (
-    <View className="mb-4 flex-row items-center">
-      <View
-        style={{
-          flex: 1,
-          flexDirection: "row",
-          alignItems: "center",
+    <View
+      style={[
+        styles.field,
+        {
           backgroundColor: THEME.inputBackground,
-          borderRadius: 14,
-          borderWidth: 2,
-          borderColor: isFocused ? THEME.primary : THEME.border,
-          paddingHorizontal: 12,
-        }}
-      >
-        <Feather
-          name="search"
-          size={20}
-          color={isFocused ? THEME.primary : THEME.placeholderText}
-          style={{ marginRight: 8 }}
-        />
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          placeholder={placeholder}
-          className="py-3 flex-1 text-base"
-          style={{
-            color: THEME.textPrimary,
-          }}
-          placeholderTextColor={THEME.placeholderText}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity
-            className="p-2 rounded-full ml-2"
-            onPress={() => setSearchQuery("")}
-            activeOpacity={0.6}
-          >
-            <Feather name="x-circle" size={18} color={THEME.textSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
+          borderColor: focused ? THEME.primary : THEME.border,
+        },
+      ]}
+    >
+      <Feather
+        name="search"
+        size={18}
+        color={focused ? THEME.primary : THEME.textSecondary}
+      />
+      <TextInput
+        accessibilityLabel={placeholder}
+        placeholder={placeholder}
+        placeholderTextColor={THEME.placeholderText}
+        selectionColor={THEME.primary}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        autoCorrect={false}
+        autoCapitalize="none"
+        returnKeyType="search"
+        style={[styles.input, { color: THEME.textPrimary }]}
+      />
+      {!!searchQuery && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={clearLabel}
+          onPress={() => setSearchQuery("")}
+          style={styles.clear}
+        >
+          <Feather name="x" size={18} color={THEME.textSecondary} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  field: {
+    flex: 1,
+    minWidth: 128,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: BRAND.radius.input,
+    borderWidth: 1,
+    paddingLeft: 12,
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: BRAND.touchTarget,
+    paddingHorizontal: 10,
+    paddingVertical: BRAND.spacing.sm,
+    fontSize: 15,
+  },
+  clear: {
+    width: BRAND.touchTarget,
+    minHeight: BRAND.touchTarget,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

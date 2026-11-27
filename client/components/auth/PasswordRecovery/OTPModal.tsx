@@ -16,7 +16,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import ModalCloseButton from "../../global/modalCloseButton";
 import { useTheme } from "@/hooks/useRedux";
 import { useThemedAlert } from "@/utils/themedAlert";
-import { LinearGradient } from "expo-linear-gradient";
 
 export interface OTPModalProps {
   visible: boolean;
@@ -103,7 +102,10 @@ function OTPModal({ visible, onClose, email, onVerify }: OTPModalProps) {
           </View>
           <KeyboardAvoidingView
             behavior="padding"
-            style={{ flex: 1, backgroundColor: sheetSurface(THEME, THEME.background) }}
+            style={{
+              flex: 1,
+              backgroundColor: sheetSurface(THEME, THEME.background),
+            }}
           >
             <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
               <View className="flex-1 px-4">
@@ -152,11 +154,11 @@ function OTPModal({ visible, onClose, email, onVerify }: OTPModalProps) {
                     accessibilityState={{ disabled: isSubmitting }}
                     style={{ opacity: isSubmitting ? 0.6 : 1 }}
                   >
-                    <LinearGradient
-                      colors={[THEME.primary, THEME.secondary]}
-                      start={[0, 0]}
-                      end={[1, 1]}
+                    <View
                       style={{
+                        backgroundColor: THEME.primary,
+                        minHeight: 48,
+                        justifyContent: "center",
                         paddingVertical: 12,
                         borderRadius: 8,
                         alignItems: "center",
@@ -177,7 +179,7 @@ function OTPModal({ visible, onClose, email, onVerify }: OTPModalProps) {
                           Send OTP
                         </Text>
                       )}
-                    </LinearGradient>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -190,4 +192,3 @@ function OTPModal({ visible, onClose, email, onVerify }: OTPModalProps) {
 }
 
 export default OTPModal;
-

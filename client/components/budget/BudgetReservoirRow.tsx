@@ -1,10 +1,10 @@
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
-import { BRAND } from "@/constants/ThemePalettes";
-import DashboardCard from "@/components/home/DashboardCard";
-import { capitalizeFirst, formatCurrency, hexToRgba } from "@/utils/helper";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
+import ProgressTrack from "@/components/global/ProgressTrack";
+import { capitalizeFirst, formatCurrency } from "@/utils/helper";
 import { safeAmount } from "@/utils/transaction/helpers";
 import type { IBudget } from "@/types/budget/types";
 import { hapticLight } from "@/utils/haptics";
@@ -51,20 +51,28 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
         : ratio >= 0.8
           ? "Near limit"
           : "On track";
+  const spentLabel = formatCurrency(spent, currencyCode);
+  const limitLabel = formatCurrency(limit, currencyCode);
+  const remainingLabel =
+    remainingAmount == null
+      ? null
+      : formatCurrency(remainingAmount, currencyCode);
+
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View
+      style={{
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderColor: THEME.border,
+      }}
+    >
       <SwipeableRow
         onDelete={() => onDelete(budget.id)}
         dangerColor={THEME.danger}
-        actionStyle={{ borderRadius: 18, marginBottom: 0 }}
+        actionStyle={{ borderRadius: BRAND.radius.button, marginBottom: 0 }}
       >
-        <DashboardCard
+        <View
           style={{
-            backgroundColor: ratio > 1 ? THEME.errorSurface : THEME.surface,
-            borderColor:
-              ratio > 1
-                ? hexToRgba(THEME.danger, 0.18)
-                : hexToRgba(THEME.border, 0.25),
+            backgroundColor: expanded ? THEME.subtleSurface : THEME.background,
           }}
         >
           <TouchableOpacity
@@ -72,139 +80,59 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
             accessibilityState={{ expanded }}
             accessibilityHint="Show budget actions"
             accessibilityValue={{
-              text: `Allocated ${formatCurrency(limit, currencyCode)}, spent ${formatCurrency(spent, currencyCode)}, ${remainingAmount == null ? "set a limit to track remaining funds" : `${formatCurrency(remainingAmount, currencyCode)} remaining`}`,
+              text: `Allocated ${limitLabel}, spent ${spentLabel}, ${remainingLabel == null ? "set a limit to track remaining funds" : `${remainingLabel} remaining`}`,
             }}
             accessibilityLabel={`${capitalizeFirst(budget.category)} budget, ${limit > 0 ? `${percent}% used` : "no limit configured"}, ${status}`}
             onPress={() => {
               hapticLight();
               onToggle(budget);
             }}
-            style={{ padding: 12 }}
+            activeOpacity={0.75}
+            style={styles.row}
           >
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-            >
-              <BudgetCategoryIcon category={budget.category} size={42} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                >
-                  <Text
-                    style={{
-                      color: THEME.textPrimary,
-                      fontSize: 16,
-                      lineHeight: 20,
-                      fontWeight: "700",
-                      letterSpacing: -0.3,
-                      flex: 1,
-                    }}
-                    numberOfLines={2}
-                  >
-                    {capitalizeFirst(budget.category)}
-                  </Text>
-                  <View
-                    style={{
-                      backgroundColor: hexToRgba(statusColor, 0.1),
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                      borderRadius: 20,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: statusColor,
-                        fontSize: 13,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {limit > 0 ? `${percent}%` : "No limit"}
-                    </Text>
-                  </View>
-                  <Feather
-                    name={expanded ? "chevron-up" : "chevron-right"}
-                    size={18}
-                    color={THEME.textSecondary}
-                  />
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    gap: 5,
-                    marginTop: 4,
-                  }}
-                >
-                  {[
-                    { label: "Allocated", amount: limit },
-                    { label: "Spent", amount: spent },
-                    {
-                      label: "Remaining",
-                      amount: remainingAmount,
-                    },
-                  ].map((item) => (
-                    <Text
-                      key={item.label}
-                      style={{
-                        color: THEME.textSecondary,
-                        fontSize: 10,
-                        lineHeight: 14,
-                      }}
-                    >
-                      {item.label}{" "}
-                      <Text
-                        style={{
-                          color:
-                            item.amount != null && item.amount < 0
-                              ? THEME.danger
-                              : THEME.textPrimary,
-                          fontWeight: "600",
-                        }}
-                      >
-                        {item.amount == null
-                          ? "—"
-                          : formatCurrency(item.amount, currencyCode)}
-                      </Text>
-                    </Text>
-                  ))}
-                </View>
-                {limit > 0 && (
-                  <View
-                    accessibilityRole="progressbar"
-                    accessibilityLabel={`${budget.category} spending progress`}
-                    accessibilityValue={{
-                      min: 0,
-                      max: 100,
-                      now: Math.max(0, Math.min(100, percent)),
-                      text: `${percent}% used, ${status}`,
-                    }}
-                    style={{
-                      height: 8,
-                      borderRadius: 5,
-                      backgroundColor: THEME.border,
-                      overflow: "hidden",
-                      marginTop: 7,
-                    }}
-                  >
-                    <View
-                      style={{
-                        height: 8,
-                        width: `${Math.max(0, Math.min(100, percent))}%`,
-                        backgroundColor: statusColor,
-                        borderRadius: 5,
-                      }}
-                    />
-                  </View>
-                )}
-                {expanded && (
-                  <Text
-                    style={{ color: statusColor, fontSize: 10, marginTop: 5 }}
-                  >
-                    {status}
-                  </Text>
-                )}
-              </View>
+            <View style={styles.heading}>
+              <BudgetCategoryIcon category={budget.category} size={32} />
+              <Text
+                style={[TYPE.label, styles.title, { color: THEME.textPrimary }]}
+                numberOfLines={2}
+              >
+                {capitalizeFirst(budget.category)}
+              </Text>
+              <Feather
+                name={expanded ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={THEME.textSecondary}
+              />
             </View>
+            <View style={styles.figures}>
+              <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
+                {spentLabel}
+                {limit > 0 ? ` of ${limitLabel} spent` : " spent"}
+              </Text>
+              <Text
+                style={[
+                  TYPE.caption,
+                  { color: statusColor, fontWeight: "600" },
+                ]}
+              >
+                {remainingLabel ?? "No limit"}
+                {remainingLabel != null &&
+                  (ratio > 1 ? " · Over budget" : " left")}
+              </Text>
+            </View>
+            {limit > 0 && (
+              <ProgressTrack
+                label={`${budget.category} spending progress`}
+                percent={percent}
+                description={`${percent}% used, ${status}`}
+                color={statusColor}
+              />
+            )}
+            {expanded && (
+              <Text style={[TYPE.caption, { color: statusColor }]}>
+                {status}
+              </Text>
+            )}
           </TouchableOpacity>
           {expanded && (
             <View
@@ -264,9 +192,29 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
               </TouchableOpacity>
             </View>
           )}
-        </DashboardCard>
+        </View>
       </SwipeableRow>
     </View>
   );
 });
 export default BudgetReservoirRow;
+
+const styles = StyleSheet.create({
+  row: {
+    gap: BRAND.spacing.sm,
+    paddingVertical: 12,
+    paddingHorizontal: BRAND.spacing.sm,
+  },
+  heading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: BRAND.spacing.sm,
+  },
+  title: { flex: 1 },
+  figures: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: BRAND.spacing.xs,
+  },
+});

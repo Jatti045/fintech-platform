@@ -44,6 +44,14 @@ it.each(["LIGHT", "DARK"] as const)(
     expect(contrast(t.onDanger, t.danger)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(t.onPrimary, t.primary)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(t.onPrimary, t.primaryHover)).toBeGreaterThanOrEqual(4.5);
+    for (const foreground of [
+      t.statementText,
+      t.statementMuted,
+      t.statementAccent,
+      t.statementDanger,
+    ]) {
+      expect(contrast(foreground, t.statement)).toBeGreaterThanOrEqual(4.5);
+    }
     expect(contrast(t.danger, t.errorSurface)).toBeGreaterThanOrEqual(4.5);
     expect(
       contrast(t.textDisabled, t.disabledBackground),
@@ -92,10 +100,26 @@ it("uses device appearance without a saved preference and follows subsequent cha
 
 it("retains saved choices and maps removed or malformed preferences to System", () => {
   for (const name of ["Light", "Dark", "System"] as const) {
-    expect(reducer(undefined, loadThemeFromStorage.fulfilled(name, "", undefined)).selectedTheme).toBe(name);
+    expect(
+      reducer(undefined, loadThemeFromStorage.fulfilled(name, "", undefined))
+        .selectedTheme,
+    ).toBe(name);
   }
-  for (const value of [null, {}, "Ember", "Aurora", "Ocean", "Rose", "missing"]) {
+  for (const value of [
+    null,
+    {},
+    "Ember",
+    "Aurora",
+    "Ocean",
+    "Rose",
+    "missing",
+  ]) {
     expect(reducer(undefined, setTheme(value)).selectedTheme).toBe("System");
-    expect(reducer(undefined, { type: loadThemeFromStorage.fulfilled.type, payload: value }).selectedTheme).toBe("System");
+    expect(
+      reducer(undefined, {
+        type: loadThemeFromStorage.fulfilled.type,
+        payload: value,
+      }).selectedTheme,
+    ).toBe("System");
   }
 });

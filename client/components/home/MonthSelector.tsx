@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 import FundleafSheet from "@/components/sheets/FundleafSheet";
 import MonthPicker, {
@@ -23,16 +24,15 @@ export default function MonthSelector({ value, onChange }: MonthPickerProps) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 6,
-          minHeight: 48,
-          paddingHorizontal: 14,
-          borderRadius: 24,
+          gap: BRAND.spacing.sm,
+          minHeight: BRAND.touchTarget,
+          paddingHorizontal: BRAND.spacing.md,
+          borderRadius: BRAND.radius.input,
+          alignSelf: "flex-start",
           backgroundColor: THEME.subtleSurface,
         }}
       >
-        <Text
-          style={{ color: THEME.textPrimary, fontSize: 13, fontWeight: "600" }}
-        >
+        <Text style={[TYPE.label, { color: THEME.textPrimary }]}>
           {label.month} {label.year}
         </Text>
         <Feather name="chevron-down" size={16} color={THEME.textPrimary} />
@@ -48,7 +48,7 @@ export default function MonthSelector({ value, onChange }: MonthPickerProps) {
           accessibilityLabel="Done selecting month"
           onPress={() => setOpen(false)}
           style={{
-            minHeight: 48,
+            minHeight: BRAND.touchTarget,
             justifyContent: "center",
             alignItems: "center",
           }}

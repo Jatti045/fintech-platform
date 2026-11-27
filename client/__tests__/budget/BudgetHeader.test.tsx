@@ -81,13 +81,10 @@ beforeEach(() => {
 });
 
 describe("BudgetHeader", () => {
-  it("renders the title, subtitle, and month label", () => {
+  it("renders the title and reporting month", () => {
     renderHeader({ month: 2 });
 
     expect(renderedText("Budgets")).toBe(true);
-    expect(
-      renderedText("Plan, track and stay in control of your spending."),
-    ).toBe(true);
     expect(renderedText("Mar")).toBe(true);
   });
 
@@ -97,7 +94,7 @@ describe("BudgetHeader", () => {
     expect(
       lastProps(
         textInputMock,
-        (props) => props.placeholder === "Search budgets...",
+        (props) => props.accessibilityLabel === "Search budgets",
       ),
     ).toBeDefined();
   });
@@ -108,7 +105,7 @@ describe("BudgetHeader", () => {
     expect(
       lastProps(
         textInputMock,
-        (props) => props.placeholder === "Search budgets...",
+        (props) => props.accessibilityLabel === "Search budgets",
       ),
     ).toBeUndefined();
   });
@@ -118,7 +115,7 @@ describe("BudgetHeader", () => {
 
     const input = lastProps(
       textInputMock,
-      (props) => props.placeholder === "Search budgets...",
+      (props) => props.accessibilityLabel === "Search budgets",
     );
     renderer.act(() => {
       input!.onChangeText("food");

@@ -213,7 +213,7 @@ function renderedText(matches: string) {
 const searchInput = () =>
   lastProps(
     textInputMock,
-    (props) => props.placeholder === "Search transactions...",
+    (props) => props.accessibilityLabel === "Search transactions",
   );
 
 const refreshControlProps = () => {
@@ -284,7 +284,7 @@ describe("TransactionScreen", () => {
     });
 
     expect(renderedText("Transactions")).toBe(true);
-    expect(renderedText("Your money, in detail")).toBe(true);
+    expect(renderedText("Reporting currency")).toBe(true);
     expect(renderedText("Coffee")).toBe(true); // row name
   });
 

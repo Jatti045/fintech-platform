@@ -1,6 +1,7 @@
 import React from "react";
 import { View } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { BRAND } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
 
 /** Compact, themed category badges for Home activity and recurring payments. */
@@ -18,7 +19,7 @@ export default function ActivityIcon({
   const icon = transfer
     ? "repeat"
     : income
-      ? "credit-card"
+      ? "arrow-down-left"
       : /grocer|market/.test(value)
         ? "shopping-cart"
         : /food|dining|restaurant|bistro/.test(value)
@@ -42,14 +43,18 @@ export default function ActivityIcon({
       style={{
         width: 36,
         height: 36,
-        borderRadius: 18,
+        borderRadius: BRAND.radius.input,
         flexShrink: 0,
         backgroundColor: THEME.subtleSurface,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Feather name={icon} size={21} color={THEME.primary} />
+      <Feather
+        name={icon}
+        size={18}
+        color={transfer ? THEME.textSecondary : THEME.primary}
+      />
     </View>
   );
 }

@@ -1,9 +1,9 @@
 import React from "react";
-import { Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Text, View, useWindowDimensions } from "react-native";
+import SearchBar from "@/components/global/SearchBar";
 import { useAppDispatch, useTheme } from "@/hooks/useRedux";
 import { setMonthYear } from "@/store/slices/calendarSlice";
-import { BRAND } from "@/constants/ThemePalettes";
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import MonthPicker from "@/components/calendar/MonthPicker";
 import FilterTransaction from "./TxFilterOpt";
 import type { ITransaction } from "@/types/transaction/types";
@@ -44,7 +44,11 @@ export default function TransactionHeader({
   searchQuery,
   onSearchChange,
   budgets,
-  categories, categoriesLoading, categoriesError, requestCategories, retryCategories,
+  categories,
+  categoriesLoading,
+  categoriesError,
+  requestCategories,
+  retryCategories,
   filterCategoryId,
   onFilterCategoryChange,
   minAmount,
@@ -55,6 +59,8 @@ export default function TransactionHeader({
 }: TransactionHeaderProps) {
   const { THEME } = useTheme();
   const dispatch = useAppDispatch();
+  const { width, fontScale } = useWindowDimensions();
+  const stackMonth = width < 310 || fontScale > 1.3;
   return (
     <View style={{ paddingTop: BRAND.spacing.sm, gap: BRAND.spacing.md }}>
       <View>
@@ -63,22 +69,28 @@ export default function TransactionHeader({
             flexDirection: "row",
             alignItems: "center",
             gap: 10,
+            flexWrap: stackMonth ? "wrap" : "nowrap",
           }}
         >
           <Text
             accessibilityRole="header"
             style={{
               color: THEME.textPrimary,
-              fontSize: 28,
-              fontWeight: "700",
-              letterSpacing: -0.8,
+              ...TYPE.screen,
               flexShrink: 1,
-              maxWidth: "60%",
+              maxWidth: stackMonth ? "100%" : "60%",
             }}
           >
             Transactions
           </Text>
-          <View style={{ flex: 1, minWidth: 0, maxWidth: 400 }}>
+          <View
+            style={{
+              flex: 1,
+              minWidth: 0,
+              maxWidth: 400,
+              flexBasis: stackMonth ? "100%" : undefined,
+            }}
+          >
             <MonthPicker
               value={{ month, year }}
               onChange={(value) => dispatch(setMonthYear(value))}
@@ -92,57 +104,14 @@ export default function TransactionHeader({
             marginTop: BRAND.spacing.xs,
           }}
         >
-          Your money, in detail · {currencyCode}
+          Reporting currency · {currencyCode}
         </Text>
       </View>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: THEME.surface,
-          borderWidth: 1,
-          borderColor: THEME.border,
-          borderRadius: BRAND.radius.input,
-          paddingLeft: BRAND.spacing.md,
-        }}
-      >
-        <Feather name="search" size={20} color={THEME.textSecondary} />
-        <TextInput
-          accessibilityLabel="Search transactions"
-          placeholder="Search transactions..."
-          placeholderTextColor={THEME.placeholderText}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-          selectionColor={THEME.primary}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            minHeight: 52,
-            color: THEME.textPrimary,
-            fontSize: 15,
-            paddingHorizontal: BRAND.spacing.sm,
-            paddingVertical: BRAND.spacing.md,
-          }}
-        />
-        {!!searchQuery && (
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Clear search"
-            onPress={() => onSearchChange("")}
-            style={{
-              width: BRAND.touchTarget,
-              minHeight: BRAND.touchTarget,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Feather name="x" size={20} color={THEME.textSecondary} />
-          </TouchableOpacity>
-        )}
-      </View>
+      <SearchBar
+        placeholder="Search transactions"
+        searchQuery={searchQuery}
+        setSearchQuery={onSearchChange}
+      />
       <FilterTransaction
         budgets={budgets}
         categories={categories}

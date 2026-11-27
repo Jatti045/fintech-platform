@@ -1,150 +1,60 @@
-import { BRAND } from "@/constants/ThemePalettes";
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-
+import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { useTheme } from "@/hooks/useRedux";
-import { hexToRgba } from "@/utils/colorUtils";
 import type { SettingsListProps } from "@/types/profile/types";
-
 
 export default function SettingsList({ items }: SettingsListProps) {
   const { THEME } = useTheme();
-  const destructiveIndex = items.findIndex((i) => i.isDestructive);
-  const neutralItems = items.filter((i) => !i.isDestructive);
-  const destructiveItem =
-    destructiveIndex >= 0 ? items[destructiveIndex] : null;
-
+  const orderedItems = [
+    ...items.filter((item) => !item.isDestructive),
+    ...items.filter((item) => item.isDestructive),
+  ];
   return (
-    <View style={{ marginBottom: 12 }}>
-      {/* Neutral Items Card */}
-      <View
-        style={{
-          backgroundColor: THEME.surface,
-          borderRadius: BRAND.radius.card,
-          borderWidth: 1,
-          borderColor: THEME.border,
-          overflow: "hidden",
-        }}
-      >
-        {neutralItems.map((item, i) => (
-          <View key={`${item.title}-${item.icon}`}>
-            <TouchableOpacity
-              onPress={item.onPress}
-              accessibilityRole="button"
-              accessibilityLabel={item.title}
-              activeOpacity={0.7}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                padding: 14,
-              }}
-            >
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  backgroundColor: THEME.surfaceHover,
-                  borderWidth: 1,
-                  borderColor: THEME.border,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: 12,
-                }}
-              >
-                <Ionicons
-                  name={item.icon as any}
-                  size={17}
-                  color={THEME.textPrimary}
-                />
-              </View>
-
-              <Text
-                style={{
-                  color: item.icon === "log-out-outline" ? THEME.danger : THEME.textPrimary,
-                  fontSize: 14.5,
-                  fontWeight: "600",
-                  flex: 1,
-                }}
-              >
-                {item.title}
-              </Text>
-
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={THEME.textSecondary}
-              />
-            </TouchableOpacity>
-
-            {i < neutralItems.length - 1 ? (
-              <View
-                style={{
-                  height: 1,
-                  marginHorizontal: 14,
-                  backgroundColor: THEME.border,
-                }}
-              />
-            ) : null}
-          </View>
-        ))}
-      </View>
-
-      {/* Destructive Item Card */}
-      {destructiveItem ? (
-        <View
-          style={{
-            backgroundColor: THEME.surface,
-            borderRadius: BRAND.radius.card,
-            borderWidth: 1,
-            borderColor: hexToRgba(THEME.danger, 0.25),
-            marginTop: 10,
-            overflow: "hidden",
-          }}
-        >
+    <View
+      style={{
+        backgroundColor: THEME.surface,
+        borderRadius: BRAND.radius.card,
+        overflow: "hidden",
+      }}
+    >
+      {orderedItems.map((item, index) => {
+        const destructive =
+          item.isDestructive || item.icon === "log-out-outline";
+        const color = destructive ? THEME.danger : THEME.textPrimary;
+        return (
           <TouchableOpacity
-            onPress={destructiveItem.onPress}
+            key={`${item.title}-${item.icon}`}
+            onPress={item.onPress}
             accessibilityRole="button"
-            accessibilityLabel={destructiveItem.title}
-            activeOpacity={0.7}
+            accessibilityLabel={item.title}
+            activeOpacity={0.75}
             style={{
               flexDirection: "row",
               alignItems: "center",
-              padding: 14,
+              gap: BRAND.spacing.md,
+              minHeight: 52,
+              paddingHorizontal: BRAND.spacing.md,
+              paddingVertical: BRAND.spacing.sm,
+              borderTopWidth: index ? StyleSheet.hairlineWidth : 0,
+              borderColor: THEME.border,
             }}
           >
-            <View
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                backgroundColor: hexToRgba(THEME.danger, 0.1),
-                borderWidth: 1,
-                borderColor: hexToRgba(THEME.danger, 0.2),
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: 12,
-              }}
-            >
-              <Ionicons name="trash-outline" size={17} color={THEME.danger} />
-            </View>
-
-            <Text
-              style={{
-                color: THEME.danger,
-                fontSize: 14.5,
-                fontWeight: "700",
-                flex: 1,
-              }}
-            >
-              {destructiveItem.title}
-            </Text>
-
-            <Ionicons name="chevron-forward" size={16} color={THEME.danger} />
+            <Ionicons
+              name={item.icon as React.ComponentProps<typeof Ionicons>["name"]}
+              size={19}
+              color={color}
+            />
+            <Text style={[TYPE.label, { color, flex: 1 }]}>{item.title}</Text>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={THEME.textSecondary}
+            />
           </TouchableOpacity>
-        </View>
-      ) : null}
+        );
+      })}
     </View>
   );
 }

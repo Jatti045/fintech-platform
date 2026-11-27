@@ -11,7 +11,6 @@ import MonthlyOverview from "@/components/home/MonthlyOverview";
 import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentTransactions from "@/components/home/RecentTransactions";
 import BudgetOverview from "@/components/home/BudgetOverview";
-import DashboardCard from "@/components/home/DashboardCard";
 import DashboardState from "@/components/home/DashboardState";
 
 /** Home uses server-owned reporting values; interactions stay in the existing hooks and routes. */
@@ -27,8 +26,8 @@ export default function Index() {
     >
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingTop: 12,
+          paddingHorizontal: BRAND.spacing.md,
+          paddingTop: BRAND.spacing.sm,
           paddingBottom: BRAND.spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
@@ -42,7 +41,13 @@ export default function Index() {
           />
         }
       >
-        <View style={{ width: "100%", maxWidth: 680, alignSelf: "center" }}>
+        <View
+          style={{
+            width: "100%",
+            maxWidth: BRAND.pageWidth,
+            alignSelf: "center",
+          }}
+        >
           <HomeHeader
             onSettingsPress={() => router.push("/(tabs)/profile")}
             month={home.month}
@@ -50,20 +55,19 @@ export default function Index() {
             onMonthChange={home.handleMonthChange}
           />
           {(reporting.isLoading || reporting.error || reporting.stale) && (
-            <DashboardCard padding={16} style={{ marginBottom: 14 }}>
-              <DashboardState
-                loading={!report && reporting.isLoading}
-                error={Boolean(reporting.error)}
-                message={
-                  reporting.error
-                    ? "Monthly report could not be refreshed."
-                    : report
-                      ? "Updating your monthly report…"
-                      : "Loading your monthly report…"
-                }
-                onRetry={reporting.refetch}
-              />
-            </DashboardCard>
+            <DashboardState
+              compact={Boolean(report)}
+              loading={!report && reporting.isLoading}
+              error={Boolean(reporting.error)}
+              message={
+                reporting.error
+                  ? "Monthly report could not be refreshed."
+                  : report
+                    ? "Updating your monthly report…"
+                    : "Loading your monthly report…"
+              }
+              onRetry={reporting.refetch}
+            />
           )}
           {report && (
             <>
@@ -84,6 +88,14 @@ export default function Index() {
               />
             </>
           )}
+          <UpcomingBillsCard
+            bills={home.upcomingBills}
+            currencyCode={home.activeCurrency}
+            onDismiss={home.handleDismissBill}
+            loading={home.billsLoading}
+            error={home.billsError}
+            onRetry={home.retryBills}
+          />
           <RecentTransactions
             transactions={
               home.transactionsLoading ? [] : home.displayTransactions
@@ -93,14 +105,6 @@ export default function Index() {
             error={home.transactionsError}
             onRetry={home.retryTransactions}
             onSeeAll={() => router.push("/(tabs)/transaction")}
-          />
-          <UpcomingBillsCard
-            bills={home.upcomingBills}
-            currencyCode={home.activeCurrency}
-            onDismiss={home.handleDismissBill}
-            loading={home.billsLoading}
-            error={home.billsError}
-            onRetry={home.retryBills}
           />
           <MonthlyInsightCard month={home.month} year={home.year} />
         </View>
