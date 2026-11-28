@@ -66,7 +66,7 @@ export const useBudgetScreen = () => {
   const [openSetup, setOpenSetup] = useState(false);
   const [editingBudget, setEditingBudget] = useState<IBudget | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const isSearching = searchQuery.trim().length > 0;
   const isInitialLoading = isLoading && budgets.length === 0 && !isSearching;
@@ -97,15 +97,8 @@ export const useBudgetScreen = () => {
     };
   }, [filteredBudgets]);
 
-  // A deliberate collapse stays closed. Otherwise follow the first visible
-  // budget when the initial selection or search changes.
-  const selectedBudget = useMemo(
-    () =>
-      selectedId === null
-        ? undefined
-        : (filteredBudgets.find((b) => b.id === selectedId) ??
-          filteredBudgets[0]),
-    [filteredBudgets, selectedId],
+  const selectedBudget = filteredBudgets.find(
+    (budget) => budget.id === selectedId,
   );
 
   const monthLabel = useMemo(
@@ -120,12 +113,9 @@ export const useBudgetScreen = () => {
 
   // ── Stable callbacks ──────────────────────────────────────────────────
 
-  const handleToggle = useCallback(
-    (budget: IBudget) => {
-      setSelectedId(selectedBudget?.id === budget.id ? null : budget.id);
-    },
-    [selectedBudget?.id],
-  );
+  const handleToggle = useCallback((budget: IBudget) => {
+    setSelectedId((current) => (current === budget.id ? null : budget.id));
+  }, []);
 
   const handleEditPress = useCallback((budget: IBudget) => {
     setEditingBudget(budget);

@@ -14,7 +14,7 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import BudgetHeader from "@/components/budget/BudgetHeader";
 import themeReducer from "@/store/slices/themeSlice";
-import { Text, TextInput } from "react-native";
+import { Text, TextInput, TouchableOpacity } from "react-native";
 
 registerRendererCleanup();
 
@@ -44,13 +44,7 @@ function renderHeader(overrides: Partial<Props> = {}) {
     );
   });
 
-  renderer.act(() => {
-    tree.root
-      .findAllByType("View" as any)
-      .find((n) => n.props.accessibilityRole === "adjustable")!
-      .props.onLayout({ nativeEvent: { layout: { width: 220 } } });
-  });
-  return { props };
+  return { props, tree };
 }
 
 function lastProps(
@@ -82,7 +76,15 @@ beforeEach(() => {
 
 describe("BudgetHeader", () => {
   it("renders the title and reporting month", () => {
-    renderHeader({ month: 2 });
+    const { tree } = renderHeader({ month: 2 });
+    expect(
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .find(
+          (node) =>
+            node.props.accessibilityLabel === "Select month, March 2026",
+        )?.props.accessibilityState.expanded,
+    ).toBe(false);
 
     expect(renderedText("Budgets")).toBe(true);
     expect(renderedText("Mar")).toBe(true);

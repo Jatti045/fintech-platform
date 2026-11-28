@@ -155,7 +155,6 @@ async function setup(
   return { captured, store };
 }
 
-
 beforeEach(() => {
   mockedFetchAll.mockReset();
   (transactionApi.fetchAll as jest.Mock).mockReset();
@@ -209,13 +208,13 @@ describe("useBudgetScreen", () => {
     expect(captured.current!.budgetedBudgets.map((b) => b.id)).toEqual(["c"]);
   });
 
-  it("defaults the selected budget to the first visible budget", async () => {
+  it("starts with category actions collapsed", async () => {
     const { captured } = await setup([
       makeBudget({ id: "a", category: "Food" }),
       makeBudget({ id: "b", category: "Transport" }),
     ]);
 
-    expect(captured.current!.selectedBudget?.id).toBe("a");
+    expect(captured.current!.selectedBudget).toBeUndefined();
   });
 
   it("follows the budget tapped via handleToggle", async () => {
@@ -231,7 +230,7 @@ describe("useBudgetScreen", () => {
     expect(captured.current!.selectedBudget?.id).toBe("b");
   });
 
-  it("falls back to the first visible budget when the selection is filtered out", async () => {
+  it("does not expand another budget when search hides the selection", async () => {
     const { captured } = await setup([
       makeBudget({ id: "a", category: "Food" }),
       makeBudget({ id: "b", category: "Transport" }),
@@ -247,7 +246,7 @@ describe("useBudgetScreen", () => {
     });
 
     expect(captured.current!.filteredBudgets.map((b) => b.id)).toEqual(["a"]);
-    expect(captured.current!.selectedBudget?.id).toBe("a");
+    expect(captured.current!.selectedBudget).toBeUndefined();
   });
 
   it("derives the month label from the calendar state", async () => {

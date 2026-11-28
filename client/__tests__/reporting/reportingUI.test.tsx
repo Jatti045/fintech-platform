@@ -4,7 +4,6 @@ import renderer, { act } from "react-test-renderer";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
 import FinancialMetrics from "@/components/home/FinancialMetrics";
 import BudgetContent from "@/components/budget/BudgetContent";
-import BudgetIncomeSummary from "@/components/budget/BudgetIncomeSummary";
 import MonthlyIncome from "@/components/profile/MonthlyIncome";
 import { formatCurrency } from "@/utils/helper";
 import type { IFinancialReport } from "@/types/financialSummary/types";
@@ -120,21 +119,17 @@ beforeEach(() => {
     refetch: jest.fn(),
   };
 });
+const budgetSummaries = (tree: renderer.ReactTestRenderer) => tree.root.findAll((node) => typeof node.props.monthlySpent === "number" && Array.isArray(node.props.budgets));
+
 test("budget search only changes matching rows and labeled subtotals, including no matches", () => {
   const tree = mount(<BudgetContent {...props} />);
-  expect(tree.root.findByType(BudgetIncomeSummary).props).toMatchObject({
-    income: 0,
-    totalSpent: 600,
-    totalLimit: 300,
-  });
+  expect(budgetSummaries(tree)[0].props.monthlySpent).toBe(600);
+  expect(texts(tree)).not.toContain("Income context");
   act(() => {
     tree.update(<BudgetContent {...props} searchQuery="Food" />);
   });
-  expect(tree.root.findByType(BudgetIncomeSummary).props).toMatchObject({
-    income: 0,
-    totalSpent: 600,
-    totalLimit: 300,
-  });
+  expect(budgetSummaries(tree)[0].props.monthlySpent).toBe(600);
+  expect(texts(tree)).not.toContain("Income context");
   expect(
     tree.root.findAll(
       (n) => n.props.monthlySpent === 600 && Array.isArray(n.props.budgets),
@@ -144,7 +139,7 @@ test("budget search only changes matching rows and labeled subtotals, including 
   act(() => {
     tree.update(<BudgetContent {...props} searchQuery="No match" />);
   });
-  expect(tree.root.findByType(BudgetIncomeSummary).props.totalSpent).toBe(600);
+  expect(budgetSummaries(tree)[0].props.monthlySpent).toBe(600);
   expect(texts(tree)).toContain("No budgets match");
   act(() => {
     tree.unmount();
@@ -161,7 +156,7 @@ test.each(["loading", "error", "unavailable"])(
       refetch: jest.fn(),
     };
     const tree = mount(<BudgetContent {...props} />);
-    expect(tree.root.findAllByType(BudgetIncomeSummary)).toHaveLength(0);
+    expect(budgetSummaries(tree)).toHaveLength(0);
     expect(texts(tree)).not.toContain(formatCurrency(0, "USD"));
     act(() => {
       tree.unmount();
@@ -174,7 +169,7 @@ test("failed refresh keeps real cached figures and explicitly marks them stale",
   const tree = mount(<BudgetContent {...props} />);
   expect(texts(tree)).toContain("Cached report");
   expect(texts(tree)).toContain("Refresh failed");
-  expect(tree.root.findByType(BudgetIncomeSummary).props.income).toBe(0);
+  expect(budgetSummaries(tree)[0].props.monthlySpent).toBe(600);
   act(() => {
     tree.unmount();
   });
@@ -193,7 +188,7 @@ test("Home keeps negative remaining income, zero activity bars, and no hard-code
     />,
   );
   expect(texts(tree)).toContain("-600");
-  expect(texts(tree)).toContain("over income");
+  expect(texts(tree)).toContain("Over income");
   act(() => {
     tree.root
       .findAllByType(TouchableOpacity)

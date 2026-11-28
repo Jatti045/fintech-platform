@@ -1,5 +1,6 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import React from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { hexToRgba } from "@/utils/colorUtils";
@@ -51,7 +52,7 @@ export default function BankAttentionCard({ institutionName, reconnect, busy, on
           {reconnect ? "Sign in to reconnect" : "Tap to retry sync"}
         </Text>
       </View>
-      {busy ? <ActivityIndicator size="small" color={actionColor} /> :
+      {busy ? <FundleafLoader size="small" color={actionColor} /> :
         <Ionicons name="arrow-forward" size={16} color={actionColor} accessible={false} />}
     </TouchableOpacity>
   );

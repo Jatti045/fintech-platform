@@ -14,6 +14,9 @@ module.exports = {
     "\\.(png|jpg|jpeg|webp)$": "<rootDir>/__mocks__/styleMock.js",
     "^@/(.*)$": "<rootDir>/$1",
     // Stub out native/Expo modules that ship un-transpiled ESM
+    "^expo-font$": "<rootDir>/__mocks__/expo-font.ts",
+    "^@expo-google-fonts/dm-sans/600SemiBold$":
+      "<rootDir>/__mocks__/dm-sans.ts",
     "^expo-haptics$": "<rootDir>/__mocks__/expo-haptics.ts",
     "^react-native$": "<rootDir>/__mocks__/react-native.ts",
     "^react-native-safe-area-context$":
@@ -21,6 +24,8 @@ module.exports = {
     "^react-native-svg$": "<rootDir>/__mocks__/react-native-svg.ts",
     "^react-native-reanimated$":
       "<rootDir>/__mocks__/react-native-reanimated.ts",
+    "^react-native-gesture-handler/ReanimatedSwipeable$":
+      "<rootDir>/__mocks__/reanimated-swipeable.ts",
     "^react-native-gesture-handler$":
       "<rootDir>/__mocks__/react-native-gesture-handler.ts",
     "^react-native-animated-numbers$":

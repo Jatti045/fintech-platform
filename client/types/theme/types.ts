@@ -37,9 +37,12 @@ export interface ITheme {
   statementDanger: string;
 }
 
+export type AccentPreference = "Cobalt" | "Iris" | "Fern";
+
 export type ThemePreference = "System" | "Light" | "Dark";
 
 export interface IThemeState {
   selectedTheme: ThemePreference;
   THEME: ITheme;
+  selectedAccent?: AccentPreference;
 }

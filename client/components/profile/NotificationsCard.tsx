@@ -1,6 +1,7 @@
+import ThemedSwitch from "@/components/global/ThemedSwitch";
 import { BRAND, accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
-import { View, Text, Switch, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/hooks/useRedux";
@@ -82,15 +83,13 @@ export default function NotificationsCard({
           </Text>
         </View>
 
-        <Switch
+        <ThemedSwitch
           accessibilityLabel="Purchase reminders"
           value={
             notificationPermissionDenied ? false : purchaseRemindersEnabled
           }
           disabled={notificationPermissionDenied}
           onValueChange={onTogglePurchaseReminders}
-          trackColor={{ false: THEME.border, true: THEME.primary }}
-          thumbColor={THEME.onPrimary}
         />
       </View>
 
@@ -144,13 +143,11 @@ export default function NotificationsCard({
           </Text>
         </View>
 
-        <Switch
+        <ThemedSwitch
           accessibilityLabel="Upcoming bill reminders"
           value={notificationPermissionDenied ? false : billRemindersEnabled}
           disabled={notificationPermissionDenied}
           onValueChange={onToggleBillReminders}
-          trackColor={{ false: THEME.border, true: THEME.primary }}
-          thumbColor={THEME.onPrimary}
         />
       </View>
 

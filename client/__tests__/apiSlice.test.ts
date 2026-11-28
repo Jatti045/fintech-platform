@@ -15,14 +15,13 @@
 
 import { configureTestStore as configureStore } from "@/testUtils/configureTestStore";
 import transactionApi from "@/api/transaction";
-import rulesApi from "@/api/categorizationRules";
+import classificationApi from "@/api/transactionClassification";
 import budgetApi from "@/api/budget";
 import financialSummaryApi from "@/api/financialSummary";
 import api from "@/store/api/apiSlice";
-import insightApi from "@/api/insight";
 import type { GetTransactionsArgs } from "@/store/api/apiSlice";
 
-jest.mock("@/api/categorizationRules", () => ({ __esModule: true, default: { apply: jest.fn(), undo: jest.fn(), reset: jest.fn() } }));
+jest.mock("@/api/transactionClassification", () => ({ __esModule: true, default: { reset: jest.fn() } }));
 
 jest.mock("@/api/transaction", () => ({
   __esModule: true,
@@ -49,11 +48,6 @@ jest.mock("@/api/budget", () => ({
 jest.mock("@/api/financialSummary", () => ({
   __esModule: true,
   default: { fetchSummary: jest.fn() },
-}));
-
-jest.mock("@/api/insight", () => ({
-  __esModule: true,
-  default: { fetchMonthlyInsight: jest.fn() },
 }));
 
 const mockedTxFetch = transactionApi.fetchAll as jest.Mock;
@@ -698,10 +692,8 @@ describe("getTransactions – canonical query arguments & cache keys", () => {
 });
 
 describe("reconciliation cache coverage", () => {
-  it.each(["update", "delete"])("%s refreshes totals without automatically calling the AI provider", async (mutation) => {
+  it.each(["update", "delete"])("%s refreshes counterpart month totals", async (mutation) => {
     const store = makeStore();
-    const insightFetch = insightApi.fetchMonthlyInsight as jest.Mock;
-    insightFetch.mockResolvedValue({ data: {} });
     mockedSummaryFetch.mockResolvedValue({ data: {} });
     mockedBudgetFetch.mockResolvedValue({ data: [] });
     const update = transactionApi.update as jest.Mock;
@@ -712,11 +704,10 @@ describe("reconciliation cache coverage", () => {
     const subscriptions = [
       store.dispatch(api.endpoints.getFinancialSummary.initiate(counterpartMonth)),
       store.dispatch(api.endpoints.getBudgets.initiate(counterpartMonth)),
-      store.dispatch(api.endpoints.getMonthlyInsight.initiate(counterpartMonth)),
     ];
     try {
       await Promise.all(subscriptions);
-      mockedSummaryFetch.mockClear(); mockedBudgetFetch.mockClear(); insightFetch.mockClear();
+      mockedSummaryFetch.mockClear(); mockedBudgetFetch.mockClear();
       const invalidateMonths = [{ year: 2026, month: 4 }];
       if (mutation === "update") {
         await store.dispatch(api.endpoints.updateTransaction.initiate({ id: "may-leg", updates: { amount: 600 }, invalidateMonths }));
@@ -725,45 +716,25 @@ describe("reconciliation cache coverage", () => {
       }
       expect(mockedSummaryFetch).toHaveBeenCalledWith(counterpartMonth);
       expect(mockedBudgetFetch).toHaveBeenCalledWith(counterpartMonth);
-      expect(insightFetch).not.toHaveBeenCalled();
     } finally {
-      subscriptions.forEach(s => { if ("unsubscribe" in s) s.unsubscribe(); else s.reset(); });
+      subscriptions.forEach(s => s.unsubscribe());
       store.dispatch(api.util.resetApiState());
     }
   });
 });
 
-it("creating an expense never automatically regenerates an AI explanation", async () => {
-  const store = makeStore();
-  const insightFetch = insightApi.fetchMonthlyInsight as jest.Mock;
-  insightFetch.mockResolvedValue({ data: {} });
-  mockedTxCreate.mockResolvedValue({ success: true, data: { transaction: {} } });
-  const subscription = store.dispatch(api.endpoints.getMonthlyInsight.initiate({ currentMonth: 4, currentYear: 2026 }));
-  try {
-    await subscription;
-    insightFetch.mockClear();
-    await store.dispatch(api.endpoints.createTransaction.initiate({ ...makeTx("new"), type: "EXPENSE" as any }));
-    expect(insightFetch).not.toHaveBeenCalled();
-  } finally {
-    subscription.reset();
-    store.dispatch(api.util.resetApiState());
-  }
-});
-
-
 describe("classification changes", () => {
-  test("replace cached later pages with authoritative page one, without generating AI", async () => {
+  test("replace cached later pages with authoritative page one after reset", async () => {
     const store=makeStore();
     mockedTxFetch.mockResolvedValue(txResponse([makeTx("old")],2,40));
     await store.dispatch(api.endpoints.getTransactions.initiate({currentMonth:4,currentYear:2026,page:2}));
     mockedTxFetch.mockResolvedValue(txResponse([{...makeTx("new"),category:"Coffee"}],1,1));
-    (rulesApi.apply as jest.Mock).mockResolvedValue({data:{applicationId:"batch",changed:1}});
-    await store.dispatch(api.endpoints.applyCategorizationRule.initiate({id:"rule",token:"token"}));
+    (classificationApi.reset as jest.Mock).mockResolvedValue({data:{}});
+    await store.dispatch(api.endpoints.resetTransactionClassification.initiate("tx"));
     await new Promise(r => setTimeout(r,0));
     const data=api.endpoints.getTransactions.select({currentMonth:4,currentYear:2026,page:1})(store.getState()).data;
     expect(data?.transaction.map(t=>t.id)).toEqual(["new"]);
     expect(mockedTxFetch).toHaveBeenLastCalledWith(expect.objectContaining({page:1}));
-    expect(insightApi.fetchMonthlyInsight).not.toHaveBeenCalled();
     store.dispatch(api.util.resetApiState());
   });
 });
@@ -774,7 +745,7 @@ test("classification refresh cancels an older in-flight page response", async ()
   mockedTxFetch.mockImplementationOnce(()=>new Promise(r=>{release=r;}));
   const stale=store.dispatch(api.endpoints.getTransactions.initiate({currentMonth:4,currentYear:2026,page:2}));
   mockedTxFetch.mockResolvedValue(txResponse([{...makeTx("fresh"),category:"Coffee"}],1,1));
-  (rulesApi.reset as jest.Mock).mockResolvedValue({data:{}});
+  (classificationApi.reset as jest.Mock).mockResolvedValue({data:{}});
   await store.dispatch(api.endpoints.resetTransactionClassification.initiate("tx")); await new Promise(r=>setTimeout(r,0));
   release(txResponse([makeTx("stale")],2,40)); await stale; await new Promise(r=>setTimeout(r,0));
   expect(api.endpoints.getTransactions.select({currentMonth:4,currentYear:2026,page:1})(store.getState()).data?.transaction.map(t=>t.id)).toEqual(["fresh"]);

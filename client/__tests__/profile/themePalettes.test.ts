@@ -1,9 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { configureStore } from "@reduxjs/toolkit";
-import { THEME_PALETTES, sheetSurface } from "@/constants/ThemePalettes";
+import {
+  APPEARANCE_PALETTES,
+  THEME_PALETTES,
+  sheetSurface,
+} from "@/constants/ThemePalettes";
 import { THEME_OPTIONS } from "@/utils/profile/profileService";
 import reducer, {
+  loadAccentFromStorage,
   loadThemeFromStorage,
+  selectAccent,
   setTheme,
 } from "@/store/slices/themeSlice";
 
@@ -26,66 +32,35 @@ it("supports exactly System, Light, and Dark", () => {
   }
 });
 
-it("keeps the light palette aligned with the statement and neutral surface design", () => {
-  expect(THEME_PALETTES.LIGHT).toEqual({
-    sheetHandle: "#798279",
-    sheetBackdrop: "#000000",
-    sheet: "#FFFFFF",
-    background: "#F7F8F4",
-    surface: "#FFFFFF",
-    surfaceHover: "#EBEFE7",
-    primary: "#274D35",
-    primaryHover: "#1E3E2A",
-    secondary: "#274D35",
-    onPrimary: "#FFFFFF",
-    onDanger: "#FFFFFF",
-    textPrimary: "#191E19",
-    textSecondary: "#575F56",
-    textDisabled: "#575F56",
-    disabledBackground: "#E2E7DE",
-    success: "#305D3B",
-    danger: "#A22C22",
-    warning: "#805600",
-    border: "#D9DED5",
-    inputBackground: "#EEF0EA",
-    placeholderText: "#575F56",
-    subtleSurface: "#EBEEE7",
-    accentSurface: "#E0ECD9",
-    errorSurface: "#FAEBE7",
-    chart1: "#40674B",
-    chart2: "#6A7550",
-    chart3: "#536678",
-    chart4: "#745F50",
-    statement: "#23392B",
-    statementText: "#F7F8F4",
-    statementMuted: "#C2D1C1",
-    statementAccent: "#BCE8A1",
-    statementRule: "#536958",
-    statementDanger: "#FFB4AB",
-  });
-  expect(sheetSurface(THEME_PALETTES.LIGHT)).toBe(THEME_PALETTES.LIGHT.surface);
+it("uses distinct accent palettes across the same neutral surfaces and financial colors", () => {
+  for (const key of ["LIGHT", "DARK"] as const) {
+    const options = Object.values(APPEARANCE_PALETTES).map(
+      (scheme) => scheme[key],
+    );
+    expect(new Set(options.map((option) => option.primary)).size).toBe(3);
+    expect(new Set(options.map((option) => option.statement)).size).toBe(3);
+    for (const option of options) {
+      expect(option.background).toBe(THEME_PALETTES[key].background);
+      expect(option.success).toBe(THEME_PALETTES[key].success);
+      expect(option.danger).toBe(THEME_PALETTES[key].danger);
+      expect(sheetSurface(option)).toBe(option.sheet);
+    }
+  }
 });
 
-it("uses neutral dark surfaces and uses the high-contrast selected dock accent", () => {
-  const dark = THEME_PALETTES.DARK;
-  expect(dark.primary).toBe("#BCE8A1");
-  expect(dark.background).toBe("#121212");
-  expect(dark.surface).toBe("#1E1E1E");
-  expect(sheetSurface(dark)).toBe("#242424");
-  for (const key of [
-    "background",
-    "surface",
-    "surfaceHover",
-    "subtleSurface",
-    "inputBackground",
-    "border",
-    "disabledBackground",
-    "sheetHandle",
-  ] as const) {
-    const hex = dark[key].slice(1);
-    expect(hex.slice(0, 2)).toBe(hex.slice(2, 4));
-    expect(hex.slice(2, 4)).toBe(hex.slice(4, 6));
-  }
+it("persists the accent independently of matching the system appearance", async () => {
+  await AsyncStorage.setItem("selectedTheme", "System");
+  const store = configureStore({ reducer: { theme: reducer } });
+  await store.dispatch(selectAccent("Iris"));
+  expect(store.getState().theme.THEME).toEqual(APPEARANCE_PALETTES.Iris.LIGHT);
+  expect(await AsyncStorage.getItem("selectedTheme")).toBe("System");
+  expect(await AsyncStorage.getItem("selectedAccent")).toBe("Iris");
+  const restored = configureStore({ reducer: { theme: reducer } });
+  await restored.dispatch(loadAccentFromStorage());
+  restored.dispatch(setTheme("Dark"));
+  expect(restored.getState().theme.THEME).toEqual(
+    APPEARANCE_PALETTES.Iris.DARK,
+  );
 });
 
 it.each(["Ember", "Aurora"])(

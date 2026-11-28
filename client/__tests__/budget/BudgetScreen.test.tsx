@@ -337,7 +337,15 @@ describe("BudgetScreen", () => {
   });
 
   it("opens the edit modal via a row's Edit action", async () => {
-    await setup([makeBudget({ id: "a", category: "Food" })]);
+    const { tree } = await setup([makeBudget({ id: "a", category: "Food" })]);
+    renderer.act(() => {
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .find((node) =>
+          node.props.accessibilityLabel?.startsWith("Food budget,"),
+        )!
+        .props.onPress();
+    });
 
     const edit = lastProps(
       touchableOpacityMock,
@@ -351,7 +359,15 @@ describe("BudgetScreen", () => {
   });
 
   it("triggers the delete confirmation via a row's Delete action", async () => {
-    await setup([makeBudget({ id: "a", category: "Food" })]);
+    const { tree } = await setup([makeBudget({ id: "a", category: "Food" })]);
+    renderer.act(() => {
+      tree.root
+        .findAllByType(TouchableOpacity)
+        .find((node) =>
+          node.props.accessibilityLabel?.startsWith("Food budget,"),
+        )!
+        .props.onPress();
+    });
 
     const del = lastProps(
       touchableOpacityMock,
@@ -384,6 +400,14 @@ it("fetches only the final reporting month after a rapid multi-month swipe", asy
   const { tree, store } = await setup([makeBudget()]);
   const initial = store.getState().calendar;
   const monthIndex = initial.year * 12 + initial.month;
+  renderer.act(() => {
+    tree.root
+      .findAllByType(TouchableOpacity)
+      .find((node) =>
+        node.props.accessibilityLabel?.startsWith("Select month, "),
+      )!
+      .props.onPress();
+  });
   renderer.act(() => {
     tree.root
       .findAllByType("View" as any)

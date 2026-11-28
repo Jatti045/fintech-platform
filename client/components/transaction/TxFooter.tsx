@@ -1,5 +1,6 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import React from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
 import { BRAND } from "@/constants/ThemePalettes";
 
@@ -23,7 +24,7 @@ const ListFooter = React.memo(function ListFooter({
     >
       {isLoadingMore ? (
         <>
-          <ActivityIndicator color={THEME.primary} />
+          <FundleafLoader color={THEME.primary} />
           <Text
             style={{ color: THEME.textSecondary, marginTop: BRAND.spacing.sm }}
           >

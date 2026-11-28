@@ -1,12 +1,15 @@
 import { useTheme } from "@/hooks/useRedux";
 import React, { useRef } from "react";
 import {
-  Animated,
   StyleSheet,
   TouchableOpacity,
+  View,
   type ViewStyle,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
+import { BRAND } from "@/constants/ThemePalettes";
 import { Feather } from "@expo/vector-icons";
 import { hapticHeavy } from "@/utils/haptics";
 
@@ -34,18 +37,9 @@ export default function SwipeableRow({
   actionStyle,
 }: SwipeableRowProps) {
   const { THEME } = useTheme();
-  const swipeableRef = useRef<Swipeable>(null);
+  const swipeableRef = useRef<SwipeableMethods>(null);
 
-  const renderRightActions = (
-    _progress: Animated.AnimatedInterpolation<number>,
-    dragX: Animated.AnimatedInterpolation<number>,
-  ) => {
-    const scale = dragX.interpolate({
-      inputRange: [-80, 0],
-      outputRange: [1, 0.5],
-      extrapolate: "clamp",
-    });
-
+  const renderRightActions = () => {
     return (
       <TouchableOpacity
         style={[
@@ -62,22 +56,23 @@ export default function SwipeableRow({
           onDelete();
         }}
       >
-        <Animated.View style={{ transform: [{ scale }] }}>
+        <View accessible={false}>
           <Feather name="trash-2" size={22} color={THEME.onDanger} />
-        </Animated.View>
+        </View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       ref={swipeableRef}
       renderRightActions={renderRightActions}
       overshootRight={false}
-      friction={2}
+      friction={1.35}
+      rightThreshold={40}
     >
       {children}
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
 
@@ -85,9 +80,9 @@ const styles = StyleSheet.create({
   deleteAction: {
     justifyContent: "center",
     alignItems: "center",
-    width: 80,
-    borderRadius: 8,
-    marginBottom: 12,
+    width: 72,
+    borderRadius: BRAND.radius.input,
+    marginBottom: 0,
     marginLeft: 8,
   },
 });

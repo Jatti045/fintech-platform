@@ -1,7 +1,7 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import { ScrollView } from "react-native-gesture-handler";
 import FundleafSheet from "@/components/sheets/FundleafSheet";
 import { useSheetDismiss } from "@/components/sheets/useSheetDismiss";
-import RulesManager from "@/components/rules/RulesManager";
 import { api } from "@/store/api/apiSlice";
 import {
   useAppDispatch,
@@ -15,7 +15,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { BRAND } from "@/constants/ThemePalettes";
 import BrandInput from "@/components/brand/BrandInput";
 import {
-  ActivityIndicator,
   Platform,
   Text,
   TouchableOpacity,
@@ -53,7 +52,6 @@ function TransactionModal({
       setShowPicker(false);
     }
   }, [openSheet]);
-  const [rulesOpen, setRulesOpen] = useState(false);
   const [resettingClassification, setResettingClassification] = useState(false);
   const budgets = useBudgets();
   const financialSummary = useFinancialSummary();
@@ -461,7 +459,7 @@ function TransactionModal({
                 gap: 8,
               }}
             >
-              <ActivityIndicator size="small" color={THEME.primary} />
+              <FundleafLoader size="small" color={THEME.primary} />
               <Text
                 style={{
                   color: THEME.primary,
@@ -731,20 +729,6 @@ function TransactionModal({
                 ? ` · ${editingTransaction.classification.ruleTitle}`
                 : ""}
             </Text>
-            <Text style={{ color: THEME.textSecondary }}>
-              Update Transaction applies only to this transaction. Create a rule
-              separately to automate future matches.
-            </Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel="Create rule for future matching transactions"
-              onPress={() => setRulesOpen(true)}
-              style={{ paddingVertical: 12 }}
-            >
-              <Text style={{ color: THEME.primary }}>
-                Create rule for future matching transactions
-              </Text>
-            </TouchableOpacity>
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel="Reset classification to bank data"
@@ -832,7 +816,7 @@ function TransactionModal({
                 justifyContent: "center",
               }}
             >
-              {saving && <ActivityIndicator color={THEME.textDisabled} />}
+              {saving && <FundleafLoader color={THEME.textDisabled} />}
               <Text
                 style={{
                   color: saving ? THEME.textDisabled : THEME.onPrimary,
@@ -930,24 +914,6 @@ function TransactionModal({
           </TouchableOpacity>
         ))}
       </FundleafSheet>
-      {rulesOpen && (
-        <RulesManager
-          visible
-          onClose={() => setRulesOpen(false)}
-          seed={{
-            title: `Classify ${txName}`.slice(0, 80),
-            matchText:
-              editingTransaction?.classification?.providerName ||
-              editingTransaction?.name ||
-              txName,
-            category: txSelectedCategoryAndId?.name || null,
-            budgetCategory:
-              budgets.find((b) => b.id === txSelectedCategoryAndId?.id)
-                ?.category || null,
-            direction: type,
-          }}
-        />
-      )}
     </FundleafSheet>
   );
 }

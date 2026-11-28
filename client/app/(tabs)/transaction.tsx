@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import React from "react";
 import { RefreshControl, SectionList, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -29,7 +30,6 @@ export default function TransactionScreen() {
 
   const {
     displayTransactions,
-    budgets,
     categories,
     categoriesLoading,
     categoriesError,
@@ -80,7 +80,7 @@ export default function TransactionScreen() {
         contentContainerStyle={{
           paddingBottom: BRAND.spacing.xl,
           paddingTop: BRAND.spacing.sm,
-          paddingHorizontal: BRAND.spacing.md,
+          paddingHorizontal: BRAND.gutter,
           width: "100%",
           maxWidth: BRAND.pageWidth,
           alignSelf: "center",
@@ -95,13 +95,19 @@ export default function TransactionScreen() {
           <RefreshControl
             refreshing={isSearching ? false : refreshing}
             onRefresh={onRefresh}
-            progressBackgroundColor={THEME.background}
-            colors={[THEME.primary]}
-            tintColor={THEME.primary}
+            progressBackgroundColor="transparent"
+            colors={["transparent"]}
+            tintColor="transparent"
           />
         }
         ListHeaderComponent={
           <View>
+            {!isSearching && refreshing && (
+              <FundleafLoader
+                color={THEME.primary}
+                accessibilityLabel="Refreshing"
+              />
+            )}
             <TransactionHeader
               displayTransactions={displayTransactions}
               month={month}
@@ -112,7 +118,6 @@ export default function TransactionScreen() {
               currencyCode={activeCurrency}
               searchQuery={searchQuery}
               onSearchChange={handleSearchQueryChange}
-              budgets={budgets}
               categories={categories}
               categoriesLoading={categoriesLoading}
               categoriesError={categoriesError}
@@ -125,8 +130,10 @@ export default function TransactionScreen() {
               maxAmount={maxAmount}
               onMaxAmountChange={setMaxAmount}
               onClearFilters={clearFilters}
+              createAction={
+                <AddNewTransactionButton setOpenSheet={setOpenSheet} compact />
+              }
             />
-            <AddNewTransactionButton setOpenSheet={setOpenSheet} />
             <LastSynced />
           </View>
         }

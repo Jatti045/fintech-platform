@@ -1,3 +1,4 @@
+import DisclosureChevron from "@/components/global/DisclosureChevron";
 import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
@@ -6,7 +7,6 @@ import { formatCurrency } from "@/utils/helper";
 import type { IFinancialReport } from "@/types/financialSummary/types";
 import ProgressTrack from "@/components/global/ProgressTrack";
 import BudgetCategoryDetails from "./BudgetCategoryDetails";
-import { Feather } from "@expo/vector-icons";
 
 /** Displays authoritative category limits, spending and remaining amounts without recomputing totals. */
 export default function BudgetOverview({
@@ -17,7 +17,7 @@ export default function BudgetOverview({
   onOpenBudgets: () => void;
 }) {
   const { THEME } = useTheme();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   // Sum server-normalized category amounts; do not substitute all spending
   // (which can include categories without a budget) for budget utilization.
   const totals = report.budgets.reduce(
@@ -31,31 +31,22 @@ export default function BudgetOverview({
     totals.limit > 0 ? Math.round((totals.spent / totals.limit) * 100) : null;
   const color = totals.spent > totals.limit ? THEME.danger : THEME.primary;
   return (
-    <View style={{ marginBottom: BRAND.spacing.lg, gap: BRAND.spacing.sm }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel="Budget category details"
-          accessibilityHint={
-            expanded
-              ? "Hides the category breakdown"
-              : "Shows the category breakdown"
-          }
-          accessibilityState={{ expanded }}
-          onPress={() => setExpanded((visible) => !visible)}
-          style={{
-            width: 48,
-            minHeight: 48,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Feather
-            name={expanded ? "chevron-up" : "chevron-down"}
-            size={19}
-            color={THEME.primary}
-          />
-        </TouchableOpacity>
+    <View
+      style={{
+        marginBottom: BRAND.spacing.lg,
+        gap: BRAND.spacing.sm,
+        padding: BRAND.spacing.md,
+        borderRadius: BRAND.radius.card,
+        backgroundColor: THEME.surface,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: BRAND.spacing.sm,
+        }}
+      >
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="View budgets"
@@ -93,6 +84,28 @@ export default function BudgetOverview({
               {percent}%
             </Text>
           )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Budget category details"
+          accessibilityHint={
+            expanded
+              ? "Hides the category breakdown"
+              : "Shows the category breakdown"
+          }
+          accessibilityState={{ expanded }}
+          aria-expanded={expanded}
+          onPress={() => setExpanded((visible) => !visible)}
+          style={{
+            width: 48,
+            borderRadius: 16,
+            backgroundColor: THEME.subtleSurface,
+            minHeight: 48,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <DisclosureChevron expanded={expanded} color={THEME.primary} />
         </TouchableOpacity>
       </View>
       {report.budgets.length > 0 && (

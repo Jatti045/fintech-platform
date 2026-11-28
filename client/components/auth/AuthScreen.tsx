@@ -46,20 +46,37 @@ export default function AuthScreen({
                 flexDirection: "row",
                 alignItems: "center",
                 gap: BRAND.spacing.sm,
-                marginBottom: BRAND.spacing.xl,
+                marginBottom: BRAND.spacing.lg,
               }}
             >
-              <Image
-                source={require("@/assets/fundleaf-brand-assets/logo-mark.png")}
-                style={{ width: 34, height: 34 }}
-                resizeMode="contain"
-                accessible={false}
-              />
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  backgroundColor: THEME.surface,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Image
+                  source={require("@/assets/fundleaf-brand-assets/logo-mark.png")}
+                  style={{ width: 30, height: 30 }}
+                  resizeMode="contain"
+                  accessible={false}
+                />
+              </View>
               <Text style={[TYPE.section, { color: THEME.textPrimary }]}>
                 Fundleaf
               </Text>
             </View>
-            <View>
+            <View
+              style={{
+                padding: BRAND.gutter,
+                borderRadius: BRAND.radius.card,
+                backgroundColor: THEME.surface,
+              }}
+            >
               <Text
                 accessibilityRole="header"
                 style={[TYPE.screen, { color: THEME.textPrimary }]}

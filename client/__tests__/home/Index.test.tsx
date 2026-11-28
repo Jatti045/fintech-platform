@@ -243,7 +243,7 @@ describe("Index", () => {
   it("keeps the dashboard usable when bills fail and retries them independently", async () => {
     mockedRecurringFetch.mockRejectedValue(new Error("offline"));
     await setup();
-    expect(renderedText("Income remaining")).toBe(true);
+    expect(renderedText("Income left")).toBe(true);
     expect(renderedText("Upcoming bills could not be refreshed.")).toBe(true);
     mockedRecurringFetch.mockResolvedValue({
       success: true,
@@ -281,7 +281,7 @@ describe("Index", () => {
   it("renders the homepage sections", async () => {
     await setup({ withBudgets: true });
 
-    expect(renderedText("Income remaining")).toBe(true);
+    expect(renderedText("Income left")).toBe(true);
     expect(renderedText("Recent Transactions")).toBe(true);
     expect(renderedText("Monthly Budget")).toBe(true);
     expect(renderedText("Upcoming Bills")).toBe(true);

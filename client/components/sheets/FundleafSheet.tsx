@@ -13,6 +13,8 @@ import {
   type BottomSheetBackdropProps,
   type BottomSheetBackgroundProps,
 } from "@gorhom/bottom-sheet";
+import { ReduceMotion } from "react-native-reanimated";
+import { MOTION } from "@/constants/Motion";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useRedux";
@@ -128,7 +130,7 @@ export default function FundleafSheet({
         {...props}
         appearsOnIndex={0}
         disappearsOnIndex={-1}
-        opacity={0.5}
+        opacity={0.56}
         pressBehavior="none"
         accessible={false}
         accessibilityRole="none"
@@ -175,6 +177,8 @@ export default function FundleafSheet({
   return (
     <BottomSheetModal
       ref={sheet}
+      animationConfigs={MOTION.sheet}
+      overrideReduceMotion={ReduceMotion.System}
       accessible={false}
       accessibilityLabel={title}
       accessibilityRole="none"
@@ -212,7 +216,7 @@ export default function FundleafSheet({
           accessibilityViewIsModal
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
-            paddingHorizontal: BRAND.spacing.md,
+            paddingHorizontal: BRAND.gutter,
             paddingBottom: Math.max(insets.bottom, 20) + 12,
             gap: BRAND.spacing.md,
           }}

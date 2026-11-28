@@ -53,7 +53,13 @@ it.each(["Light", "Dark"])(
     expect(texts(tree)).toContain(
       `${formatCurrency(617.75, "CAD")} of ${formatCurrency(850, "CAD")} spent`,
     );
-    expect(button(tree, "Budget category details").props.accessibilityState.expanded).toBe(true);
+    expect(
+      button(tree, "Budget category details").props.accessibilityState.expanded,
+    ).toBe(false);
+    act(() => button(tree, "Budget category details").props.onPress());
+    expect(
+      button(tree, "Budget category details").props.accessibilityState.expanded,
+    ).toBe(true);
     expect(texts(tree)).toContain(formatCurrency(-20, "CAD"));
     expect(texts(tree)).toContain("Over budget");
     const over = tree.root
@@ -76,7 +82,9 @@ it.each(["Light", "Dark"])(
     act(() => {
       button(tree, "Budget category details").props.onPress();
     });
-    expect(button(tree, "Budget category details").props.accessibilityState.expanded).toBe(false);
+    expect(
+      button(tree, "Budget category details").props.accessibilityState.expanded,
+    ).toBe(false);
     expect(texts(tree)).not.toContain("Over budget");
     act(() => {
       button(tree, "View budgets").props.onPress();
@@ -243,5 +251,49 @@ it("keeps all upcoming bills reachable from the compact preview", () => {
     button(tree, "Show fewer upcoming bills").props.onPress();
   });
   expect(texts(tree)).not.toContain("Membership");
+  act(() => tree.unmount());
+});
+
+it("selects each cash flow ribbon and expands the monthly detail independently", () => {
+  const tree = mount(
+    <MonthlyOverview
+      monthlyIncome={4200}
+      totalSpent={1892.48}
+      monthLabel="November 2026"
+      currencyCode="CAD"
+      isCurrentMonth
+    />,
+  );
+  const spent = `Spent, ${formatCurrency(1892.48, "CAD")}`;
+  const remaining = `Income left, ${formatCurrency(2307.52, "CAD")}`;
+  expect(button(tree, remaining).props.accessibilityState.selected).toBe(true);
+  expect(texts(tree)).toContain("55% of monthly income left");
+  act(() => button(tree, spent).props.onPress());
+  expect(button(tree, spent).props.accessibilityState.selected).toBe(true);
+  expect(button(tree, remaining).props.accessibilityState.selected).toBe(false);
+  expect(texts(tree)).toContain("45% of monthly income spent");
+  act(() => button(tree, "Monthly details").props.onPress());
+  expect(texts(tree)).toContain("Spending trend");
+  expect(button(tree, spent).props.accessibilityState.selected).toBe(true);
+  act(() => tree.unmount());
+});
+
+it.each([
+  [500, 600, "Over income", "Spending exceeds income by"],
+  [500, -50, "Net credits", "Expense credits exceed spending"],
+  [0, 0, "Income left", "No income recorded or planned"],
+])("reports atypical cash flow totals (%s income, %s spent)", (income, spent, label, message) => {
+  const tree = mount(
+    <MonthlyOverview
+      monthlyIncome={income}
+      totalSpent={spent}
+      monthLabel="November 2026"
+      currencyCode="CAD"
+      isCurrentMonth
+    />,
+    "Dark",
+  );
+  expect(texts(tree)).toContain(label);
+  expect(texts(tree)).toContain(message);
   act(() => tree.unmount());
 });

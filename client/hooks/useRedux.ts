@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useColorScheme } from "react-native";
-import { THEME_PALETTES } from "@/constants/ThemePalettes";
+import { APPEARANCE_PALETTES } from "@/constants/ThemePalettes";
 import {
   useDispatch,
   useSelector,
@@ -191,7 +191,9 @@ export const useTheme = () => {
       ...theme,
       selectedTheme: colorScheme === "dark" ? "Dark" : "Light",
       THEME:
-        colorScheme === "dark" ? THEME_PALETTES.DARK : THEME_PALETTES.LIGHT,
+        APPEARANCE_PALETTES[theme.selectedAccent ?? "Cobalt"][
+          colorScheme === "dark" ? "DARK" : "LIGHT"
+        ],
     };
   }, [theme, colorScheme]);
 };

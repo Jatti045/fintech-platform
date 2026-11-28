@@ -1,12 +1,12 @@
+import DisclosureChevron from "@/components/global/DisclosureChevron";
 import React, { useState } from "react";
 import { TouchableOpacity, StyleSheet, Text, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import { formatCurrency } from "@/utils/helper";
 import { useTheme } from "@/hooks/useRedux";
 import type { IFinancialReport } from "@/types/financialSummary/types";
+import CashFlowPanel from "./CashFlowPanel";
 import MonthlyDetails from "./MonthlyDetails";
-import MonthlySpendingChart from "./MonthlySpendingChart";
 
 export interface MonthlyOverviewProps {
   monthlyIncome: number;
@@ -21,114 +21,82 @@ export interface MonthlyOverviewProps {
 }
 
 export default function MonthlyOverview(props: MonthlyOverviewProps) {
-  const { monthlyIncome, totalSpent, currencyCode, daily, monthLabel } = props;
+  const { monthlyIncome, totalSpent, currencyCode, report, month, year } =
+    props;
   const [expanded, setExpanded] = useState(false);
   const { THEME } = useTheme();
   const income = Math.max(0, monthlyIncome || 0);
-  const net = props.report?.summary.netRemaining ?? income - totalSpent;
-  const label = net < 0 ? "Spending over income" : "Income remaining";
-  const amount = formatCurrency(net, currencyCode);
+  const remaining = report?.summary.netRemaining ?? income - totalSpent;
+  const incomeLabel =
+    report?.incomeBasis === "EXPECTED"
+      ? "Expected income"
+      : "Income this month";
 
   return (
     <View style={styles.section}>
-      <View style={[styles.statement, { backgroundColor: THEME.statement }]}>
+      <View style={styles.income}>
         <View style={styles.heading}>
           <Text
             accessibilityRole="header"
-            style={[
-              TYPE.label,
-              styles.headingLabel,
-              { color: THEME.statementMuted },
-            ]}
+            style={[TYPE.label, { color: THEME.textSecondary }]}
           >
-            {label}
+            {incomeLabel}
           </Text>
-          <Text style={[TYPE.caption, { color: THEME.statementMuted }]}>
+          <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
             {currencyCode}
           </Text>
         </View>
-        <Text
-          accessibilityLabel={`${amount} ${net < 0 ? "over income" : "income remaining"}`}
-          style={[
-            TYPE.total,
-            { color: net < 0 ? THEME.statementDanger : THEME.statementText },
-          ]}
-        >
-          {amount}
+        <Text style={[TYPE.total, { color: THEME.textPrimary }]}>
+          {formatCurrency(income, currencyCode)}
         </Text>
-        <MonthlySpendingChart
-          daily={daily}
-          monthLabel={monthLabel}
-          currencyCode={currencyCode}
-        />
-        <View style={[styles.figures, { borderColor: THEME.statementRule }]}>
-          {[
-            { label: "Income", amount: income },
-            { label: "Expenses", amount: totalSpent },
-          ].map((item) => (
-            <View key={item.label} style={styles.figure}>
-              <Text style={[TYPE.caption, { color: THEME.statementMuted }]}>
-                {item.label}
-              </Text>
-              <Text style={[TYPE.amount, { color: THEME.statementText }]}>
-                {formatCurrency(item.amount, currencyCode)}
-              </Text>
-            </View>
-          ))}
-        </View>
+      </View>
+      <CashFlowPanel
+        key={`${year}-${month}-${currencyCode}`}
+        income={income}
+        spent={totalSpent}
+        remaining={remaining}
+        currency={currencyCode}
+      />
+      <View style={[styles.details, { borderColor: THEME.border }]}>
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Monthly details"
           accessibilityState={{ expanded }}
           onPress={() => setExpanded((open) => !open)}
           activeOpacity={0.75}
-          style={[styles.details, { borderColor: THEME.statementRule }]}
+          style={styles.disclosure}
         >
-          <Text style={[TYPE.label, { color: THEME.statementAccent }]}>
+          <Text style={[TYPE.label, { color: THEME.textPrimary }]}>
             Monthly details
           </Text>
-          <Feather
-            name={expanded ? "chevron-up" : "chevron-down"}
-            size={18}
-            color={THEME.statementAccent}
-          />
+          <DisclosureChevron expanded={expanded} color={THEME.primary} />
         </TouchableOpacity>
+        {expanded && <MonthlyDetails {...props} />}
       </View>
-      {expanded && <MonthlyDetails {...props} />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { marginBottom: BRAND.spacing.lg },
-  statement: {
-    borderRadius: BRAND.radius.card,
-    paddingHorizontal: BRAND.spacing.md,
-    paddingTop: BRAND.spacing.md,
-    gap: BRAND.spacing.xs,
+  section: { marginBottom: BRAND.spacing.lg, gap: BRAND.spacing.sm },
+  income: {
+    paddingHorizontal: BRAND.spacing.xs,
+    paddingBottom: BRAND.spacing.xs,
   },
   heading: {
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
     flexWrap: "wrap",
-    gap: BRAND.spacing.xs,
-  },
-  headingLabel: { flexShrink: 1 },
-  figures: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: BRAND.spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: BRAND.spacing.sm,
   },
-  figure: { flexGrow: 1, flexBasis: 105, gap: BRAND.spacing.xs },
-  details: {
+  details: { borderBottomWidth: StyleSheet.hairlineWidth },
+  disclosure: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     minHeight: BRAND.touchTarget,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: BRAND.spacing.xs,
     gap: BRAND.spacing.sm,
   },
 });

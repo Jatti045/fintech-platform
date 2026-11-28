@@ -6,7 +6,6 @@ import { formatCurrency } from "@/utils/helper";
 import { useFinancialReport } from "@/hooks/reporting/useFinancialReport";
 import { BRAND, TYPE } from "@/constants/ThemePalettes";
 import BudgetHalo from "./BudgetHalo";
-import BudgetIncomeSummary from "./BudgetIncomeSummary";
 import BudgetReservoirRow from "./BudgetReservoirRow";
 import UnbudgetedBudgetSection from "./UnbudgetedBudgetSection";
 import EmptyBudgetState from "./EmptyBudgetState";
@@ -62,6 +61,7 @@ export default function BudgetContent({
   const reportStatus = (reporting.error || reporting.stale) && (
     <DashboardState
       compact
+      loading={reporting.stale}
       error={Boolean(reporting.error)}
       message={
         reporting.error
@@ -124,8 +124,6 @@ export default function BudgetContent({
     (b) => b.autoCreated || (b.limit <= 0 && b.spent > 0),
   );
   const totalSpent = report.summary.netSpent;
-  const totalLimit = report.budgets.reduce((sum, b) => sum + b.limit, 0);
-  const monthlyIncome = report.summary.monthlyIncome;
 
   // Initial display limit: show 6 categories unless expanded or searching
   const categoriesToShow =
@@ -203,7 +201,13 @@ export default function BudgetContent({
       )}
 
       {limited.length > 0 && (
-        <View style={{ marginBottom: 4 }}>
+        <View
+          style={{
+            marginBottom: BRAND.spacing.sm,
+            borderRadius: BRAND.radius.card,
+            overflow: "hidden",
+          }}
+        >
           {categoriesToShow.map((budget) => {
             return (
               <BudgetReservoirRow
@@ -282,14 +286,6 @@ export default function BudgetContent({
           onUseSuggestions={onSetup}
         />
       )}
-      {/* Preserve the existing income context after the primary budget content. */}
-      <BudgetIncomeSummary
-        income={monthlyIncome}
-        totalSpent={totalSpent}
-        totalLimit={totalLimit}
-        currencyCode={report.currency}
-        onPressLimit={onSetup}
-      />
     </>
   );
 }

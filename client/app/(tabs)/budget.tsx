@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import React from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -67,16 +68,16 @@ export default function BudgetScreen() {
         keyboardDismissMode="on-drag"
         contentContainerStyle={{
           paddingBottom: BRAND.spacing.xl,
-          paddingHorizontal: BRAND.spacing.md,
+          paddingHorizontal: BRAND.gutter,
           paddingTop: BRAND.spacing.sm,
         }}
         refreshControl={
           <RefreshControl
             refreshing={isSearching ? false : refreshing}
             onRefresh={onRefresh}
-            progressBackgroundColor={THEME.background}
-            colors={[THEME.primary]}
-            tintColor={THEME.primary}
+            progressBackgroundColor="transparent"
+            colors={["transparent"]}
+            tintColor="transparent"
           />
         }
       >
@@ -87,6 +88,12 @@ export default function BudgetScreen() {
             alignSelf: "center",
           }}
         >
+          {!isSearching && refreshing && (
+            <FundleafLoader
+              color={THEME.primary}
+              accessibilityLabel="Refreshing"
+            />
+          )}
           <BudgetHeader
             month={month}
             year={year}
@@ -94,8 +101,8 @@ export default function BudgetScreen() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onSetup={handleOpenSetup}
+            createAction={<NewBudgetButton onPress={handleNewBudget} />}
           />
-          <NewBudgetButton onPress={handleNewBudget} />
           <BudgetContent
             isInitialLoading={isInitialLoading}
             hasBudgets={hasBudgets}

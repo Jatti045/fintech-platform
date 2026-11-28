@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: BRAND.radius.input,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingLeft: 12,
   },
   input: {

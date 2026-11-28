@@ -1,5 +1,8 @@
-import React, { useState } from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import FundleafLoader from "@/components/brand/FundleafLoader";
+import React from "react";
+import { Text, TouchableOpacity, View } from "react-native";
+import Animated from "react-native-reanimated";
+import { usePressMotion } from "@/hooks/usePressMotion";
 import { useTheme } from "@/hooks/useRedux";
 import { BRAND, TYPE } from "@/constants/ThemePalettes";
 
@@ -21,61 +24,58 @@ export default function BrandButton({
   onPress,
 }: Props) {
   const { THEME } = useTheme();
-  const [pressed, setPressed] = useState(false);
+  const press = usePressMotion();
   const blocked = !!(disabled || loading);
   const primary = tone === "primary";
   const fill = primary ? THEME.primary : THEME.subtleSurface;
-  const pressFill = primary ? THEME.primaryHover : THEME.surfaceHover;
   const foreground = blocked
     ? THEME.textDisabled
     : primary
       ? THEME.onPrimary
       : THEME.textPrimary;
   return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: blocked, busy: !!loading }}
-      disabled={blocked}
-      onPress={() => {
-        if (!blocked) onPress();
-      }}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
-      activeOpacity={0.85}
-      style={{
-        minHeight: BRAND.touchTarget,
-        borderRadius: BRAND.radius.button,
-        backgroundColor: blocked
-          ? THEME.disabledBackground
-          : pressed
-            ? pressFill
-            : fill,
-        paddingHorizontal: BRAND.spacing.md,
-        paddingVertical: 12,
-        justifyContent: "center",
-      }}
-    >
-      <View
+    <Animated.View style={press.style}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: blocked, busy: !!loading }}
+        disabled={blocked}
+        onPress={() => {
+          if (!blocked) onPress();
+        }}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        activeOpacity={0.85}
         style={{
-          flexDirection: "row",
-          alignItems: "center",
+          minHeight: BRAND.touchTarget,
+          borderRadius: BRAND.radius.button,
+          backgroundColor: blocked ? THEME.disabledBackground : fill,
+          paddingHorizontal: BRAND.spacing.md,
+          paddingVertical: 12,
           justifyContent: "center",
-          gap: BRAND.spacing.sm,
         }}
       >
-        {loading && <ActivityIndicator color={foreground} size="small" />}
-        <Text
+        <View
           style={{
-            color: foreground,
-            ...TYPE.label,
-            flexShrink: 1,
-            textAlign: "center",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: BRAND.spacing.sm,
           }}
         >
-          {loading ? loadingLabel || label : label}
-        </Text>
-      </View>
-    </TouchableOpacity>
+          {loading && <FundleafLoader color={foreground} size="small" />}
+          <Text
+            style={{
+              color: foreground,
+              ...TYPE.label,
+              flexShrink: 1,
+              textAlign: "center",
+            }}
+          >
+            {loading ? loadingLabel || label : label}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }

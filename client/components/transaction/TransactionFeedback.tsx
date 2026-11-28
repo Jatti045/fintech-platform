@@ -1,5 +1,6 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import React from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import type { ITheme } from "@/types/theme/types";
 import { BRAND } from "@/constants/ThemePalettes";
 
@@ -33,30 +34,7 @@ export default function TransactionFeedback({
         gap: BRAND.spacing.sm,
       }}
     >
-      {loading && (
-        <>
-          <ActivityIndicator size="large" color={THEME.primary} />
-          <View
-            accessible={false}
-            style={{
-              height: 14,
-              width: "70%",
-              backgroundColor: THEME.surfaceHover,
-              borderRadius: 7,
-              marginTop: BRAND.spacing.sm,
-            }}
-          />
-          <View
-            accessible={false}
-            style={{
-              height: 14,
-              width: "90%",
-              backgroundColor: THEME.surfaceHover,
-              borderRadius: 7,
-            }}
-          />
-        </>
-      )}
+      {loading && <FundleafLoader size="large" color={THEME.primary} />}
       <Text
         style={{
           color: error ? THEME.danger : THEME.textPrimary,

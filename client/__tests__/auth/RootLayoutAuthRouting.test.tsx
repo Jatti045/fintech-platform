@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 /**
  * RootLayout and AppRoutes Production Authentication and Routing Regression Tests.
  *
@@ -20,7 +21,6 @@
 
 import React from "react";
 import renderer, { act } from "react-test-renderer";
-import { ActivityIndicator } from "react-native";
 import { Stack } from "expo-router";
 import RootLayout from "@/app/_layout";
 import { userAPI } from "@/api/user";
@@ -383,7 +383,7 @@ describe("RootLayout & AppRoutes Production Authentication and Routing", () => {
     let tree!: renderer.ReactTestRenderer;
     await act(async () => { tree = renderer.create(<RootLayout />); });
     expect(lastScreenProps("(tabs)")).toBeUndefined();
-    expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+    expect(tree.root.findAllByType(FundleafLoader)).toHaveLength(1);
 
     await act(async () => { resolveProfile({ ...testUser, currency: "GBP", monthlyIncome: 123 }); });
     expect(lastScreenProps("(tabs)")?.redirect).toBe(false);
@@ -461,7 +461,7 @@ describe("RootLayout & AppRoutes Production Authentication and Routing", () => {
     });
 
     // While restoration is in flight, splash indicator is shown and routes are gated
-    expect(tree.root.findAllByType(ActivityIndicator).length).toBeGreaterThan(0);
+    expect(tree.root.findAllByType(FundleafLoader).length).toBeGreaterThan(0);
     expect(appStore.getState().user.isAuthenticated).toBe(false);
 
     // Resolve the token gate

@@ -2,11 +2,12 @@ import React, { useContext, useEffect, useState } from "react";
 import {
   Keyboard,
   Platform,
+  StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { CommonActions, useLinkBuilder } from "@react-navigation/native";
 import { PlatformPressable } from "@react-navigation/elements";
 import {
@@ -14,31 +15,31 @@ import {
   type BottomTabBarProps,
 } from "@react-navigation/bottom-tabs";
 import Animated, {
-  LinearTransition,
-  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 import { useTheme } from "@/hooks/useRedux";
 import { hapticSelection } from "@/utils/haptics";
 import { BRAND } from "@/constants/ThemePalettes";
+import { MOTION } from "@/constants/Motion";
 import {
   FLOATING_TAB_BAR as DOCK,
   getFloatingTabBarHeight,
 } from "@/constants/appConfig";
 
-const tabs: Record<
-  string,
-  { label: string; icon: React.ComponentProps<typeof Ionicons>["name"] }
-> = {
-  index: { label: "Home", icon: "home-outline" },
-  transaction: { label: "Transactions", icon: "swap-horizontal-outline" },
-  budget: { label: "Budgets", icon: "wallet-outline" },
-  profile: { label: "Profile", icon: "person-circle-outline" },
+type Tab = {
+  name: string;
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
 };
-const transition = LinearTransition.duration(
-  DOCK.animationDuration,
-).reduceMotion(ReduceMotion.System);
+const tabs: Record<string, Tab> = {
+  index: { name: "Home", label: "Home", icon: "home" },
+  transaction: { name: "Transactions", label: "Activity", icon: "list" },
+  budget: { name: "Budgets", label: "Budgets", icon: "pie-chart" },
+  profile: { name: "Profile", label: "Profile", icon: "user" },
+};
 
-/** Uses navigator state and native tab events, including preventDefault and reselect. */
 export default function FundleafTabBar({
   state,
   descriptors,
@@ -52,6 +53,25 @@ export default function FundleafTabBar({
   const [keyboardShown, setKeyboardShown] = useState(() =>
     Keyboard.isVisible(),
   );
+
+  const height = getFloatingTabBarHeight(fontScale);
+  const reservedHeight = height + DOCK.gap * 2 + insets.bottom;
+  const innerWidth =
+    Math.min(
+      DOCK.maxWidth,
+      width - insets.left - insets.right - DOCK.margin * 2,
+    ) -
+    DOCK.padding * 2;
+  const slotWidth = innerWidth / state.routes.length;
+  const activeSlot = useSharedValue(state.index);
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: activeSlot.value * slotWidth }],
+  }));
+
+  useEffect(() => {
+    activeSlot.value = withTiming(state.index, MOTION.navigation);
+  }, [activeSlot, state.index]);
+
   useEffect(() => {
     const show = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -66,18 +86,13 @@ export default function FundleafTabBar({
       hide.remove();
     };
   }, []);
-  const height = getFloatingTabBarHeight(fontScale);
-  const reservedHeight = height + DOCK.gap * 2 + insets.bottom;
+
   useEffect(() => {
     reportHeight?.(keyboardShown ? 0 : reservedHeight);
   }, [keyboardShown, reportHeight, reservedHeight]);
+
   if (keyboardShown) return null;
-  const innerWidth =
-    Math.min(
-      DOCK.maxWidth,
-      width - insets.left - insets.right - DOCK.margin * 2,
-    ) -
-    DOCK.padding * 2;
+
   return (
     <View
       testID="floating-tab-bar-space"
@@ -93,115 +108,111 @@ export default function FundleafTabBar({
       <View
         accessibilityRole="tablist"
         accessibilityLabel="Main navigation"
-        style={{
-          width: "100%",
-          maxWidth: DOCK.maxWidth,
-          height,
-          padding: DOCK.padding,
-          flexDirection: "row",
-          alignItems: "stretch",
-          borderRadius: BRAND.radius.pill,
-          backgroundColor: THEME.surface,
-          shadowColor: THEME.sheetBackdrop,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 6,
-          elevation: 2,
-        }}
+        style={[
+          styles.dock,
+          {
+            width: "100%",
+            maxWidth: DOCK.maxWidth,
+            height,
+            padding: DOCK.padding,
+            backgroundColor: THEME.surface,
+          },
+        ]}
       >
+        <Animated.View
+          pointerEvents="none"
+          aria-hidden
+          testID="active-tab-indicator"
+          style={[
+            styles.indicator,
+            { width: slotWidth - 4, backgroundColor: THEME.accentSurface },
+            indicatorStyle,
+          ]}
+        />
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
-          const focused = index === state.index;
-          const item = tabs[route.name] || {
+          const selected = index === state.index;
+          const item = tabs[route.name] ?? {
+            name: route.name,
             label: route.name,
-            icon: "ellipse-outline" as const,
+            icon: "circle" as const,
           };
-          const label =
-            typeof options.tabBarLabel === "string"
-              ? options.tabBarLabel
-              : options.title || item.label;
-          const activeWidth = Math.max(
-            BRAND.touchTarget,
-            Math.min(
-              46 + label.length * 6.5 * Math.min(fontScale, 2),
-              innerWidth - BRAND.touchTarget * (state.routes.length - 1),
-            ),
-          );
+          const color = selected ? THEME.primary : THEME.textSecondary;
+
           return (
-            <Animated.View
+            <PlatformPressable
               key={route.key}
-              layout={transition}
-              style={{
-                flexGrow: 1,
-                flexBasis: 0,
-                minWidth: focused ? activeWidth : BRAND.touchTarget,
-              }}
-            >
-              <PlatformPressable
-                href={buildHref(route.name, route.params)}
-                accessibilityRole="tab"
-                accessibilityLabel={options.tabBarAccessibilityLabel || label}
-                accessibilityState={{ selected: focused }}
-                testID={options.tabBarButtonTestID}
-                onPress={() => {
-                  const event = navigation.emit({
-                    type: "tabPress",
-                    target: route.key,
-                    canPreventDefault: true,
+              href={buildHref(route.name, route.params)}
+              accessibilityRole="tab"
+              accessibilityLabel={options.tabBarAccessibilityLabel || item.name}
+              accessibilityState={{ selected }}
+              testID={options.tabBarButtonTestID}
+              onPress={() => {
+                const event = navigation.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!selected && !event.defaultPrevented) {
+                  hapticSelection();
+                  navigation.dispatch({
+                    ...CommonActions.navigate(route),
+                    target: state.key,
                   });
-                  if (!focused && !event.defaultPrevented) {
-                    hapticSelection();
-                    navigation.dispatch({
-                      ...CommonActions.navigate(route),
-                      target: state.key,
-                    });
-                  }
-                }}
-                onLongPress={() =>
-                  navigation.emit({ type: "tabLongPress", target: route.key })
                 }
-                pressOpacity={0.85}
-                pressColor={focused ? THEME.primaryHover : THEME.subtleSurface}
-                style={{
-                  flex: 1,
-                  minHeight: BRAND.touchTarget,
-                  borderRadius: BRAND.radius.pill,
-                  paddingHorizontal: 6,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  overflow: "hidden",
-                  backgroundColor: focused ? THEME.primary : THEME.surface,
-                }}
+              }}
+              onLongPress={() =>
+                navigation.emit({ type: "tabLongPress", target: route.key })
+              }
+              pressOpacity={0.74}
+              pressColor={THEME.accentSurface}
+              style={styles.tab}
+            >
+              <Feather
+                name={item.icon}
+                size={19}
+                color={color}
+                accessible={false}
+              />
+              <Text
+                numberOfLines={2}
+                style={[
+                  styles.label,
+                  { color, fontWeight: selected ? "700" : "500" },
+                ]}
               >
-                <Ionicons
-                  name={item.icon}
-                  size={21}
-                  color={focused ? THEME.onPrimary : THEME.textSecondary}
-                  accessible={false}
-                />
-                {focused ? (
-                  <Text
-                    numberOfLines={2}
-                    maxFontSizeMultiplier={2}
-                    style={{
-                      flexShrink: 1,
-                      color: THEME.onPrimary,
-                      fontSize: 13,
-                      lineHeight: 17,
-                      fontWeight: "700",
-                      textAlign: "center",
-                    }}
-                  >
-                    {label}
-                  </Text>
-                ) : null}
-              </PlatformPressable>
-            </Animated.View>
+                {item.label}
+              </Text>
+            </PlatformPressable>
           );
         })}
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  dock: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: BRAND.radius.pill,
+  },
+  indicator: {
+    position: "absolute",
+    top: DOCK.padding,
+    bottom: DOCK.padding,
+    left: DOCK.padding + 2,
+    borderRadius: BRAND.radius.pill,
+  },
+  tab: {
+    flex: 1,
+    minHeight: BRAND.touchTarget,
+    minWidth: BRAND.touchTarget,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    borderRadius: BRAND.radius.pill,
+    overflow: "hidden",
+  },
+  label: { fontSize: 11, lineHeight: 14, textAlign: "center" },
+});

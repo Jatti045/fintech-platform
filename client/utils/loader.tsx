@@ -1,5 +1,6 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import { BRAND } from "@/constants/ThemePalettes";
-import { View, Text, ActivityIndicator } from "react-native";
+import { View, Text } from "react-native";
 import React from "react";
 import { useTheme } from "@/hooks/useRedux";
 
@@ -27,7 +28,7 @@ const Loader = ({ msg }: { msg: string }) => {
           alignItems: "center",
         }}
       >
-        <ActivityIndicator size="large" color={THEME.primary} />
+        <FundleafLoader size="large" color={THEME.primary} />
         <Text
           style={{
             color: THEME.textPrimary,

@@ -1,6 +1,7 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import { BRAND, accentSurface } from "@/constants/ThemePalettes";
 import React from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/hooks/useRedux";
@@ -65,7 +66,7 @@ export default function BankConnections({
           Trouble syncing {name} transactions — tap to refresh
         </Text>
         {isSyncing ? (
-          <ActivityIndicator size="small" color={theme.primary} />
+          <FundleafLoader size="small" color={theme.primary} />
         ) : (
           <Text
             style={{ color: theme.primary, fontSize: 12, fontWeight: "800" }}
@@ -142,7 +143,7 @@ export default function BankConnections({
 
           {canConnectBank &&
             (linking ? (
-              <ActivityIndicator size="small" color={theme.primary} />
+              <FundleafLoader size="small" color={theme.primary} />
             ) : (
               <Ionicons
                 name="chevron-forward"
@@ -185,7 +186,7 @@ export default function BankConnections({
             borderTopColor: theme.border,
           }}
         >
-          <ActivityIndicator
+          <FundleafLoader
             size="small"
             color={theme.primary}
             style={{ paddingVertical: 6 }}
@@ -323,7 +324,7 @@ export default function BankConnections({
                         Disconnect
                       </Text>
                       {isDisconnecting && (
-                        <ActivityIndicator
+                        <FundleafLoader
                           size="small"
                           color={theme.danger}
                           style={{ position: "absolute" }}

@@ -1,3 +1,4 @@
+import { useReducedMotion } from "react-native-reanimated";
 import { sheetSurface } from "@/constants/ThemePalettes";
 import React, {
   createContext,
@@ -48,6 +49,7 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
   const [visible, setVisible] = useState(false);
   const [alertOptions, setAlertOptions] = useState<AlertOptions | null>(null);
   const { THEME } = useTheme();
+  const reduceMotion = useReducedMotion();
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showAlert = (options: AlertOptions) => {
@@ -69,10 +71,13 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
 
   const hideAlert = () => {
     setVisible(false);
-    hideTimerRef.current = setTimeout(() => {
-      setAlertOptions(null);
-      hideTimerRef.current = null;
-    }, 300);
+    hideTimerRef.current = setTimeout(
+      () => {
+        setAlertOptions(null);
+        hideTimerRef.current = null;
+      },
+      reduceMotion ? 0 : 200,
+    );
   };
 
   const handleButtonPress = (button?: AlertButton) => {
@@ -87,7 +92,7 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
       {children}
       <Modal
         visible={visible}
-        animationType="fade"
+        animationType={reduceMotion ? "none" : "fade"}
         transparent={true}
         onRequestClose={hideAlert}
       >

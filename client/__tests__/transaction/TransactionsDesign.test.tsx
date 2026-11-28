@@ -14,7 +14,6 @@ import TransactionFeedback from "@/components/transaction/TransactionFeedback";
 import ListFooter from "@/components/transaction/TxFooter";
 import {
   ledgerTransactions,
-  ledgerBudgets,
 } from "../../test-fixtures/transactionsDesign";
 import { formatCurrency } from "@/utils/helper";
 
@@ -55,7 +54,7 @@ function texts(tree: renderer.ReactTestRenderer) {
 }
 
 it.each(["Light", "Dark"])(
-  "keeps the picker beside the title above the subtitle and search in %s",
+  "opens the shared reporting month control beside search and filters in %s",
   (theme) => {
     const change = jest.fn();
     const { tree, store } = mount(
@@ -69,7 +68,6 @@ it.each(["Light", "Dark"])(
         currencyCode="CAD"
         searchQuery="coffee"
         onSearchChange={change}
-        budgets={ledgerBudgets}
         filterCategoryId="all"
         onFilterCategoryChange={jest.fn()}
         minAmount=""
@@ -83,33 +81,21 @@ it.each(["Light", "Dark"])(
     const title = tree.root
       .findAllByType(Text)
       .find((node) => node.props.children === "Transactions")!;
-    const picker = tree.root.findByType(MonthPicker);
-    const titleRow = title.parent!.parent!;
-    expect(titleRow.props.style).toMatchObject({
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-    });
-    expect(titleRow.findByType(MonthPicker)).toBe(picker);
-    expect(title.props.style).toMatchObject({ flexShrink: 1, maxWidth: "60%" });
-    expect(picker.parent!.props.style).toMatchObject({ flex: 1, minWidth: 0 });
-    const headingBlock = titleRow.parent!;
-    const subtitle = tree.root
-      .findAllByType(Text)
-      .find((node) =>
-        Array.isArray(node.props.children) &&
-        node.props.children.join("") === "Reporting currency · CAD",
-      );
-    expect(headingBlock.children[0]).toBe(titleRow);
-    expect(headingBlock.children[1]).toBe(subtitle);
+    expect(title.props.accessibilityRole).toBe("header");
+    const trigger = button(tree, "Select month, February 2026");
+    expect(trigger.props.accessibilityState.expanded).toBe(false);
+    expect(tree.root.findAllByType(MonthPicker)).toHaveLength(0);
     expect(tree.root.findAllByType(TextInput)).toHaveLength(1);
     act(() => {
       button(tree, "Clear search").props.onPress();
     });
     expect(change).toHaveBeenCalledWith("");
 
-    // The inline picker receives less space than the former full-width row.
-    // Exercise its real layout/scroll handlers rather than bypassing onChange.
+    act(() => trigger.props.onPress());
+    expect(
+      button(tree, "Select month, February 2026").props.accessibilityState
+        .expanded,
+    ).toBe(true);
     const reportingMonth = tree.root
       .findAllByType("View" as any)
       .find((node) => node.props.accessibilityRole === "adjustable")!;
@@ -149,7 +135,7 @@ it.each(["Light", "Dark"])(
       const [max, setMax] = useState("");
       return (
         <FilterTransaction
-          budgets={ledgerBudgets}
+            categories={["Groceries"]}
           filterCategoryId={category}
           setFilterCategoryId={setCategory}
           minAmount={min}
@@ -294,22 +280,42 @@ it("separates failure from empty results and wires retry and load-more actions",
 
 it("centralizes categories in the sheet and keeps Category immediately before Amount", () => {
   const select = jest.fn();
-  const { tree } = mount(<FilterTransaction budgets={ledgerBudgets}
-    categories={["Freelance income", "Custom pottery", "Groceries"]}
-    filterCategoryId="all" setFilterCategoryId={select}
-    minAmount="" setMinAmount={jest.fn()} maxAmount="" setMaxAmount={jest.fn()} clearFilters={jest.fn()} />);
+  const { tree } = mount(
+    <FilterTransaction
+      categories={["Freelance income", "Custom pottery", "Groceries"]}
+      filterCategoryId="all"
+      setFilterCategoryId={select}
+      minAmount=""
+      setMinAmount={jest.fn()}
+      maxAmount=""
+      setMaxAmount={jest.fn()}
+      clearFilters={jest.fn()}
+    />,
+  );
   expect(button(tree, "Filter by Groceries")).toBeUndefined();
   expect(button(tree, "Filter by Transfer out")).toBeUndefined();
   const category = button(tree, "More category filters");
   const amount = button(tree, "Amount filters");
   expect(category.parent!.parent).toBe(amount.parent!.parent);
   const row = category.parent!.parent!;
-  const controls = row.findAllByType(TouchableOpacity).map((n) => n.props.accessibilityLabel);
+  const controls = row
+    .findAllByType(TouchableOpacity)
+    .map((n) => n.props.accessibilityLabel);
   expect(controls).toEqual(["More category filters", "Amount filters"]);
   act(() => category.props.onPress());
-  for (const name of ["Groceries", "Freelance income", "Custom pottery", "Transfers out", "Transfers in"])
+  expect(button(tree, "Select Transfers out")).toBeUndefined();
+  expect(button(tree, "Select Rent")).toBeUndefined();
+  for (const name of [
+    "Groceries",
+    "Freelance income",
+    "Custom pottery",
+  ])
     expect(button(tree, `Select ${name}`)).toBeDefined();
-  expect(tree.root.findAllByType(TouchableOpacity).filter((n) => n.props.accessibilityLabel === "Select Groceries")).toHaveLength(1);
+  expect(
+    tree.root
+      .findAllByType(TouchableOpacity)
+      .filter((n) => n.props.accessibilityLabel === "Select Groceries"),
+  ).toHaveLength(1);
   act(() => button(tree, "Select Freelance income").props.onPress());
   expect(select).toHaveBeenCalledWith("category:freelance income");
   act(() => tree.unmount());
@@ -317,13 +323,26 @@ it("centralizes categories in the sheet and keeps Category immediately before Am
 
 it("shows category loading, empty, and retry states", () => {
   const retry = jest.fn();
-  const props = { budgets: [], filterCategoryId: "all", setFilterCategoryId: jest.fn(),
-    minAmount: "", setMinAmount: jest.fn(), maxAmount: "", setMaxAmount: jest.fn(), clearFilters: jest.fn() };
+  const props = {
+    filterCategoryId: "all",
+    setFilterCategoryId: jest.fn(),
+    minAmount: "",
+    setMinAmount: jest.fn(),
+    maxAmount: "",
+    setMaxAmount: jest.fn(),
+    clearFilters: jest.fn(),
+  };
   const { tree } = mount(<FilterTransaction {...props} categoriesLoading />);
   act(() => button(tree, "More category filters").props.onPress());
-  expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Loading categories").length).toBeGreaterThan(0);
+  expect(
+    tree.root.findAll(
+      (n) => n.props.accessibilityLabel === "Loading categories",
+    ).length,
+  ).toBeGreaterThan(0);
   act(() => tree.unmount());
-  const failed = mount(<FilterTransaction {...props} categoriesError onRetryCategories={retry} />).tree;
+  const failed = mount(
+    <FilterTransaction {...props} categoriesError onRetryCategories={retry} />,
+  ).tree;
   act(() => button(failed, "More category filters").props.onPress());
   act(() => button(failed, "Retry categories").props.onPress());
   expect(retry).toHaveBeenCalled();

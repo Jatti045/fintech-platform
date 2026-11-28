@@ -1,11 +1,9 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
-import rulesAPI from "@/api/categorizationRules";
+import transactionClassificationAPI from "@/api/transactionClassification";
 import transactionAPI from "@/api/transaction";
 import budgetAPI from "@/api/budget";
 import financialSummaryAPI from "@/api/financialSummary";
 import recurringAPI from "@/api/recurring";
-import insightAPI from "@/api/insight";
-import aiPrivacyAPI, { type AiPrivacyPreference } from "@/api/aiPrivacy";
 import { PAGINATION_LIMIT } from "@/constants/appConfig";
 import type {
   CreateTransactionInput,
@@ -21,7 +19,6 @@ import type {
 } from "@/types/budget/types";
 import type { IFinancialSummary } from "@/types/financialSummary/types";
 import type { IRecurringPaymentsResponseData } from "@/types/recurring/types";
-import type { IMonthlyInsight } from "@/types/insight/types";
 import type { IApiResponse } from "@/types/api/types";
 
 /**
@@ -170,8 +167,6 @@ export const api = createApi({
     "Summary",
     "Suggestions",
     "Recurring",
-    "Insights",
-    "AiPrivacy",
   ],
   /**
    * Cold-start revalidation strategy: hydrated cache entries are seeded via
@@ -412,51 +407,9 @@ export const api = createApi({
       ],
     }),
 
-    getAiPrivacy: build.query<AiPrivacyPreference, void>({
-      queryFn: async () => {
-        try { return { data: (await aiPrivacyAPI.get()).data }; }
-        catch (e) { return { error: toError(e) }; }
-      },
-      providesTags: ["AiPrivacy"],
-    }),
-    updateAiPrivacy: build.mutation<AiPrivacyPreference, { enabled: boolean; disclosureVersion?: string }>({
-      queryFn: async (value) => {
-        try { return { data: (await aiPrivacyAPI.update(value)).data }; }
-        catch (e) { return { error: toError(e) }; }
-      },
-      invalidatesTags: ["AiPrivacy"],
-    }),
-    // Explicit actions only: financial invalidation must never send data to AI.
-    getMonthlyInsight: build.mutation<IMonthlyInsight, MonthArgs>({
-      queryFn: async (args) => {
-        try {
-          const response = await insightAPI.fetchMonthlyInsight(args);
-          return { data: response?.data };
-        } catch (e: any) {
-          return { error: toError(e) };
-        }
-      },
-    }),
-
-    applyCategorizationRule: build.mutation<{ applicationId: string; changed: number }, { id: string; token: string }>({
-      queryFn: async ({ id, token }) => {
-        try { return { data: (await rulesAPI.apply(id, token)).data }; }
-        catch (e: any) { return { error: toError(e) }; }
-      },
-      onQueryStarted: refreshClassificationQueries,
-      invalidatesTags: ["Budgets", "Summary", "Recurring", "Suggestions"],
-    }),
-    undoCategorizationRule: build.mutation<{ applicationId: string; changed: number }, string>({
-      queryFn: async (id) => {
-        try { return { data: (await rulesAPI.undo(id)).data }; }
-        catch (e: any) { return { error: toError(e) }; }
-      },
-      onQueryStarted: refreshClassificationQueries,
-      invalidatesTags: ["Budgets", "Summary", "Recurring", "Suggestions"],
-    }),
     resetTransactionClassification: build.mutation<unknown, string>({
       queryFn: async (id) => {
-        try { return { data: (await rulesAPI.reset(id)).data }; }
+        try { return { data: (await transactionClassificationAPI.reset(id)).data }; }
         catch (e: any) { return { error: toError(e) }; }
       },
       onQueryStarted: refreshClassificationQueries,
@@ -626,9 +579,6 @@ export const {
   useGetBudgetsQuery,
   useGetFinancialSummaryQuery,
   useGetFinancialReportQuery,
-  useGetMonthlyInsightMutation,
-  useGetAiPrivacyQuery,
-  useUpdateAiPrivacyMutation,
   useGetBudgetSuggestionsQuery,
   useApplyBudgetSuggestionsMutation,
   useGetRecurringPaymentsQuery,

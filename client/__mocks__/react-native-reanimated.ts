@@ -13,10 +13,13 @@ export const Easing = {
   in: (e: unknown) => e,
   inOut: (e: unknown) => e,
   linear: (v: number) => v,
+  bezier: () => (v: number) => v,
   cubic: (v: number) => v,
 };
 
-export const useSharedValue = (initial: unknown) => ({ value: initial });
+export const useSharedValue = <T>(initial: T) =>
+  React.useRef({ value: initial }).current;
+export const useReducedMotion = () => false;
 export const useAnimatedStyle = (factory: () => unknown) =>
   typeof factory === "function" ? factory() : {};
 export const useAnimatedProps = (factory: () => unknown) =>
@@ -26,6 +29,7 @@ export const useDerivedValue = (factory: () => unknown) => ({
 });
 export const useAnimatedReaction = () => undefined;
 export const withTiming = (toValue: unknown) => toValue;
+export const withRepeat = (animation: unknown) => animation;
 export const withSpring = (toValue: unknown) => toValue;
 export const cancelAnimation = () => undefined;
 export const runOnJS = (fn: unknown) => fn;
@@ -33,7 +37,7 @@ export const runOnUI = (fn: unknown) => fn;
 export const interpolate = (value: unknown) => value;
 export const interpolateColor = (value: unknown) => value;
 export const Extrapolation = { CLAMP: 0, EXTEND: 1, IDENTITY: 2 };
-export const createAnimatedComponent = <T,>(Component: T) => Component;
+export const createAnimatedComponent = <T>(Component: T) => Component;
 
 const animatedComponent = (name: string) =>
   function AnimatedMock(props: Record<string, unknown>) {
@@ -52,5 +56,13 @@ export const Animated = {
 // Animated.Text, Animated.createAnimatedComponent, …).
 export default Animated;
 
-export const ReduceMotion = { System: "system", Always: "always", Never: "never" };
-export const LinearTransition = { duration: (duration: number) => ({ reduceMotion: (reduceMotion: string) => ({duration, reduceMotion}) }) };
+export const ReduceMotion = {
+  System: "system",
+  Always: "always",
+  Never: "never",
+};
+export const LinearTransition = {
+  duration: (duration: number) => ({
+    reduceMotion: (reduceMotion: string) => ({ duration, reduceMotion }),
+  }),
+};

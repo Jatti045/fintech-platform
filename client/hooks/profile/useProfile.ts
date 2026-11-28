@@ -650,7 +650,6 @@ export function useProfile(): UseProfileReturn {
                 { type: "Summary" },
                 { type: "Suggestions" },
                 { type: "Recurring" },
-                { type: "Insights" },
               ]),
             );
             showAlert({

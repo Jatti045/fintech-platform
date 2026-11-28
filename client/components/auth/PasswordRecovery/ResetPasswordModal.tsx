@@ -1,7 +1,7 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import { sheetSurface } from "@/constants/ThemePalettes";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -188,7 +188,7 @@ function ResetPasswordModal({
                         }}
                       >
                         {isSubmitting ? (
-                          <ActivityIndicator
+                          <FundleafLoader
                             size="small"
                             color={THEME.onPrimary}
                           />

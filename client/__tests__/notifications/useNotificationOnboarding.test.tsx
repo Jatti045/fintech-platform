@@ -68,7 +68,9 @@ function setup() {
 }
 
 /** Lets pending microtasks (async flag reads) settle. */
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const flush = async () => {
+  await renderer.act(async () => {});
+};
 
 function renderedText(matches: string) {
   return (Text as jest.Mock).mock.calls.some((call) => {

@@ -1,7 +1,7 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import FundleafSheet from "@/components/sheets/FundleafSheet";
 import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Text,
   TextInput,
   TouchableOpacity,
@@ -11,10 +11,8 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useRedux";
 import { BRAND } from "@/constants/ThemePalettes";
 import { capitalizeFirst } from "@/utils/helper";
-import type { IBudget } from "@/types/budget/types";
 
 interface Props {
-  budgets: IBudget[];
   categories?: string[];
   categoriesLoading?: boolean;
   categoriesError?: boolean;
@@ -30,7 +28,6 @@ interface Props {
   onCalendarPress?: () => void;
 }
 export default function FilterTransaction({
-  budgets,
   categories = [],
   categoriesLoading = false,
   categoriesError = false,
@@ -56,15 +53,12 @@ export default function FilterTransaction({
   ];
   const categoryOptions = useMemo(() => {
     const names = new Map<string, string>();
-    for (const name of [...budgets.map((b) => b.category), ...categories]) {
+    for (const name of categories) {
       const label = name.trim();
       if (label) names.set(label.toLowerCase(), label);
     }
     return [
       { id: "all", category: "All Categories" },
-      { id: "income", category: "All income" },
-      { id: "transfer_out", category: "Transfers out" },
-      { id: "transfer_in", category: "Transfers in" },
       ...[...names.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([key, category]) => ({
@@ -72,7 +66,7 @@ export default function FilterTransaction({
           category,
         })),
     ];
-  }, [budgets, categories]);
+  }, [categories]);
   const chip = (selected: boolean) => ({
     minHeight: BRAND.touchTarget,
     paddingHorizontal: 10,
@@ -251,7 +245,7 @@ export default function FilterTransaction({
         title="Select category"
       >
         {categoriesLoading && (
-          <ActivityIndicator
+          <FundleafLoader
             accessibilityLabel="Loading categories"
             color={THEME.primary}
           />
@@ -276,9 +270,9 @@ export default function FilterTransaction({
         )}
         {!categoriesLoading &&
           !categoriesError &&
-          categoryOptions.length === 4 && (
+          categoryOptions.length === 1 && (
             <Text style={{ color: THEME.textSecondary }}>
-              No categories for this month yet.
+              No categories for this month yet
             </Text>
           )}
         {categoryOptions.map((option) => (

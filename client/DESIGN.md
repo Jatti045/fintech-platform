@@ -1,34 +1,43 @@
-# Fundleaf mobile design
+# Fundleaf mobile interface
 
-Fundleaf reads like a monthly statement supported by a ledger. Home leads with the month’s financial position and daily activity. Transactions use date-grouped rows. Budgets put remaining money and exceptions in view. Profile uses plain settings groups.
+Fundleaf helps people see where their monthly income went, find individual transactions, and plan what they can still spend. The interface pairs quiet, instrument-like typography with a cash flow diagram that ties the monthly numbers together.
 
-## Foundations
+## Color and type
 
-| Role             | Light     | Dark      |
-| ---------------- | --------- | --------- |
-| Canvas           | `#F7F8F4` | `#121212` |
-| Primary surface  | `#FFFFFF` | `#1E1E1E` |
-| Field            | `#EEF0EA` | `#202020` |
-| Sheet            | `#FFFFFF` | `#242424` |
-| Main text        | `#191E19` | `#F6F6F4` |
-| Secondary text   | `#575F56` | `#AEAFAB` |
-| Primary action   | `#274D35` | `#BCE8A1` |
-| Selected surface | `#E0ECD9` | `#29382A` |
-| Danger           | `#A22C22` | `#FFB4AB` |
-| Warning          | `#805600` | `#F1CE87` |
+Cobalt is the default color scheme. Iris and Fern can be selected under Profile → Appearance. Each scheme has a light and dark version and follows the System, Light, or Dark preference independently. Positive income, warning, and danger colors have the same meanings in every scheme.
 
-`constants/ThemePalettes.ts` owns color, typography, spacing and motion roles. Appearance follows the saved System, Light or Dark preference. The dark canvas, lists and sheets use neutral charcoal. Reserve green for interaction, income, and the main chart series. Pair warning and danger with words and signed values.
+| Role            | Light     | Dark      |
+| --------------- | --------- | --------- |
+| Canvas          | `#F5F6FA` | `#141416` |
+| Primary surface | `#FFFFFF` | `#1C1D21` |
+| Main text       | `#171B2A` | `#F5F5FA` |
+| Secondary text  | `#565E72` | `#B4B5C1` |
+| Cobalt accent   | `#2948CB` | `#AABFFF` |
+| Iris accent     | `#6541AC` | `#D7BDFF` |
+| Fern accent     | `#146653` | `#93DECA` |
+| Danger          | `#AA3449` | `#FFADB8` |
 
-Use native system typography. Screen titles are 27, section titles 19, labels and body 15, captions 13, ledger amounts 16, and primary totals 38. Use 600 for controls and 700 for headings. Let important values and labels wrap when text is enlarged.
+`constants/ThemePalettes.ts` owns these roles, including the corresponding on-accent, selected, and statement colors. Keep accent color in the spending ribbon, primary actions, and selection. Let neutral surfaces, alignment, and typography distinguish other content. Normal text pairs pass 4.5:1 contrast in all six combinations.
 
-Use 4, 8, 16, 24, 32 and 48 dp spacing. Page gutters are 16 dp, and major sections are 24 dp apart. Use 10 dp corners for controls, 16 for surfaces, and 22 for sheets. The floating navigation dock uses a pill silhouette. Hairlines separate ledger rows, and flat backgrounds group settings. Keep depth limited to the navigation dock.
+DM Sans semibold sets the screen headings and large totals. System text supplies labels, reading copy, and controls. Ledgers use tabular digits and right-align amounts. Protect full values at large text sizes and keep source-currency details below the converted amount.
 
-## Data and interaction
+Use 20 dp page gutters, a 4 dp spacing grid, 48 dp touch targets, and hairlines to separate dense rows. Shapes are 14 dp for fields and buttons, 22 dp for cards, and 28 dp for sheets. The floating navigation uses a pill and a single moving selection marker.
 
-- Format values through the existing currency formatter. Use tabular digits, right-align ledger values, and keep original-currency references below converted values. Preserve the signs of expenses, income, credits and amounts over budget.
-- Use the report’s daily net spending series on Home. Show a zero baseline and distinguish net credits from spending. Category progress tracks clamp their fill at 100% and retain the actual percentage in their accessibility text.
-- Position the primary create action in the screen controls, above the ledger or budget list. Use solid fill for primary actions, quiet fill for secondary actions, and a danger treatment for destructive confirmation. Show progress inside submitting controls and keep form values visible.
-- Keep the floating dock in the navigator layout above the system safe area. The active tab has a visible label and selected state. Haptics accompany a successful tab change.
-- Use native sheet gestures, inset-aware scroll content, a visible close action, and existing dismissal protection for dirty or saving forms. Month changes commit after the picker settles.
-- Give frequent controls immediate opacity or fill feedback. The dock animates its selected width over 200 ms with system reduced-motion handling. Use native easing for sheet gestures so dragging stays responsive. Static skeletons and progress tracks convey status without repeated motion.
-- Use 48 dp minimum touch targets for primary controls, accessible names for icon-only actions, and live regions for status feedback. Permit line wrapping, safe-area insets and keyboard-aware scrolling. Normal text pairs meet 4.5:1 contrast.
+## Screen and interaction decisions
+
+- Home separates the monthly income total, the tap-selectable cash flow ribbons, and Monthly details. Ribbons show the share of income spent and left. Overspending and net credits use explicit amounts and context. Monthly details retain the daily spending trend, and the budget preview starts collapsed.
+- The same reporting-month button opens a sheet on all three financial screens. The sheet supports previous/next, jump to current month, and swipe. A swipe commits the reporting period after settling.
+- Transaction search and creation share one row, with filters alongside the ledger. The category picker uses categories from transactions in the selected reporting month. Keep the virtualized list and original-currency references.
+- Budget creation and month setup share a toolbar. Keep the remaining figure, progress, and signed category balances in view. Category expansion exposes existing row actions.
+- Profile groups appearance and the color scheme separately from reporting currency and bank settings.
+
+## Motion
+
+| Before                                                    | After                                                      | Reason                                                              |
+| --------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------- |
+| Selected tab grows and moves adjacent tabs                | Fixed touch targets with one 195 ms translated indicator   | Keeps the entire navigation predictable during repeated tab changes |
+| Button feedback relies on opacity                         | A short, interruptible 0.97-scale press and 150 ms release | Confirms the touch while keeping the action immediate               |
+| Swipe-to-delete animates the icon through legacy Animated | The native Reanimated gesture moves the row                | Keeps row movement responsive while the ledger renders              |
+| Sheet physics vary with platform defaults                 | One damped, non-bouncing spring with system reduced motion | Gives the sheet a consistent response to release and dismissal      |
+
+`constants/Motion.ts` owns interaction timings. A tap traces the selected cash flow ribbon in 390 ms. Busy states share a leaf-outline loader that turns static under reduced motion. Keep frequent screen transitions quiet. With system reduced motion, skip button scale, snap the tab indicator, and disable sheet travel. Preserve keyboard, safe-area, back, and unsaved-draft behavior.

@@ -1,8 +1,9 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import FundleafSheet from "@/components/sheets/FundleafSheet";
 import { useSheetDismiss } from "@/components/sheets/useSheetDismiss";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
 import {
   useMonthSetup,
@@ -88,7 +89,7 @@ export default function MonthSetupModal({
           accessibilityLiveRegion="polite"
           style={{ padding: BRAND.spacing.lg, gap: BRAND.spacing.md }}
         >
-          <ActivityIndicator color={THEME.primary} />
+          <FundleafLoader color={THEME.primary} />
           <Text style={{ color: THEME.textSecondary }}>
             Finding suggestions...
           </Text>

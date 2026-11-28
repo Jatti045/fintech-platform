@@ -211,6 +211,7 @@ it("navigates months and exposes setup without a hidden search field", () => {
     />,
   );
   expect(tree.root.findAllByType(TextInput)).toHaveLength(1);
+  act(() => button(tree, "Select month, February 2026").props.onPress());
   act(() => {
     tree.root.findByType(MonthPicker).props.onChange({ month: 0, year: 2026 });
     button(tree, "Smart Month Setup").props.onPress();
@@ -478,21 +479,35 @@ it("preserves zero-limit display and row selection, edit, and delete callbacks",
   act(() => tree.unmount());
 });
 
-it.each(["Light", "Dark"])("removes header branding and uses matching floating create actions in %s", (appearance) => {
-  const addBudget = jest.fn(), addTransaction = jest.fn();
-  const { tree } = mount(<>
-    <BudgetHeader month={1} year={2026} showSearch={false} searchQuery="" onSearchChange={jest.fn()} />
-    <NewBudgetButton onPress={addBudget} />
-    <AddNewTransactionButton setOpenSheet={addTransaction} />
-  </>, appearance);
-  expect(text(tree)).not.toContain("Fundleaf");
-  expect(text(tree)).toContain("Budgets");
-  const budget = button(tree, "New Budget"), transaction = button(tree, "New Transaction");
-  expect(budget.parent!.props.style).toEqual(transaction.parent!.props.style);
-  expect(budget.props.style).toEqual(transaction.props.style);
-  act(() => budget.props.onPress());
-  act(() => transaction.props.onPress());
-  expect(addBudget).toHaveBeenCalledTimes(1);
-  expect(addTransaction).toHaveBeenCalledWith(true);
-  act(() => tree.unmount());
-});
+it.each(["Light", "Dark"])(
+  "removes header branding and uses matching floating create actions in %s",
+  (appearance) => {
+    const addBudget = jest.fn(),
+      addTransaction = jest.fn();
+    const { tree } = mount(
+      <>
+        <BudgetHeader
+          month={1}
+          year={2026}
+          showSearch={false}
+          searchQuery=""
+          onSearchChange={jest.fn()}
+        />
+        <NewBudgetButton onPress={addBudget} />
+        <AddNewTransactionButton setOpenSheet={addTransaction} />
+      </>,
+      appearance,
+    );
+    expect(text(tree)).not.toContain("Fundleaf");
+    expect(text(tree)).toContain("Budgets");
+    const budget = button(tree, "New Budget"),
+      transaction = button(tree, "New Transaction");
+    expect(budget.parent!.props.style).toEqual(transaction.parent!.props.style);
+    expect(budget.props.style).toEqual(transaction.props.style);
+    act(() => budget.props.onPress());
+    act(() => transaction.props.onPress());
+    expect(addBudget).toHaveBeenCalledTimes(1);
+    expect(addTransaction).toHaveBeenCalledWith(true);
+    act(() => tree.unmount());
+  },
+);

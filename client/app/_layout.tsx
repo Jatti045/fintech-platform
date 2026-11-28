@@ -1,12 +1,18 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import "../global.css";
 import React, { useCallback, useEffect, useState } from "react";
 import { Stack } from "expo-router";
+import { useFonts } from "expo-font";
+import { DMSans_600SemiBold } from "@expo-google-fonts/dm-sans/600SemiBold";
 import { Provider } from "react-redux";
 import { store, loadUserFromStorage, useAuth } from "../store";
 import { useAppDispatch, useTheme } from "@/hooks/useRedux";
-import { ActivityIndicator, Image, StatusBar, View } from "react-native";
-import { loadThemeFromStorage } from "@/store/slices/themeSlice";
+import { Image, StatusBar, View } from "react-native";
+import {
+  loadAccentFromStorage,
+  loadThemeFromStorage,
+} from "@/store/slices/themeSlice";
 import { hydrateApiCache } from "@/store/api/cachePersistence";
 import { AlertProvider } from "@/utils/themedAlert";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -22,8 +28,10 @@ export function AppRoutes() {
   const { THEME, selectedTheme } = useTheme();
   const { user, isAuthenticated, isLoading } = useAuth();
   const [isRestoring, setIsRestoring] = useState(!isAuthenticated);
+  const [restoringAppearance, setRestoringAppearance] = useState(true);
 
-  const accountStatusUnknown = isAuthenticated && typeof user?.setupComplete !== "boolean";
+  const accountStatusUnknown =
+    isAuthenticated && typeof user?.setupComplete !== "boolean";
   const setupRequired = isAuthenticated && user?.setupComplete === false;
   const homeAllowed = isAuthenticated && user?.setupComplete === true;
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
@@ -31,7 +39,10 @@ export function AppRoutes() {
     const generation = sessionGeneration();
     setProfileLoadFailed(false);
     const action = await dispatch(refreshAccountProfile());
-    if (generation === sessionGeneration() && refreshAccountProfile.rejected.match(action)) {
+    if (
+      generation === sessionGeneration() &&
+      refreshAccountProfile.rejected.match(action)
+    ) {
       setProfileLoadFailed(true);
     }
   }, [dispatch]);
@@ -58,7 +69,7 @@ export function AppRoutes() {
           accessible={false}
           style={{ width: 140, height: 140, marginBottom: 24 }}
         />
-        <ActivityIndicator size="large" color={THEME.primary} />
+        <FundleafLoader size="large" color={THEME.primary} />
       </View>
     );
   }
@@ -68,7 +79,10 @@ export function AppRoutes() {
     // Attempt to load stored auth on app start
     void dispatch(loadUserFromStorage())
       .then((action) => {
-        if (loadUserFromStorage.fulfilled.match(action) && action.payload.user.setupComplete === true) {
+        if (
+          loadUserFromStorage.fulfilled.match(action) &&
+          action.payload.user.setupComplete === true
+        ) {
           return hydrateApiCache(store);
         }
       })
@@ -78,7 +92,12 @@ export function AppRoutes() {
           setIsRestoring(false);
         }
       });
-    dispatch(loadThemeFromStorage());
+    void Promise.all([
+      dispatch(loadThemeFromStorage()),
+      dispatch(loadAccentFromStorage()),
+    ]).finally(() => {
+      if (isMounted) setRestoringAppearance(false);
+    });
     // Seed the RTK Query cache with last-known month data for instant,
     // offline-friendly cold starts (revalidated against the network after).
     return () => {
@@ -92,7 +111,7 @@ export function AppRoutes() {
   // tear down the Stack — remounting a fresh navigator resets the active
   // tab/route (e.g. back to Home). Genuinely unauthenticated / session-invalid
   // users still land on the auth flow via the Stack.Screen redirect flags.
-  if ((isLoading || isRestoring) && !isAuthenticated) {
+  if (restoringAppearance || ((isLoading || isRestoring) && !isAuthenticated)) {
     return SplashScreen();
   }
 
@@ -104,8 +123,15 @@ export function AppRoutes() {
         description="Check your connection and try again."
       >
         <View style={{ gap: 12 }}>
-          <BrandButton label="Try again" onPress={() => void loadAccountProfile()} />
-          <BrandButton tone="secondary" label="Sign out" onPress={() => void dispatch(logoutUser())} />
+          <BrandButton
+            label="Try again"
+            onPress={() => void loadAccountProfile()}
+          />
+          <BrandButton
+            tone="secondary"
+            label="Sign out"
+            onPress={() => void dispatch(logoutUser())}
+          />
         </View>
       </AuthScreen>
     );
@@ -114,11 +140,7 @@ export function AppRoutes() {
   return (
     <>
       <StatusBar
-        barStyle={
-          selectedTheme === "Light"
-            ? "dark-content"
-            : "light-content"
-        }
+        barStyle={selectedTheme === "Light" ? "dark-content" : "light-content"}
       />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" redirect={!homeAllowed} />
@@ -131,6 +153,11 @@ export function AppRoutes() {
 }
 
 export default function RootLayout() {
+  const [fontLoaded, fontError] = useFonts({
+    FundleafDisplay: DMSans_600SemiBold,
+  });
+  if (!fontLoaded && !fontError) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>

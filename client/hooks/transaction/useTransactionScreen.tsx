@@ -44,7 +44,12 @@ export const useTransactionScreen = () => {
   // ── Filters ─────────────────────────────────────────────────────────────
   // Filter UI state; declared before the feed so the feed can subscribe with
   // the selected filter values.
-  const [filterCategoryId, setFilterCategoryId] = useState<string>("all");
+  const periodKey = `${calendar.year}-${calendar.month}`;
+  const [categoryFilter, setCategoryFilter] = useState({ id: "all", periodKey });
+  const filterCategoryId = categoryFilter.periodKey === periodKey ? categoryFilter.id : "all";
+  const setFilterCategoryId = useCallback((id: string) => {
+    setCategoryFilter({ id, periodKey });
+  }, [periodKey]);
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
 
@@ -55,7 +60,6 @@ export const useTransactionScreen = () => {
   const requestCategories = useCallback(() => setCategoriesRequested(true), []);
   const retryCategories = () => {
     void categoryQuery.refetch();
-    void budgetsQuery.refetch();
   };
   const selectedCategory = filterCategoryId.startsWith("category:")
     ? filterCategoryId.slice("category:".length) : null;
@@ -118,7 +122,7 @@ export const useTransactionScreen = () => {
     setFilterCategoryId("all");
     setMinAmount("");
     setMaxAmount("");
-  }, []);
+  }, [setFilterCategoryId]);
 
   // ── Search-clear skeleton suppression ───────────────────────────────────
   const [suppressInitialSkeleton, setSuppressInitialSkeleton] = useState(false);
@@ -289,10 +293,9 @@ export const useTransactionScreen = () => {
 
   return {
     displayTransactions,
-    budgets,
     categories: categoryQuery.currentData ?? [],
-    categoriesLoading: categoriesRequested && (categoryQuery.isFetching || budgetsQuery.isFetching),
-    categoriesError: Boolean(categoryQuery.error || budgetsQuery.error),
+    categoriesLoading: categoriesRequested && categoryQuery.isFetching,
+    categoriesError: Boolean(categoryQuery.error),
     requestCategories,
     retryCategories,
     monthlyIncome,

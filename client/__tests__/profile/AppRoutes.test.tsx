@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 /**
  * Root-layout (AppRoutes) auth-gate tests.
  *
@@ -19,7 +20,6 @@ import React from "react";
 import renderer from "react-test-renderer";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { ActivityIndicator } from "react-native";
 import { Stack } from "expo-router";
 import { AppRoutes } from "@/app/_layout";
 import { userAPI } from "@/api/user";
@@ -172,7 +172,7 @@ describe("AppRoutes auth gate", () => {
     expect(store.getState().user.isLoading).toBe(true);
     expect(store.getState().user.isAuthenticated).toBe(false);
     expect(tree.root.findAllByType(Stack)).toHaveLength(0);
-    expect(tree.root.findAllByType(ActivityIndicator).length).toBeGreaterThan(0);
+    expect(tree.root.findAllByType(FundleafLoader).length).toBeGreaterThan(0);
 
     await renderer.act(async () => {
       gate.resolve({ token: "tok", user });
@@ -225,7 +225,7 @@ describe("AppRoutes auth gate", () => {
     // Authenticated + loading → the navigator stays mounted (no splash), so
     // the active tab (Profile) is preserved.
     expect(tree.root.findAllByType(Stack).length).toBeGreaterThan(0);
-    expect(tree.root.findAllByType(ActivityIndicator).length).toBe(0);
+    expect(tree.root.findAllByType(FundleafLoader).length).toBe(0);
 
     await renderer.act(async () => {
       gate.resolve({ token: "tok", user });

@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 /**
  * useTransactionScreen hook tests.
  *
@@ -24,15 +25,14 @@ import budgetApi from "@/api/budget";
 import financialSummaryApi from "@/api/financialSummary";
 import { useTransactionScreen } from "@/hooks/transaction/useTransactionScreen";
 import userReducer from "@/store/slices/userSlice";
-import calendarReducer from "@/store/slices/calendarSlice";
+import calendarReducer, { setMonthYear } from "@/store/slices/calendarSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import api from "@/store/api/apiSlice";
-import { ActivityIndicator, Text, TouchableOpacity } from "react-native";
+import { Text, TouchableOpacity } from "react-native";
 import { TransactionType } from "@/types/transaction/types";
 import type { TransactionItem } from "@/types/transaction/types";
 
 const textMock = Text as unknown as jest.Mock;
-const activityIndicatorMock = ActivityIndicator as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
 
 jest.mock("@/api/transaction", () => ({
@@ -252,7 +252,6 @@ beforeEach(async () => {
   mockedTxFetch.mockReset();
   mockedBudgetFetch.mockReset();
   textMock.mockClear();
-  activityIndicatorMock.mockClear();
   touchableOpacityMock.mockClear();
   // Mounting a subscription auto-fetches; default to an empty month.
   mockedTxFetch.mockResolvedValue(txEnvelope([]));
@@ -276,17 +275,17 @@ describe("useTransactionScreen", () => {
     mockedTxFetch.mockReturnValue(gate.promise);
     const { captured, store } = await setup({ awaitData: false });
 
+    let loadingTree!: renderer.ReactTestRenderer;
     renderer.act(() => {
-      renderer.create(captured.current!.listEmpty);
+      loadingTree = renderer.create(captured.current!.listEmpty);
     });
-    expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
+    expect(loadingTree.root.findAllByType(FundleafLoader).length).toBeGreaterThan(0);
 
     renderer.act(() => {
       gate.resolve(txEnvelope([]));
     });
     await until(() => txSettled(store));
     refresh();
-    activityIndicatorMock.mockClear();
 
     renderer.act(() => {
       renderer.create(captured.current!.listEmpty);
@@ -316,15 +315,35 @@ describe("useTransactionScreen", () => {
     expect(captured.current!.searchQuery).toBe("");
     expect(captured.current!.isSearching).toBe(false);
 
+    let loadingTree!: renderer.ReactTestRenderer;
     renderer.act(() => {
-      renderer.create(captured.current!.listEmpty);
+      loadingTree = renderer.create(captured.current!.listEmpty);
     });
-    expect(activityIndicatorMock.mock.calls.length).toBe(0);
+    expect(loadingTree.root.findAllByType(FundleafLoader).length).toBe(0);
 
     renderer.act(() => {
       gate.resolve(txEnvelope([]));
     });
     await until(() => txSettled(store));
+  });
+
+  it("keeps the catalog and category selection scoped to the reporting month", async () => {
+    const { captured, store } = await setup();
+    renderer.act(() => { store.dispatch(setMonthYear({ month: 1, year: 2026 })); });
+    mockedTxFetch.mockImplementation(async ({ currentMonth, limit }) =>
+      txEnvelope(limit === 100
+        ? [makeTx({ category: currentMonth === 1 ? "Coffee" : "Travel" })]
+        : []),
+    );
+    renderer.act(() => captured.current!.requestCategories());
+    await until(() => captured.current!.categories.includes("Coffee"));
+    renderer.act(() => captured.current!.setFilterCategoryId("category:coffee"));
+    expect(captured.current!.filterCategoryId).toBe("category:coffee");
+
+    renderer.act(() => { store.dispatch(setMonthYear({ month: 2, year: 2026 })); });
+    await until(() => captured.current!.categories.includes("Travel"));
+    expect(captured.current!.categories).toEqual(["Travel"]);
+    expect(captured.current!.filterCategoryId).toBe("all");
   });
 
   it("switches All → Category → All repeatedly without a stuck loader", async () => {
@@ -408,10 +427,11 @@ describe("useTransactionScreen", () => {
     await until(() =>
       txQueries(store).some((q: any) => q.status === "pending"),
     );
+    let loadingTree!: renderer.ReactTestRenderer;
     renderer.act(() => {
-      renderer.create(captured.current!.listEmpty);
+      loadingTree = renderer.create(captured.current!.listEmpty);
     });
-    expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
+    expect(loadingTree.root.findAllByType(FundleafLoader).length).toBeGreaterThan(0);
     expect(renderedText("Filtering transactions…")).toBe(false);
     expect(captured.current!.loaderMessage).toBe("");
     expect(captured.current!.isLoaderVisible).toBe(false);
@@ -435,11 +455,10 @@ describe("useTransactionScreen", () => {
     expect(captured.current!.isLoaderVisible).toBe(false);
 
     // Settled: the standard loader is no longer rendered.
-    activityIndicatorMock.mockClear();
-    renderer.act(() => {
-      renderer.create(captured.current!.listEmpty);
+      renderer.act(() => {
+      loadingTree.update(captured.current!.listEmpty);
     });
-    expect(activityIndicatorMock.mock.calls.length).toBe(0);
+    expect(loadingTree.root.findAllByType(FundleafLoader).length).toBe(0);
   });
 
   it("clears loading when a filter fetch lands on empty results", async () => {

@@ -1,11 +1,10 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/hooks/useRedux";
 import { getCurrencyByCode } from "@/constants/Currencies";
 import type { CurrencySelectorProps } from "@/types/profile/types";
-
 
 export default function CurrencySelector({
   userCurrency,
@@ -24,7 +23,7 @@ export default function CurrencySelector({
       accessibilityLabel={code ? `Default currency ${code}` : "Choose currency"}
       accessibilityState={{ disabled }}
       disabled={disabled}
-      style={{ flexDirection: "row", alignItems: "center", minHeight: 48 }}
+      style={{ flexDirection: "row", alignItems: "center", minHeight: 56 }}
     >
       <View
         style={{
@@ -39,11 +38,7 @@ export default function CurrencySelector({
           marginRight: 12,
         }}
       >
-        {code ? (
-          <Text style={{ fontSize: 18 }}>{currency?.flag || "🇺🇸"}</Text>
-        ) : (
-          <Ionicons name="globe-outline" size={18} color={THEME.textSecondary} />
-        )}
+        <Feather name="globe" size={18} color={THEME.textSecondary} />
       </View>
 
       <View style={{ flex: 1 }}>
@@ -54,7 +49,7 @@ export default function CurrencySelector({
             fontWeight: "700",
           }}
         >
-          Default Currency
+          Default currency
         </Text>
         <Text
           style={{
@@ -63,11 +58,13 @@ export default function CurrencySelector({
             marginTop: 2,
           }}
         >
-          {code ? `${code} — ${currency?.name || "US Dollar"}` : "Choose currency"}
+          {code
+            ? `${code} — ${currency?.name || "US Dollar"}`
+            : "Choose currency"}
         </Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={THEME.textSecondary} />
+      <Feather name="chevron-right" size={18} color={THEME.textSecondary} />
     </TouchableOpacity>
   );
 }

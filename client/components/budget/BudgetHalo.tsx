@@ -96,8 +96,13 @@ const BudgetHalo = React.memo(function BudgetHalo({
 
   return (
     <DashboardCard
-      padding={BRAND.spacing.md}
-      style={{ marginBottom: BRAND.spacing.lg, gap: BRAND.spacing.md }}
+      padding={BRAND.gutter}
+      style={{
+        marginBottom: BRAND.spacing.lg,
+        gap: 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: THEME.border,
+      }}
     >
       <View style={styles.line}>
         <Text
@@ -117,7 +122,7 @@ const BudgetHalo = React.memo(function BudgetHalo({
       <Text
         style={[
           TYPE.total,
-          { color: overspent ? THEME.danger : THEME.textPrimary },
+          { color: overspent ? THEME.danger : THEME.primary },
         ]}
       >
         {formatCurrency(

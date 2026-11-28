@@ -1,3 +1,4 @@
+import DisclosureChevron from "@/components/global/DisclosureChevron";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -72,12 +73,13 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
       >
         <View
           style={{
-            backgroundColor: expanded ? THEME.subtleSurface : THEME.background,
+            backgroundColor: THEME.surface,
           }}
         >
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityState={{ expanded }}
+            aria-expanded={expanded}
             accessibilityHint="Show budget actions"
             accessibilityValue={{
               text: `Allocated ${limitLabel}, spent ${spentLabel}, ${remainingLabel == null ? "set a limit to track remaining funds" : `${remainingLabel} remaining`}`,
@@ -98,9 +100,8 @@ const BudgetReservoirRow = React.memo(function BudgetReservoirRow({
               >
                 {capitalizeFirst(budget.category)}
               </Text>
-              <Feather
-                name={expanded ? "chevron-up" : "chevron-down"}
-                size={16}
+              <DisclosureChevron
+                expanded={expanded}
                 color={THEME.textSecondary}
               />
             </View>
@@ -203,7 +204,7 @@ const styles = StyleSheet.create({
   row: {
     gap: BRAND.spacing.sm,
     paddingVertical: 12,
-    paddingHorizontal: BRAND.spacing.sm,
+    paddingHorizontal: BRAND.spacing.md,
   },
   heading: {
     flexDirection: "row",

@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import React from "react";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,7 +9,6 @@ import { useTheme } from "@/hooks/useRedux";
 import UpcomingBillsCard from "@/components/home/UpcomingBillsCard";
 import HomeHeader from "@/components/home/HomeHeader";
 import MonthlyOverview from "@/components/home/MonthlyOverview";
-import MonthlyInsightCard from "@/components/home/MonthlyInsightCard";
 import RecentTransactions from "@/components/home/RecentTransactions";
 import BudgetOverview from "@/components/home/BudgetOverview";
 import DashboardState from "@/components/home/DashboardState";
@@ -26,7 +26,7 @@ export default function Index() {
     >
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: BRAND.spacing.md,
+          paddingHorizontal: BRAND.gutter,
           paddingTop: BRAND.spacing.sm,
           paddingBottom: BRAND.spacing.xl,
         }}
@@ -35,9 +35,9 @@ export default function Index() {
           <RefreshControl
             refreshing={home.refreshing}
             onRefresh={home.onRefresh}
-            progressBackgroundColor={THEME.surface}
-            colors={[THEME.primary]}
-            tintColor={THEME.primary}
+            progressBackgroundColor="transparent"
+            colors={["transparent"]}
+            tintColor="transparent"
           />
         }
       >
@@ -48,6 +48,12 @@ export default function Index() {
             alignSelf: "center",
           }}
         >
+          {home.refreshing && (
+            <FundleafLoader
+              color={THEME.primary}
+              accessibilityLabel="Refreshing"
+            />
+          )}
           <HomeHeader
             onSettingsPress={() => router.push("/(tabs)/profile")}
             month={home.month}
@@ -57,7 +63,7 @@ export default function Index() {
           {(reporting.isLoading || reporting.error || reporting.stale) && (
             <DashboardState
               compact={Boolean(report)}
-              loading={!report && reporting.isLoading}
+              loading={reporting.isLoading || reporting.stale}
               error={Boolean(reporting.error)}
               message={
                 reporting.error
@@ -88,14 +94,6 @@ export default function Index() {
               />
             </>
           )}
-          <UpcomingBillsCard
-            bills={home.upcomingBills}
-            currencyCode={home.activeCurrency}
-            onDismiss={home.handleDismissBill}
-            loading={home.billsLoading}
-            error={home.billsError}
-            onRetry={home.retryBills}
-          />
           <RecentTransactions
             transactions={
               home.transactionsLoading ? [] : home.displayTransactions
@@ -106,7 +104,14 @@ export default function Index() {
             onRetry={home.retryTransactions}
             onSeeAll={() => router.push("/(tabs)/transaction")}
           />
-          <MonthlyInsightCard month={home.month} year={home.year} />
+          <UpcomingBillsCard
+            bills={home.upcomingBills}
+            currencyCode={home.activeCurrency}
+            onDismiss={home.handleDismissBill}
+            loading={home.billsLoading}
+            error={home.billsError}
+            onRetry={home.retryBills}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

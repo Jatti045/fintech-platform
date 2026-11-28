@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -28,30 +29,6 @@ export default function DashboardState({
         gap: BRAND.spacing.sm,
       }}
     >
-      {loading && (
-        <View
-          pointerEvents="none"
-          aria-hidden
-          style={{ gap: BRAND.spacing.sm }}
-        >
-          <View
-            style={{
-              height: 14,
-              borderRadius: 4,
-              width: "42%",
-              backgroundColor: THEME.surfaceHover,
-            }}
-          />
-          <View
-            style={{
-              height: 32,
-              borderRadius: BRAND.radius.input,
-              width: "70%",
-              backgroundColor: THEME.surfaceHover,
-            }}
-          />
-        </View>
-      )}
       <View
         style={{
           flexDirection: "row",
@@ -59,6 +36,7 @@ export default function DashboardState({
           gap: BRAND.spacing.sm,
         }}
       >
+        {loading && !error && <FundleafLoader color={THEME.primary} />}
         {error && (
           <Feather name="alert-circle" size={16} color={THEME.danger} />
         )}

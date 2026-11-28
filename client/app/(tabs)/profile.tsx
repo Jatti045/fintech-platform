@@ -1,7 +1,8 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import Constants from "expo-constants";
 import { BRAND, TYPE } from "@/constants/ThemePalettes";
-import RulesManager from "@/components/rules/RulesManager";
-import React, { useState } from "react";
+import ScreenHeading from "@/components/global/ScreenHeading";
+import React from "react";
 import {
   View,
   Text,
@@ -17,6 +18,7 @@ import Loader from "@/utils/loader";
 import ProfileSectionHeader from "@/components/profile/ProfileSectionHeader";
 import ProfileHeader from "@/components/profile/ProfileHeader";
 import BankConnections from "@/components/profile/BankConnections";
+import AccentPicker from "@/components/profile/AccentPicker";
 import ThemeSwitcher from "@/components/profile/ThemeSwitcher";
 import CurrencySelector from "@/components/profile/CurrencySelector";
 import NotificationsCard from "@/components/profile/NotificationsCard";
@@ -25,10 +27,8 @@ import SettingsList from "@/components/profile/SettingsList";
 import ChangePasswordModal from "@/components/profile/ChangePasswordModal";
 import CurrencyPickerModal from "@/components/profile/CurrencyPickerModal";
 import PostConnectionDialog from "@/components/plaid/PostConnectionDialog";
-import AiPrivacyPreference from "@/components/privacy/AiPrivacyPreference";
 
 export default function ProfileScreen() {
-  const [rulesOpen, setRulesOpen] = useState(false);
   const {
     user,
     THEME,
@@ -90,7 +90,7 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
           style={{ flex: 1 }}
           contentContainerStyle={{
-            paddingHorizontal: BRAND.spacing.md,
+            paddingHorizontal: BRAND.gutter,
             paddingBottom: BRAND.spacing.xl,
             width: "100%",
             maxWidth: BRAND.pageWidth,
@@ -100,21 +100,19 @@ export default function ProfileScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              progressBackgroundColor={THEME.surface}
-              colors={[THEME.primary]}
-              tintColor={THEME.primary}
+              progressBackgroundColor="transparent"
+              colors={["transparent"]}
+              tintColor="transparent"
             />
           }
         >
-          <Text
-            accessibilityRole="header"
-            style={[
-              TYPE.screen,
-              { color: THEME.textPrimary, marginTop: BRAND.spacing.sm },
-            ]}
-          >
-            Profile
-          </Text>
+          {refreshing && (
+            <FundleafLoader
+              color={THEME.primary}
+              accessibilityLabel="Refreshing"
+            />
+          )}
+          <ScreenHeading title="Profile" />
           <ProfileHeader
             THEME={THEME}
             user={user}
@@ -123,6 +121,37 @@ export default function ProfileScreen() {
             onPickImage={handlePickImage}
             onDeleteImage={handleDeleteImage}
           />
+
+          <ProfileSectionHeader title="Appearance" />
+          <View
+            style={{
+              backgroundColor: THEME.surface,
+              borderRadius: BRAND.radius.card,
+              padding: BRAND.spacing.md,
+            }}
+          >
+            <ThemeSwitcher
+              THEME={THEME}
+              selectedTheme={selectedTheme}
+              onThemeSelect={handleThemeSelect}
+            />
+            <AccentPicker />
+          </View>
+
+          <ProfileSectionHeader title="Reporting" />
+          <View
+            style={{
+              backgroundColor: THEME.surface,
+              borderRadius: BRAND.radius.card,
+              paddingHorizontal: BRAND.spacing.md,
+            }}
+          >
+            <CurrencySelector
+              THEME={THEME}
+              userCurrency={user?.currency || DEFAULT_CURRENCY}
+              onPress={() => setCurrencyPickerOpen(true)}
+            />
+          </View>
 
           {/* ── Bank Connections Section ─────────────────────────────────── */}
           <ProfileSectionHeader title="Connected accounts" />
@@ -139,37 +168,6 @@ export default function ProfileScreen() {
             onDisconnect={handleDisconnectBank}
           />
 
-          {/* ── Preferences Section ──────────────────────────────────────── */}
-          <ProfileSectionHeader title="Appearance & currency" />
-          <View
-            style={{
-              backgroundColor: THEME.surface,
-              borderRadius: BRAND.radius.card,
-              padding: BRAND.spacing.md,
-              marginBottom: 8,
-            }}
-          >
-            <ThemeSwitcher
-              THEME={THEME}
-              selectedTheme={selectedTheme}
-              onThemeSelect={handleThemeSelect}
-            />
-
-            <View
-              style={{
-                height: 1,
-                backgroundColor: THEME.border,
-                marginVertical: 14,
-              }}
-            />
-
-            <CurrencySelector
-              THEME={THEME}
-              userCurrency={user?.currency || DEFAULT_CURRENCY}
-              onPress={() => setCurrencyPickerOpen(true)}
-            />
-          </View>
-
           {/* ── Notifications Section ────────────────────────────────────── */}
           <ProfileSectionHeader title="Notifications" />
           <NotificationsCard
@@ -181,8 +179,6 @@ export default function ProfileScreen() {
             onOpenSettings={openNotificationSettings}
           />
 
-          <ProfileSectionHeader title="Privacy" />
-          <AiPrivacyPreference />
           {/* ── Income Section ───────────────────────────────────────────── */}
           <ProfileSectionHeader title="Income" />
           <MonthlyIncome
@@ -200,17 +196,7 @@ export default function ProfileScreen() {
 
           {/* ── Security & Account Section ───────────────────────────────── */}
           <ProfileSectionHeader title="Security & account" />
-          <SettingsList
-            THEME={THEME}
-            items={[
-              {
-                title: "Manage transaction rules",
-                icon: "options-outline",
-                onPress: () => setRulesOpen(true),
-              },
-              ...settingsItems,
-            ]}
-          />
+          <SettingsList THEME={THEME} items={settingsItems} />
           <ProfileSectionHeader title="About" />
           <Text style={[TYPE.caption, { color: THEME.textSecondary }]}>
             Fundleaf
@@ -221,9 +207,6 @@ export default function ProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {rulesOpen && (
-        <RulesManager visible onClose={() => setRulesOpen(false)} />
-      )}
       {/* ── Modals & Overlays ─────────────────────────────────────────── */}
       <ChangePasswordModal
         THEME={THEME}

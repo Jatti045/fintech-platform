@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 import BrandButton from "@/components/brand/BrandButton";
 import BrandInput from "@/components/brand/BrandInput";
 import { BRAND, accentSurface } from "@/constants/ThemePalettes";
@@ -48,9 +49,12 @@ export default function MonthlyIncome({
   const expected = Number(input) || 0;
   const actual = actualIncome;
 
-  const earnedText = actual == null
-    ? loading ? "Loading recorded income…" : "Recorded income unavailable. Pull to refresh."
-    : `${error ? "Cached income; refresh failed. " : ""}${formatCurrency(actual, currencyCode)}${expected > 0 ? ` of ${formatCurrency(expected, currencyCode)} expected` : " (no positive target)"}`;
+  const earnedText =
+    actual == null
+      ? loading
+        ? "Loading recorded income…"
+        : "Recorded income unavailable. Pull to refresh."
+      : `${error ? "Cached income; refresh failed. " : ""}${formatCurrency(actual, currencyCode)}${expected > 0 ? ` of ${formatCurrency(expected, currencyCode)} expected` : " (no positive target)"}`;
 
   return (
     <View
@@ -70,7 +74,10 @@ export default function MonthlyIncome({
             width: 38,
             height: 38,
             borderRadius: 12,
-            backgroundColor: accentSurface(theme, hexToRgba(theme.primary, 0.12)),
+            backgroundColor: accentSurface(
+              theme,
+              hexToRgba(theme.primary, 0.12),
+            ),
             borderWidth: 1,
             borderColor: hexToRgba(theme.primary, 0.25),
             alignItems: "center",
@@ -122,20 +129,48 @@ export default function MonthlyIncome({
         >
           Recorded income · {monthLabel}
         </Text>
-        <Text
+        <View
           style={{
-            color: theme.success,
-            fontSize: 13,
-            fontWeight: "700",
-            letterSpacing: -0.1,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: BRAND.spacing.sm,
           }}
         >
-          {earnedText}
-        </Text>
+          {loading && actual == null && (
+            <FundleafLoader color={theme.primary} />
+          )}
+          <Text
+            style={{
+              color: theme.success,
+              flexShrink: 1,
+              fontSize: 13,
+              fontWeight: "700",
+              letterSpacing: -0.1,
+            }}
+          >
+            {earnedText}
+          </Text>
+        </View>
       </View>
 
-      <BrandInput label="Monthly income" value={input} onChangeText={setInput} keyboardType="decimal-pad" placeholder="0.00" editable={!saving && !loading} accessibilityLabel="Monthly income" />
-      <View style={{ marginTop: 16 }}><BrandButton label="Save Monthly Income" loadingLabel="Saving…" loading={saving} disabled={loading} onPress={onSave} /></View>
+      <BrandInput
+        label="Monthly income"
+        value={input}
+        onChangeText={setInput}
+        keyboardType="decimal-pad"
+        placeholder="0.00"
+        editable={!saving && !loading}
+        accessibilityLabel="Monthly income"
+      />
+      <View style={{ marginTop: 16 }}>
+        <BrandButton
+          label="Save Monthly Income"
+          loadingLabel="Saving…"
+          loading={saving}
+          disabled={loading}
+          onPress={onSave}
+        />
+      </View>
     </View>
   );
 }

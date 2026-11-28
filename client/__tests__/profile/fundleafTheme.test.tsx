@@ -4,7 +4,7 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { useColorScheme } from "react-native";
 import { useTheme } from "@/hooks/useRedux";
-import { THEME_PALETTES } from "@/constants/ThemePalettes";
+import { APPEARANCE_PALETTES, THEME_PALETTES } from "@/constants/ThemePalettes";
 import reducer, {
   loadThemeFromStorage,
   setTheme,
@@ -25,39 +25,42 @@ function contrast(a: string, b: string) {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
-it.each(["LIGHT", "DARK"] as const)(
-  "%s semantic foregrounds meet normal-text contrast",
-  (key) => {
-    const t = THEME_PALETTES[key];
-    for (const foreground of [
-      t.textPrimary,
-      t.textSecondary,
-      t.placeholderText,
-      t.success,
-      t.warning,
-      t.danger,
-      t.primary,
-    ]) {
-      expect(contrast(foreground, t.surface)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(foreground, t.background)).toBeGreaterThanOrEqual(4.5);
-    }
-    expect(contrast(t.onDanger, t.danger)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(t.onPrimary, t.primary)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(t.onPrimary, t.primaryHover)).toBeGreaterThanOrEqual(4.5);
-    for (const foreground of [
-      t.statementText,
-      t.statementMuted,
-      t.statementAccent,
-      t.statementDanger,
-    ]) {
-      expect(contrast(foreground, t.statement)).toBeGreaterThanOrEqual(4.5);
-    }
-    expect(contrast(t.danger, t.errorSurface)).toBeGreaterThanOrEqual(4.5);
-    expect(
-      contrast(t.textDisabled, t.disabledBackground),
-    ).toBeGreaterThanOrEqual(3);
-  },
-);
+it.each(
+  Object.entries(APPEARANCE_PALETTES).flatMap(([name, palette]) =>
+    Object.entries(palette).map(
+      ([appearance, colors]) => [`${name} ${appearance}`, colors] as const,
+    ),
+  ),
+)("%s semantic foregrounds meet normal-text contrast", (_appearance, t) => {
+  for (const foreground of [
+    t.textPrimary,
+    t.textSecondary,
+    t.placeholderText,
+    t.success,
+    t.warning,
+    t.danger,
+    t.primary,
+  ]) {
+    expect(contrast(foreground, t.surface)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(foreground, t.background)).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(contrast(t.onDanger, t.danger)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(t.onPrimary, t.primary)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(t.primary, t.accentSurface)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(t.onPrimary, t.primaryHover)).toBeGreaterThanOrEqual(4.5);
+  for (const foreground of [
+    t.statementText,
+    t.statementMuted,
+    t.statementAccent,
+    t.statementDanger,
+  ]) {
+    expect(contrast(foreground, t.statement)).toBeGreaterThanOrEqual(4.5);
+  }
+  expect(contrast(t.danger, t.errorSurface)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(t.textDisabled, t.disabledBackground)).toBeGreaterThanOrEqual(
+    3,
+  );
+});
 
 it("uses device appearance without a saved preference and follows subsequent changes", () => {
   const scheme = useColorScheme as jest.Mock;

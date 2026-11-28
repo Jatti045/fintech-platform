@@ -1,3 +1,4 @@
+import FundleafLoader from "@/components/brand/FundleafLoader";
 /**
  * TransactionScreen integration tests.
  *
@@ -29,7 +30,6 @@ import plaidReducer from "@/store/slices/plaidSlice";
 import themeReducer from "@/store/slices/themeSlice";
 import api from "@/store/api/apiSlice";
 import {
-  ActivityIndicator,
   SectionList,
   Text,
   TextInput,
@@ -41,7 +41,6 @@ import type { TransactionItem } from "@/types/transaction/types";
 const textMock = Text as unknown as jest.Mock;
 const textInputMock = TextInput as unknown as jest.Mock;
 const touchableOpacityMock = TouchableOpacity as unknown as jest.Mock;
-const activityIndicatorMock = ActivityIndicator as unknown as jest.Mock;
 
 jest.mock("@/api/transaction", () => ({
   __esModule: true,
@@ -252,7 +251,6 @@ beforeEach(async () => {
   textMock.mockClear();
   textInputMock.mockClear();
   touchableOpacityMock.mockClear();
-  activityIndicatorMock.mockClear();
 });
 
 describe("TransactionScreen", () => {
@@ -393,7 +391,7 @@ describe("TransactionScreen", () => {
     // No data yet: the existing standard loader renders, and no
     // "Filtering transactions…" overlay is ever mounted.
     expect(renderedText("Filtering transactions…")).toBe(false);
-    expect(activityIndicatorMock.mock.calls.length).toBeGreaterThan(0);
+    expect(tree.root.findAllByType(FundleafLoader).length).toBeGreaterThan(0);
 
     renderer.act(() => {
       gate.resolve(
@@ -422,7 +420,7 @@ describe("TransactionScreen", () => {
     expect(renderedText("Filtering transactions…")).toBe(false);
 
     // Settled: no lingering spinner anywhere in the tree.
-    expect(tree.root.findAllByType(ActivityIndicator).length).toBe(0);
+    expect(tree.root.findAllByType(FundleafLoader).length).toBe(0);
   });
 
   it("toggles All → Category → All repeatedly without getting stuck", async () => {
